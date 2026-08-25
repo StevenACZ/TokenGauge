@@ -6,13 +6,16 @@
 - The panel shows the Claude five-hour and weekly windows, the Codex mainline weekly window, and a seven-day activity chart.
 - SwiftPM app, Apple Silicon only for local packaging.
 - Bundle ID: `com.stevenacz.TokenGauge`.
-- The app never reads OAuth tokens or API keys, and never extracts or persists prompt or response content.
+- The app reads the Claude Code OAuth access token from the Keychain to call one read-only usage endpoint (Steven authorized this on 2026-08-25; before that the app read no credential at all). It never reads API keys and never extracts or persists prompt or response content.
 
 ## Data Contracts
 
 - Codex data comes from the local `codex app-server` stable account methods.
 - Keep app-server stdin open through responses 3 and 4, read ready pipe bytes with `poll` + `Darwin.read`, then close stdin and prove the child exits.
-- Claude quota data comes from the official status-line `rate_limits` payload and is reduced to percentages and reset timestamps by `TokenGaugeCapture`.
+- Claude quota data comes from `GET https://api.anthropic.com/api/oauth/usage`, the endpoint `/usage` itself calls, with `Authorization: Bearer` and `anthropic-beta: oauth-2025-04-20`. Parse the `limits` array (`session`, `weekly_all`, `weekly_scoped` with `scope.model.display_name`), not the legacy top-level buckets: the model-scoped weekly limit exists only there.
+- **Never refresh, rotate, or write the OAuth credential.** Read the Keychain item (`Claude Code-credentials` / the login name) at call time, use the token, keep nothing. Claude Code owns that credential and refreshes it; a refresh from here would rotate the refresh token and sign Steven out. An expired token is a skip, not a reason to renew.
+- Persist only percentages and reset timestamps from that response. The token, the account fields, and the spend figures never reach disk.
+- The status-line `rate_limits` payload stays as the credential-free fallback through `TokenGaugeCapture`. It carries only the session and all-models windows, so the Fable row is absent while the fallback is in use — leave it absent rather than estimating it.
 - Claude activity reads only timestamps, message IDs, model identifiers, and numeric usage fields from local JSONL transcripts, aggregated into hourly per-model buckets.
 - The official status line exposes only the `five_hour` and `seven_day` buckets. There is no per-model quota bucket, so per-model figures always come from local transcripts and are labelled as token totals, never as quota.
 - Codex Spark buckets are hidden in the panel through `WindowVisibility`; the cache keeps every bucket the app-server returns.

@@ -53,12 +53,11 @@ enum UsageFormatters {
         if window.id == "five_hour" || window.durationMinutes == 300 {
             return "window.session".localized
         }
+        if let displayName = window.displayName, !displayName.isEmpty, window.durationMinutes == 10_080 {
+            return "window.model_weekly".localized(displayName)
+        }
         if window.id == "seven_day" || window.durationMinutes == 10_080 {
             return "window.weekly".localized
-        }
-        if window.id.hasPrefix("seven_day_") {
-            let model = window.id.replacingOccurrences(of: "seven_day_", with: "").capitalized
-            return "window.model_weekly".localized(model)
         }
         if let displayName = window.displayName, !displayName.isEmpty {
             return displayName

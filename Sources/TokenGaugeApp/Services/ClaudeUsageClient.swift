@@ -10,24 +10,43 @@ struct ClaudeUsageClient: Sendable {
     }
 
     func fetch(now: Date = Date()) throws -> ProviderUsageSnapshot {
+        let buckets = (try? fetchModelBuckets(now: now)) ?? []
+        let account = ClaudeAccountUsageClient(homeDirectory: homeDirectory)
+
+        if let live = try? account.fetch(now: now) {
+            return snapshot(windows: live.windows, capturedAt: live.capturedAt, modelBuckets: buckets)
+        }
+
         let capture = try? SecureMetricStore.read(
             ClaudeCapturedSnapshot.self,
             from: UsagePaths.claudeCapture(homeDirectory: homeDirectory)
         )
-        let buckets = (try? fetchModelBuckets(now: now)) ?? []
-        guard let capture else {
-            return ProviderUsageSnapshot(
-                provider: .claude,
-                windows: [],
-                dailyUsage: ModelTokenAggregator.daily(buckets),
-                summary: nil,
-                availableResetCredits: nil,
-                creditBalance: nil,
-                capturedAt: nil,
-                modelBuckets: buckets
-            )
+        let cached = account.cached()
+
+        if let cached, cached.capturedAt >= (capture?.capturedAt ?? .distantPast) {
+            return snapshot(windows: cached.windows, capturedAt: cached.capturedAt, modelBuckets: buckets)
         }
-        return ClaudeUsageParser.normalize(capture, modelBuckets: buckets)
+        if let capture {
+            return ClaudeUsageParser.normalize(capture, modelBuckets: buckets)
+        }
+        return snapshot(windows: [], capturedAt: nil, modelBuckets: buckets)
+    }
+
+    private func snapshot(
+        windows: [QuotaWindow],
+        capturedAt: Date?,
+        modelBuckets: [ModelTokenBucket]
+    ) -> ProviderUsageSnapshot {
+        ProviderUsageSnapshot(
+            provider: .claude,
+            windows: windows,
+            dailyUsage: ModelTokenAggregator.daily(modelBuckets),
+            summary: nil,
+            availableResetCredits: nil,
+            creditBalance: nil,
+            capturedAt: capturedAt,
+            modelBuckets: modelBuckets
+        )
     }
 
     private func fetchModelBuckets(now: Date) throws -> [ModelTokenBucket] {

@@ -70,7 +70,12 @@ struct ProviderCard: View {
 
     private func chips(for window: QuotaWindow) -> [ModelUsageChip] {
         guard provider == .claude, let snapshot = state.snapshot else { return [] }
-        return ModelActivity.chips(buckets: snapshot.modelBuckets, since: window.startsAt, limit: 2)
+        return ModelActivity.chips(
+            buckets: snapshot.modelBuckets,
+            since: window.startsAt,
+            limit: 2,
+            family: window.displayName
+        )
     }
 
     @ViewBuilder

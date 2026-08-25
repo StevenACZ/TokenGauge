@@ -14,9 +14,14 @@ enum ModelActivity {
     static func chips(
         buckets: [ModelTokenBucket],
         since: Date?,
-        limit: Int = 3
+        limit: Int = 3,
+        family: String? = nil
     ) -> [ModelUsageChip] {
-        ModelTokenAggregator.byModel(buckets, since: since)
+        let scoped =
+            family.map { name in
+                buckets.filter { displayName($0.model).caseInsensitiveCompare(name) == .orderedSame }
+            } ?? buckets
+        return ModelTokenAggregator.byModel(scoped, since: since)
             .prefix(limit)
             .map { ModelUsageChip(model: $0.model, tokens: $0.tokens) }
     }
