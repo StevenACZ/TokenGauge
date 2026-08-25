@@ -7,45 +7,41 @@ struct PopoverView: View {
     @ObservedObject private var localization = LocalizationManager.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 11) {
+        VStack(alignment: .leading, spacing: Theme.Layout.sectionSpacing) {
             header
             ProviderCard(provider: .claude, state: store.claude)
             ProviderCard(provider: .codex, state: store.codex)
             ActivityChartView(claude: store.claude.snapshot, codex: store.codex.snapshot)
-            Divider()
+            Divider().padding(.top, 1)
             footer
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, Theme.Layout.panelPadding)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
         .frame(width: Theme.Layout.panelWidth)
         .fixedSize(horizontal: false, vertical: true)
         .id(localization.language)
     }
 
     private var header: some View {
-        HStack(spacing: 11) {
+        HStack(spacing: 8) {
             ZStack {
-                Circle()
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [Theme.claude.opacity(0.18), Theme.codex.opacity(0.2)],
+                            colors: [Theme.claude.opacity(0.9), Theme.codex.opacity(0.9)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                Image(systemName: "chart.bar.xaxis")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Theme.codex)
+                Image(systemName: "chart.bar.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
             }
-            .frame(width: 38, height: 38)
+            .frame(width: 22, height: 22)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text("app.name".localized)
-                    .font(.headline)
-                Text("app.subtitle".localized)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Text("app.name".localized)
+                .font(.system(size: 14, weight: .semibold))
 
             Spacer(minLength: 0)
 
@@ -55,9 +51,12 @@ struct PopoverView: View {
                 if store.isRefreshing {
                     ProgressView()
                         .controlSize(.small)
-                        .frame(width: 16, height: 16)
+                        .frame(width: 14, height: 14)
                 } else {
                     Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 14, height: 14)
                 }
             }
             .buttonStyle(.borderless)
@@ -67,69 +66,82 @@ struct PopoverView: View {
     }
 
     private var footer: some View {
-        VStack(spacing: 3) {
-            FooterSettingsRow(
-                isOn: Binding(
-                    get: { launchAtLogin.isEnabled },
-                    set: { launchAtLogin.setEnabled($0) }
-                ),
-                language: $localization.language
-            )
-            FooterActionRow(icon: "power", title: "action.quit".localized, destructive: true) {
+        VStack(spacing: 0) {
+            SettingRow(icon: "powerplug", title: "settings.launch_at_login".localized) {
+                Toggle(
+                    "",
+                    isOn: Binding(
+                        get: { launchAtLogin.isEnabled },
+                        set: { launchAtLogin.setEnabled($0) }
+                    )
+                )
+                .labelsHidden()
+                .controlSize(.mini)
+
+                Picker("", selection: $localization.language) {
+                    Text("language.spanish".localized).tag(AppLanguage.spanish)
+                    Text("language.english".localized).tag(AppLanguage.english)
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .fixedSize()
+                .help("settings.language".localized)
+            }
+
+            FooterActionRow(icon: "power", title: "action.quit".localized) {
                 NSApp.terminate(nil)
             }
         }
     }
 }
 
-private struct FooterSettingsRow: View {
-    @Binding var isOn: Bool
-    @Binding var language: AppLanguage
+private struct SettingRow<Accessory: View>: View {
+    let icon: String
+    let title: String
+    @ViewBuilder let accessory: Accessory
 
     var body: some View {
-        HStack {
-            Label("settings.launch_at_login".localized, systemImage: "powerplug")
-                .foregroundStyle(.primary)
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .controlSize(.small)
-            Spacer()
-            Picker("settings.language".localized, selection: $language) {
-                Text("language.spanish".localized).tag(AppLanguage.spanish)
-                Text("language.english".localized).tag(AppLanguage.english)
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .fixedSize()
+        HStack(spacing: 9) {
+            Image(systemName: icon)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .frame(width: 15)
+            Text(title)
+                .font(.caption)
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            accessory
         }
-        .padding(.horizontal, 8)
-        .frame(height: 36)
+        .padding(.horizontal, 5)
+        .frame(height: 28)
     }
 }
 
 private struct FooterActionRow: View {
     let icon: String
     let title: String
-    let destructive: Bool
     let action: () -> Void
 
     @State private var hovered = false
 
     var body: some View {
         Button(action: action) {
-            HStack {
+            HStack(spacing: 9) {
                 Image(systemName: icon)
-                    .frame(width: 18)
+                    .font(.system(size: 11))
+                    .frame(width: 15)
                 Text(title)
-                Spacer()
+                    .font(.caption)
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 8)
-            .frame(height: 34)
+            .padding(.horizontal, 5)
+            .frame(height: 28)
             .background(
                 RoundedRectangle(cornerRadius: Theme.Layout.rowRadius, style: .continuous)
-                    .fill(hovered ? Color.primary.opacity(0.06) : Color.clear)
+                    .fill(hovered ? Color.primary.opacity(0.07) : Color.clear)
             )
-            .foregroundStyle(destructive ? Color.red : Color.primary)
+            .foregroundStyle(Color.red)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

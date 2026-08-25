@@ -42,7 +42,7 @@ public enum ClaudeUsageParser {
 
     public static func normalize(
         _ capture: ClaudeCapturedSnapshot,
-        dailyUsage: [DailyTokenUsage]
+        modelBuckets: [ModelTokenBucket]
     ) -> ProviderUsageSnapshot {
         let windows = capture.windows.map { key, value in
             QuotaWindow(
@@ -61,11 +61,12 @@ public enum ClaudeUsageParser {
         return ProviderUsageSnapshot(
             provider: .claude,
             windows: windows,
-            dailyUsage: dailyUsage,
+            dailyUsage: ModelTokenAggregator.daily(modelBuckets),
             summary: nil,
             availableResetCredits: nil,
             creditBalance: nil,
-            capturedAt: capture.capturedAt
+            capturedAt: capture.capturedAt,
+            modelBuckets: modelBuckets
         )
     }
 

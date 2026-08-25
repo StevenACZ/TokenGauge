@@ -36,15 +36,22 @@ struct ActivityChartView: View {
         }
     }
 
+    private var chartDomain: ClosedRange<Date> {
+        let half: TimeInterval = 43_200
+        let first = days.first ?? Date()
+        let last = days.last ?? Date()
+        return first.addingTimeInterval(-half)...last.addingTimeInterval(half)
+    }
+
     private var maximumTokens: Int {
         max(points.map(\.tokens).max() ?? 0, 1)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text("activity.title".localized)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                 Spacer()
                 legend
             }
@@ -57,18 +64,18 @@ struct ActivityChartView: View {
                     )
                     .position(by: .value("activity.provider".localized, point.provider.rawValue))
                     .foregroundStyle(point.provider == .claude ? Theme.claude : Theme.codex)
-                    .cornerRadius(2)
+                    .cornerRadius(1.5)
                 }
                 RuleMark(x: .value("activity.selection".localized, selectedDate, unit: .day))
                     .foregroundStyle(Color.secondary.opacity(0.22))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 2]))
             }
-            .chartXScale(domain: days.first!...days.last!)
+            .chartXScale(domain: chartDomain)
             .chartYScale(domain: 0...maximumTokens)
             .chartXAxis {
                 AxisMarks(values: days) { _ in
                     AxisValueLabel(format: .dateTime.weekday(.narrow))
-                        .font(.caption2)
+                        .font(.system(size: 9))
                 }
             }
             .chartYAxis {
@@ -77,7 +84,7 @@ struct ActivityChartView: View {
                     AxisValueLabel {
                         if let tokens = value.as(Int.self) {
                             Text(UsageFormatters.tokens(tokens))
-                                .font(.system(size: 8))
+                                .font(.system(size: 7))
                         }
                     }
                 }
@@ -97,15 +104,15 @@ struct ActivityChartView: View {
                         }
                 }
             }
-            .frame(height: 68)
+            .frame(height: 44)
 
             Text(selectedSummary)
-                .font(.caption2)
+                .font(.system(size: 10))
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
                 .lineLimit(1)
         }
-        .padding(.horizontal, 2)
+        .padding(.horizontal, 1)
     }
 
     private var selectedSummary: String {
@@ -131,11 +138,11 @@ struct ActivityChartView: View {
     }
 
     private var legend: some View {
-        HStack(spacing: 9) {
+        HStack(spacing: 8) {
             legendItem(color: Theme.claude, title: "provider.claude_short".localized)
             legendItem(color: Theme.codex, title: "provider.codex".localized)
         }
-        .font(.caption2)
+        .font(.system(size: 10))
         .foregroundStyle(.secondary)
     }
 

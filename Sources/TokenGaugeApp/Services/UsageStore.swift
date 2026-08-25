@@ -143,8 +143,9 @@ enum ProviderStateResolver {
 
     static func overallRemaining(states: [ProviderViewState]) -> Double? {
         states.flatMap { state -> [Double] in
-            guard state.status == .ready else { return [] }
-            return state.snapshot?.windows.map(\.remainingPercentage) ?? []
+            guard state.status == .ready, let snapshot = state.snapshot else { return [] }
+            return WindowVisibility.visible(snapshot.windows, provider: snapshot.provider)
+                .map(\.remainingPercentage)
         }.min()
     }
 }

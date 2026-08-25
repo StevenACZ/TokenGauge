@@ -22,13 +22,16 @@ enum UsageFormatters {
         return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
-    @MainActor static func reset(_ date: Date?) -> String {
-        guard let date else { return "reset.unknown".localized }
-        if date <= Date() { return "reset.pending_refresh".localized }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: LocalizationManager.shared.language.rawValue)
-        formatter.unitsStyle = .full
-        return "reset.in".localized(formatter.localizedString(for: date, relativeTo: Date()))
+    @MainActor static func resetCompact(_ date: Date?) -> String {
+        guard let date else { return "reset.unknown_short".localized }
+        let remaining = date.timeIntervalSinceNow
+        guard remaining > 0 else { return "reset.pending_short".localized }
+        let formatter = DateComponentsFormatter()
+        formatter.calendar?.locale = Locale(identifier: LocalizationManager.shared.language.rawValue)
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 1
+        formatter.allowedUnits = remaining >= 86_400 ? [.day] : (remaining >= 3600 ? [.hour] : [.minute])
+        return formatter.string(from: max(remaining, 60)) ?? "reset.unknown_short".localized
     }
 
     @MainActor static func lastUpdated(_ date: Date?) -> String {
@@ -36,19 +39,10 @@ enum UsageFormatters {
         let formatter = RelativeDateTimeFormatter()
         formatter.locale = Locale(identifier: LocalizationManager.shared.language.rawValue)
         formatter.unitsStyle = .short
-        return "updated.value".localized(formatter.localizedString(for: date, relativeTo: Date()))
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 
     @MainActor static func windowName(_ window: QuotaWindow) -> String {
-        if let displayName = window.displayName, !displayName.isEmpty {
-            if window.durationMinutes == 300 {
-                return "window.named_session".localized(displayName)
-            }
-            if window.durationMinutes == 10_080 {
-                return "window.named_weekly".localized(displayName)
-            }
-            return displayName
-        }
         if window.id == "five_hour" || window.durationMinutes == 300 {
             return "window.session".localized
         }
@@ -59,10 +53,15 @@ enum UsageFormatters {
             let model = window.id.replacingOccurrences(of: "seven_day_", with: "").capitalized
             return "window.model_weekly".localized(model)
         }
-        if window.id.contains("other") {
-            return "window.other_models".localized
+        if let displayName = window.displayName, !displayName.isEmpty {
+            return displayName
         }
         return "window.usage".localized
+    }
+
+    @MainActor static func modelChips(_ chips: [ModelUsageChip]) -> String? {
+        guard !chips.isEmpty else { return nil }
+        return chips.map { "\($0.displayName) \(tokens($0.tokens))" }.joined(separator: " · ")
     }
 
     private static func decimal(_ value: Double) -> String {

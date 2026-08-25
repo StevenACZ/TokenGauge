@@ -3,10 +3,10 @@ import Foundation
 public enum ClaudeHistoryScanner {
     public static func scan(
         projectsRoot: URL = UsagePaths.claudeProjects(),
-        days: Int = 14,
+        days: Int = 8,
         now: Date = Date(),
         calendar: Calendar = .current
-    ) throws -> [DailyTokenUsage] {
+    ) throws -> [ModelTokenBucket] {
         guard days > 0 else { return [] }
         let start = calendar.startOfDay(for: calendar.date(byAdding: .day, value: -(days - 1), to: now) ?? now)
         let keys: [URLResourceKey] = [.isRegularFileKey, .contentModificationDateKey]
@@ -22,7 +22,7 @@ public enum ClaudeHistoryScanner {
         fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let standardFormatter = ISO8601DateFormatter()
         let decoder = JSONDecoder()
-        var messages: [String: (day: String, tokens: Int)] = [:]
+        var messages: [String: (day: String, hour: Date, model: String, tokens: Int)] = [:]
 
         for case let fileURL as URL in enumerator {
             guard fileURL.pathExtension == "jsonl" else { continue }
@@ -51,22 +51,41 @@ public enum ClaudeHistoryScanner {
                         + max(usage.cacheCreationInputTokens ?? 0, 0)
                         + max(usage.cacheReadInputTokens ?? 0, 0)
                     guard tokens > 0 else { return }
+                    let model = normalizedModel(message.model)
                     let day = dayString(date, calendar: calendar)
+                    let hour = hourStart(date)
                     if let current = messages[messageID], current.tokens >= tokens {
                         return
                     }
-                    messages[messageID] = (day, tokens)
+                    messages[messageID] = (day, hour, model, tokens)
                 }
             }
         }
 
-        var daily: [String: Int] = [:]
+        var totals: [ModelTokenBucket.ID: ModelTokenBucket] = [:]
         for message in messages.values {
-            daily[message.day, default: 0] += message.tokens
+            let key = "\(message.model)-\(message.hour.timeIntervalSince1970)"
+            let merged = (totals[key]?.tokens ?? 0) + message.tokens
+            totals[key] = ModelTokenBucket(
+                day: message.day,
+                hourStart: message.hour,
+                model: message.model,
+                tokens: merged
+            )
         }
-        return daily.map { day, tokens in
-            DailyTokenUsage(day: day, tokens: tokens)
-        }.sorted { $0.day < $1.day }
+        return totals.values.sorted { left, right in
+            if left.hourStart != right.hourStart { return left.hourStart < right.hourStart }
+            return left.model < right.model
+        }
+    }
+
+    private static func normalizedModel(_ raw: String?) -> String {
+        guard let raw, !raw.isEmpty, !raw.hasPrefix("<") else { return "unknown" }
+        return raw
+    }
+
+    private static func hourStart(_ date: Date) -> Date {
+        Date(timeIntervalSince1970: (date.timeIntervalSince1970 / 3600).rounded(.down) * 3600)
     }
 
     private static func dayString(_ date: Date, calendar: Calendar) -> String {
@@ -89,6 +108,7 @@ private struct ClaudeTranscriptRecord: Decodable {
 
 private struct ClaudeTranscriptMessage: Decodable {
     let id: String?
+    let model: String?
     let usage: ClaudeTranscriptUsage?
 }
 

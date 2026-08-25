@@ -9,6 +9,7 @@ final class StatusItemController: NSObject {
     private let store: UsageStore
     private let launchAtLogin: LaunchAtLoginManager
     private var cancellables = Set<AnyCancellable>()
+    private var renderedRemaining: Int?
 
     init(store: UsageStore, launchAtLogin: LaunchAtLoginManager) {
         self.store = store
@@ -22,9 +23,8 @@ final class StatusItemController: NSObject {
         if let button = statusItem.button {
             button.target = self
             button.action = #selector(togglePopover)
-            button.imagePosition = .imageLeading
-            button.imageScaling = .scaleProportionallyDown
-            button.image = NSImage(systemSymbolName: "chart.bar.xaxis", accessibilityDescription: "TokenGauge")
+            button.imagePosition = .imageOnly
+            button.imageScaling = .scaleNone
         }
 
         Publishers.CombineLatest(store.$claude, store.$codex)
@@ -54,26 +54,19 @@ final class StatusItemController: NSObject {
     private func updateStatusItem() {
         guard let button = statusItem.button else { return }
         let remaining = store.overallRemaining
-        let text = remaining.map { " \(Int($0.rounded()))%" } ?? " --"
-        let color: NSColor
-        switch remaining {
-        case .some(let value) where value < 15:
-            color = .systemRed
-        case .some(let value) where value < 35:
-            color = .systemOrange
-        default:
-            color = .labelColor
+        let rendered = remaining.map { Int($0.rounded()) }
+        if rendered != renderedRemaining || button.image == nil {
+            renderedRemaining = rendered
+            button.image = MenuBarGlyph.image(remaining: remaining)
+            statusItem.length = NSStatusItem.variableLength
         }
-        let title = NSAttributedString(
-            string: text,
-            attributes: [
-                .foregroundColor: color,
-                .font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .semibold),
-            ]
-        )
-        if !button.attributedTitle.isEqual(title) {
-            button.attributedTitle = title
-            statusItem.length = min(ceil(button.fittingSize.width), 82)
+        switch remaining {
+        case .some(let value) where value < 12:
+            button.contentTintColor = .systemRed
+        case .some(let value) where value < 30:
+            button.contentTintColor = .systemOrange
+        default:
+            button.contentTintColor = nil
         }
     }
 

@@ -3,6 +3,7 @@
 ## Product
 
 - Native macOS 14+ menu bar app for Claude Code and Codex plan usage.
+- The panel shows the Claude five-hour and weekly windows, the Codex mainline weekly window, and a seven-day activity chart.
 - SwiftPM app, Apple Silicon only for local packaging.
 - Bundle ID: `com.stevenacz.TokenGauge`.
 - The app never reads OAuth tokens or API keys, and never extracts or persists prompt or response content.
@@ -12,7 +13,9 @@
 - Codex data comes from the local `codex app-server` stable account methods.
 - Keep app-server stdin open through responses 3 and 4, read ready pipe bytes with `poll` + `Darwin.read`, then close stdin and prove the child exits.
 - Claude quota data comes from the official status-line `rate_limits` payload and is reduced to percentages and reset timestamps by `TokenGaugeCapture`.
-- Claude activity reads only timestamps, message IDs, and numeric usage fields from local JSONL transcripts.
+- Claude activity reads only timestamps, message IDs, model identifiers, and numeric usage fields from local JSONL transcripts, aggregated into hourly per-model buckets.
+- The official status line exposes only the `five_hour` and `seven_day` buckets. There is no per-model quota bucket, so per-model figures always come from local transcripts and are labelled as token totals, never as quota.
+- Codex Spark buckets are hidden in the panel through `WindowVisibility`; the cache keeps every bucket the app-server returns.
 - Claude history scans run only in the short-lived `TokenGaugeCapture --history` helper; scanning JSONL in the resident app retained hundreds of megabytes after completion.
 - Persist normalized metrics only under `~/Library/Application Support/TokenGauge` with user-only permissions.
 - Missing or stale provider data must remain visible and honest. Never fabricate usage.
@@ -24,7 +27,8 @@
 - Keep the status-line helper minimal and dependent only on `TokenGaugeCore`.
 - Use `NSStatusItem` + lazy `NSPopover`; release the hosting controller when the popover closes.
 - No continuous menu bar or hidden-popover animations.
-- Centralize visual constants in `Theme.swift`.
+- Centralize visual constants in `Theme.swift`; the panel is 300 pt wide and must stay under 500 pt tall.
+- Render the menu bar item as a single template `NSImage` from `MenuBarGlyph` with `NSStatusItem.variableLength`, never as an image plus `attributedTitle`.
 - Localize all visible strings in English and Spanish.
 
 ## Safety

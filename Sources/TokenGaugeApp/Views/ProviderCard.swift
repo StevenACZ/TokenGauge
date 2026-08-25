@@ -9,71 +9,84 @@ struct ProviderCard: View {
         provider == .claude ? Theme.claude : Theme.codex
     }
 
+    private var visibleWindows: [QuotaWindow] {
+        guard let snapshot = state.snapshot else { return [] }
+        return WindowVisibility.visible(snapshot.windows, provider: provider)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 9) {
             header
-            if let snapshot = state.snapshot {
-                if snapshot.windows.isEmpty {
-                    statusMessage
-                } else {
-                    ForEach(snapshot.windows) { window in
-                        QuotaWindowRow(window: window, tint: tint)
-                    }
-                }
-            } else {
+            if visibleWindows.isEmpty {
                 statusMessage
+            } else {
+                ForEach(visibleWindows) { window in
+                    QuotaWindowRow(
+                        window: window,
+                        tint: tint,
+                        chips: chips(for: window)
+                    )
+                }
             }
         }
-        .padding(12)
-        .providerCard(tint: tint)
+        .padding(10)
+        .providerCard()
     }
 
     private var header: some View {
-        HStack(spacing: 9) {
+        HStack(spacing: 8) {
             Image(systemName: provider == .claude ? "sparkles" : "chevron.left.forwardslash.chevron.right")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(tint)
-                .frame(width: 29, height: 29)
-                .background(Circle().fill(tint.opacity(0.12)))
+                .frame(width: 21, height: 21)
+                .background(Circle().fill(tint.opacity(0.14)))
 
-            VStack(alignment: .leading, spacing: 0) {
-                Text(provider == .claude ? "provider.claude".localized : "provider.codex".localized)
-                    .font(.headline)
-                Text(statusSubtitle)
-                    .font(.caption2)
-                    .foregroundStyle(statusColor)
+            Text(provider == .claude ? "provider.claude".localized : "provider.codex".localized)
+                .font(.subheadline.weight(.semibold))
+
+            Spacer(minLength: 4)
+
+            if let credits = state.snapshot?.availableResetCredits, credits > 0 {
+                Label("\(credits)", systemImage: "arrow.counterclockwise")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(tint.opacity(0.13)))
             }
-            Spacer()
-            if let snapshot = state.snapshot {
-                HStack(spacing: 7) {
-                    if let count = snapshot.availableResetCredits, count > 0 {
-                        Label("\(count)", systemImage: "arrow.counterclockwise.circle.fill")
-                    }
-                    if let balance = snapshot.creditBalance {
-                        Text("credits.compact".localized(balance))
-                    }
-                }
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(tint)
-            }
+
             if state.isRefreshing {
-                ProgressView()
-                    .controlSize(.small)
+                ProgressView().controlSize(.mini)
+            } else {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 5, height: 5)
+                    Text(statusSubtitle)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
             }
         }
+    }
+
+    private func chips(for window: QuotaWindow) -> [ModelUsageChip] {
+        guard provider == .claude, let snapshot = state.snapshot else { return [] }
+        return ModelActivity.chips(buckets: snapshot.modelBuckets, since: window.startsAt, limit: 2)
     }
 
     @ViewBuilder
     private var statusMessage: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: 7) {
             Image(systemName: statusIcon)
+                .font(.system(size: 11))
                 .foregroundStyle(statusColor)
             Text(messageText)
-                .font(.caption)
+                .font(.caption2)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.vertical, 3)
+        .padding(.bottom, 2)
     }
 
     private var statusText: String {
@@ -87,8 +100,8 @@ struct ProviderCard: View {
     }
 
     private var statusSubtitle: String {
-        guard let capturedAt = state.snapshot?.capturedAt else { return statusText }
-        return "\(statusText) · \(UsageFormatters.lastUpdated(capturedAt))"
+        guard state.status == .ready, let capturedAt = state.snapshot?.capturedAt else { return statusText }
+        return UsageFormatters.lastUpdated(capturedAt)
     }
 
     private var statusIcon: String {
@@ -133,34 +146,54 @@ struct ProviderCard: View {
 private struct QuotaWindowRow: View {
     let window: QuotaWindow
     let tint: Color
+    let chips: [ModelUsageChip]
+
+    private var valueColor: Color {
+        Theme.severity(remaining: window.remainingPercentage) ?? .primary
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(UsageFormatters.windowName(window))
-                        .font(.caption.weight(.semibold))
-                        .lineLimit(1)
-                    Text(
-                        "quota.used_with_reset".localized(
-                            UsageFormatters.percentage(window.usedPercentage),
-                            UsageFormatters.reset(window.resetsAt)
-                        )
-                    )
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(UsageFormatters.windowName(window))
+                    .font(.caption.weight(.medium))
                     .lineLimit(1)
-                }
-                Spacer()
+                Spacer(minLength: 4)
                 Text(UsageFormatters.percentage(window.remainingPercentage))
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .monospacedDigit()
+                    .foregroundStyle(valueColor)
                     .contentTransition(.numericText())
+                Text("quota.remaining".localized)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
             }
 
-            ProgressView(value: window.remainingPercentage, total: 100)
-                .tint(tint)
-                .animation(Theme.Motion.value, value: window.remainingPercentage)
+            GaugeBar(fraction: window.remainingPercentage / 100, tint: tint)
+
+            HStack(spacing: 6) {
+                Label(UsageFormatters.resetCompact(window.resetsAt), systemImage: "arrow.clockwise")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .labelStyle(CompactLabelStyle())
+                Spacer(minLength: 4)
+                if let summary = UsageFormatters.modelChips(chips) {
+                    Text(summary)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .monospacedDigit()
+                }
+            }
+        }
+    }
+}
+
+private struct CompactLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 3) {
+            configuration.icon.font(.system(size: 8, weight: .semibold))
+            configuration.title
         }
     }
 }

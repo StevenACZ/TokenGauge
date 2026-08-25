@@ -14,22 +14,23 @@ struct ClaudeUsageClient: Sendable {
             ClaudeCapturedSnapshot.self,
             from: UsagePaths.claudeCapture(homeDirectory: homeDirectory)
         )
-        let daily = (try? fetchDailyUsage(now: now)) ?? []
+        let buckets = (try? fetchModelBuckets(now: now)) ?? []
         guard let capture else {
             return ProviderUsageSnapshot(
                 provider: .claude,
                 windows: [],
-                dailyUsage: daily,
+                dailyUsage: ModelTokenAggregator.daily(buckets),
                 summary: nil,
                 availableResetCredits: nil,
                 creditBalance: nil,
-                capturedAt: nil
+                capturedAt: nil,
+                modelBuckets: buckets
             )
         }
-        return ClaudeUsageParser.normalize(capture, dailyUsage: daily)
+        return ClaudeUsageParser.normalize(capture, modelBuckets: buckets)
     }
 
-    private func fetchDailyUsage(now: Date) throws -> [DailyTokenUsage] {
+    private func fetchModelBuckets(now: Date) throws -> [ModelTokenBucket] {
         guard let executable = resolveCaptureExecutable() else {
             return try ClaudeHistoryScanner.scan(
                 projectsRoot: UsagePaths.claudeProjects(homeDirectory: homeDirectory),
@@ -63,7 +64,7 @@ struct ClaudeUsageClient: Sendable {
             throw UsageDataError.processFailed(String(decoding: error.prefix(240), as: UTF8.self))
         }
         let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        return try JSONDecoder().decode([DailyTokenUsage].self, from: data)
+        return try JSONDecoder().decode([ModelTokenBucket].self, from: data)
     }
 
     private func resolveCaptureExecutable() -> URL? {
