@@ -28,6 +28,7 @@
 - Use `NSStatusItem` + lazy `NSPopover`; release the hosting controller when the popover closes.
 - No continuous menu bar or hidden-popover animations.
 - Centralize visual constants in `Theme.swift`; the panel is 300 pt wide and must stay under 500 pt tall.
+- The header refresh button is the ONLY refresh affordance. Never put a circular-arrow glyph on a quota row, a reset time, or a credit pill: the store refreshes every five minutes and the panel must not look like it needs clicking (Steven, 2026-08-25).
 - Render the menu bar item as a single template `NSImage` from `MenuBarGlyph` with `NSStatusItem.variableLength`, never as an image plus `attributedTitle`. **Never assign `NSStatusItem.length` from a measurement taken in the same runloop turn as the content change** — it clips the content it was measured from (lesson `tokengauge-statusitem-length-clips-title`).
 - Localize all visible strings in English and Spanish.
 
