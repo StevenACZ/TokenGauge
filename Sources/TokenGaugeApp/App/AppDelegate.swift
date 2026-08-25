@@ -11,4 +11,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusController = StatusItemController(store: store, launchAtLogin: launchAtLogin)
         store.start()
     }
+
 }

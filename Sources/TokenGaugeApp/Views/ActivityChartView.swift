@@ -3,11 +3,12 @@ import SwiftUI
 import TokenGaugeCore
 
 private struct ActivityPoint: Identifiable {
+    let day: String
     let date: Date
     let provider: UsageProvider
     let tokens: Int
 
-    var id: String { "\(provider.rawValue)-\(date.timeIntervalSince1970)" }
+    var id: String { "\(provider.rawValue)-\(day)" }
 }
 
 struct ActivityChartView: View {
@@ -29,18 +30,20 @@ struct ActivityChartView: View {
                 snapshot.map { ($0.provider, $0) }
             })
         return days.flatMap { date in
-            UsageProvider.allCases.map { provider in
-                let usage = snapshots[provider]?.dailyUsage.first { $0.day == Self.dayKey(date) }?.tokens ?? 0
-                return ActivityPoint(date: date, provider: provider, tokens: usage)
+            let day = Self.dayKey(date)
+            return UsageProvider.allCases.map { provider in
+                let usage = snapshots[provider]?.dailyUsage.first { $0.day == day }?.tokens ?? 0
+                return ActivityPoint(day: day, date: date, provider: provider, tokens: usage)
             }
         }
     }
 
-    private var chartDomain: ClosedRange<Date> {
-        let half: TimeInterval = 43_200
-        let first = days.first ?? Date()
-        let last = days.last ?? Date()
-        return first.addingTimeInterval(-half)...last.addingTimeInterval(half)
+    private var dayKeys: [String] {
+        days.map(Self.dayKey)
+    }
+
+    private var selectedKey: String {
+        Self.dayKey(selectedDate)
     }
 
     private var maximumTokens: Int {
@@ -59,23 +62,23 @@ struct ActivityChartView: View {
             Chart {
                 ForEach(points) { point in
                     BarMark(
-                        x: .value("activity.day".localized, point.date, unit: .day),
+                        x: .value("activity.day".localized, point.day),
                         y: .value("activity.tokens".localized, point.tokens),
-                        width: .fixed(9)
+                        width: .ratio(0.78)
                     )
-                    .position(by: .value("activity.provider".localized, point.provider.rawValue), span: .fixed(20))
+                    .position(by: .value("activity.provider".localized, point.provider.rawValue))
                     .foregroundStyle(point.provider == .claude ? Theme.claude : Theme.codex)
                     .cornerRadius(2.5)
                 }
             }
-            .chartXScale(domain: chartDomain)
+            .chartXScale(domain: dayKeys)
             .chartYScale(domain: 0...maximumTokens)
             .chartYAxis(.hidden)
             .chartXAxis {
-                AxisMarks(values: days) { value in
+                AxisMarks(values: dayKeys) { value in
                     AxisValueLabel {
-                        if let date = value.as(Date.self) {
-                            let selected = Calendar.current.isDate(date, inSameDayAs: selectedDate)
+                        if let key = value.as(String.self), let date = Self.date(from: key) {
+                            let selected = key == selectedKey
                             Text(date, format: .dateTime.weekday(.narrow))
                                 .font(.system(size: 9, weight: selected ? .bold : .regular))
                                 .foregroundStyle(selected ? Color.primary : Color.secondary)
@@ -100,8 +103,9 @@ struct ActivityChartView: View {
                             let frame = geometry[plotFrame]
                             guard frame.contains(location) else { return }
                             let xPosition = location.x - frame.minX
-                            guard let date: Date = proxy.value(atX: xPosition) else { return }
-                            selectedDate = Calendar.current.startOfDay(for: date)
+                            guard let key: String = proxy.value(atX: xPosition), let date = Self.date(from: key)
+                            else { return }
+                            selectedDate = date
                         }
                 }
             }
@@ -157,6 +161,10 @@ struct ActivityChartView: View {
 
     private static func dayKey(_ date: Date) -> String {
         dayFormatter.string(from: date)
+    }
+
+    private static func date(from key: String) -> Date? {
+        dayFormatter.date(from: key).map { Calendar.current.startOfDay(for: $0) }
     }
 
     private static let dayFormatter: DateFormatter = {
