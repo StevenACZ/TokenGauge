@@ -28,7 +28,7 @@
 - Use `NSStatusItem` + lazy `NSPopover`; release the hosting controller when the popover closes.
 - No continuous menu bar or hidden-popover animations.
 - Centralize visual constants in `Theme.swift`; the panel is 300 pt wide and must stay under 500 pt tall.
-- Render the menu bar item as a single template `NSImage` from `MenuBarGlyph` with `NSStatusItem.variableLength`, never as an image plus `attributedTitle`.
+- Render the menu bar item as a single template `NSImage` from `MenuBarGlyph` with `NSStatusItem.variableLength`, never as an image plus `attributedTitle`. **Never assign `NSStatusItem.length` from a measurement taken in the same runloop turn as the content change** — it clips the content it was measured from (lesson `tokengauge-statusitem-length-clips-title`).
 - Localize all visible strings in English and Spanish.
 
 ## Safety
