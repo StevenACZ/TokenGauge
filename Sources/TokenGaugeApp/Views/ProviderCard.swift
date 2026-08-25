@@ -45,10 +45,10 @@ struct ProviderCard: View {
             Spacer(minLength: 4)
 
             if let credits = state.snapshot?.availableResetCredits, credits > 0 {
-                Label("\(credits)", systemImage: "arrow.counterclockwise")
+                Text(UsageFormatters.resetCredits(credits))
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(tint)
-                    .padding(.horizontal, 5)
+                    .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Capsule().fill(tint.opacity(0.13)))
             }
@@ -170,28 +170,21 @@ private struct QuotaWindowRow: View {
             GaugeBar(fraction: window.remainingPercentage / 100, tint: tint)
 
             HStack(spacing: 6) {
-                Label(UsageFormatters.resetCompact(window.resetsAt), systemImage: "arrow.clockwise")
+                Text(UsageFormatters.reset(window.resetsAt))
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
-                    .labelStyle(CompactLabelStyle())
+                    .lineLimit(1)
                 Spacer(minLength: 4)
                 if let summary = UsageFormatters.modelChips(chips) {
                     Text(summary)
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        .truncationMode(.middle)
                         .monospacedDigit()
+                        .layoutPriority(-1)
                 }
             }
-        }
-    }
-}
-
-private struct CompactLabelStyle: LabelStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 3) {
-            configuration.icon.font(.system(size: 8, weight: .semibold))
-            configuration.title
         }
     }
 }

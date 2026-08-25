@@ -22,20 +22,27 @@ enum UsageFormatters {
         return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
-    @MainActor static func resetCompact(_ date: Date?) -> String {
-        guard let date else { return "reset.unknown_short".localized }
+    @MainActor static func reset(_ date: Date?) -> String {
+        guard let date else { return "reset.unknown".localized }
         let remaining = date.timeIntervalSinceNow
-        guard remaining > 0 else { return "reset.pending_short".localized }
+        guard remaining > 0 else { return "reset.pending".localized }
         let formatter = DateComponentsFormatter()
         formatter.calendar?.locale = Locale(identifier: LocalizationManager.shared.language.rawValue)
         formatter.unitsStyle = .abbreviated
         formatter.maximumUnitCount = 1
         formatter.allowedUnits = remaining >= 86_400 ? [.day] : (remaining >= 3600 ? [.hour] : [.minute])
-        return formatter.string(from: max(remaining, 60)) ?? "reset.unknown_short".localized
+        guard let span = formatter.string(from: max(remaining, 60)) else { return "reset.unknown".localized }
+        return "reset.in".localized(span)
+    }
+
+    @MainActor static func resetCredits(_ count: Int) -> String {
+        count == 1 ? "reset_credits.one".localized : "reset_credits.many".localized(count)
     }
 
     @MainActor static func lastUpdated(_ date: Date?) -> String {
         guard let date else { return "updated.never".localized }
+        let age = Date().timeIntervalSince(date)
+        guard age >= 10 else { return "updated.now".localized }
         let formatter = RelativeDateTimeFormatter()
         formatter.locale = Locale(identifier: LocalizationManager.shared.language.rawValue)
         formatter.unitsStyle = .short

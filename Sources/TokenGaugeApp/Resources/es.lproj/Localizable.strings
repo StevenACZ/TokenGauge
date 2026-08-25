@@ -19,8 +19,12 @@
 "window.model_weekly" = "%@ semanal";
 "window.usage" = "Ventana de uso";
 "quota.remaining" = "libre";
-"reset.unknown_short" = "—";
-"reset.pending_short" = "ahora";
+"reset.unknown" = "Sin reinicio informado";
+"reset.pending" = "Reiniciando";
+"reset.in" = "Reinicia en %@";
+"reset_credits.one" = "1 reinicio";
+"reset_credits.many" = "%d reinicios";
+"updated.now" = "ahora";
 "updated.never" = "sin lectura";
 "model.unknown" = "Otros";
 "activity.title" = "Actividad · 7 días";

@@ -19,8 +19,12 @@
 "window.model_weekly" = "%@ weekly";
 "window.usage" = "Usage window";
 "quota.remaining" = "left";
-"reset.unknown_short" = "—";
-"reset.pending_short" = "now";
+"reset.unknown" = "Reset not provided";
+"reset.pending" = "Resetting";
+"reset.in" = "Resets in %@";
+"reset_credits.one" = "1 reset";
+"reset_credits.many" = "%d resets";
+"updated.now" = "now";
 "updated.never" = "no reading";
 "model.unknown" = "Other";
 "activity.title" = "Activity · 7 days";
