@@ -10,8 +10,10 @@
 ## Data Contracts
 
 - Codex data comes from the local `codex app-server` stable account methods.
+- Keep app-server stdin open through responses 3 and 4, read ready pipe bytes with `poll` + `Darwin.read`, then close stdin and prove the child exits.
 - Claude quota data comes from the official status-line `rate_limits` payload and is reduced to percentages and reset timestamps by `TokenGaugeCapture`.
 - Claude activity reads only timestamps, message IDs, and numeric usage fields from local JSONL transcripts.
+- Claude history scans run only in the short-lived `TokenGaugeCapture --history` helper; scanning JSONL in the resident app retained hundreds of megabytes after completion.
 - Persist normalized metrics only under `~/Library/Application Support/TokenGauge` with user-only permissions.
 - Missing or stale provider data must remain visible and honest. Never fabricate usage.
 
