@@ -89,6 +89,16 @@ struct PopoverView: View {
                 .help("settings.language".localized)
             }
 
+            if let message = launchAtLogin.errorMessage {
+                Text(message)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 5)
+                    .padding(.bottom, 4)
+            }
+
             FooterActionRow(icon: "power", title: "action.quit".localized) {
                 NSApp.terminate(nil)
             }

@@ -35,11 +35,9 @@ struct ProviderCard: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Image(systemName: provider == .claude ? "sparkles" : "chevron.left.forwardslash.chevron.right")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(tint)
+            ProviderLogo(provider: provider, size: 14)
                 .frame(width: 21, height: 21)
-                .background(Circle().fill(tint.opacity(0.14)))
+                .background(Circle().fill(tint.opacity(0.13)))
 
             Text(provider == .claude ? "provider.claude".localized : "provider.codex".localized)
                 .font(.subheadline.weight(.semibold))

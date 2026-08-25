@@ -49,10 +49,10 @@ struct ActivityChartView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
+            HStack(spacing: 6) {
                 Text("activity.title".localized)
                     .font(.caption.weight(.semibold))
-                Spacer()
+                Spacer(minLength: 4)
                 legend
             }
 
@@ -60,33 +60,34 @@ struct ActivityChartView: View {
                 ForEach(points) { point in
                     BarMark(
                         x: .value("activity.day".localized, point.date, unit: .day),
-                        y: .value("activity.tokens".localized, point.tokens)
+                        y: .value("activity.tokens".localized, point.tokens),
+                        width: .fixed(9)
                     )
-                    .position(by: .value("activity.provider".localized, point.provider.rawValue))
+                    .position(by: .value("activity.provider".localized, point.provider.rawValue), span: .fixed(20))
                     .foregroundStyle(point.provider == .claude ? Theme.claude : Theme.codex)
-                    .cornerRadius(1.5)
+                    .cornerRadius(2.5)
                 }
-                RuleMark(x: .value("activity.selection".localized, selectedDate, unit: .day))
-                    .foregroundStyle(Color.secondary.opacity(0.22))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 2]))
             }
             .chartXScale(domain: chartDomain)
             .chartYScale(domain: 0...maximumTokens)
+            .chartYAxis(.hidden)
             .chartXAxis {
-                AxisMarks(values: days) { _ in
-                    AxisValueLabel(format: .dateTime.weekday(.narrow))
-                        .font(.system(size: 9))
-                }
-            }
-            .chartYAxis {
-                AxisMarks(position: .leading, values: .automatic(desiredCount: 2)) { value in
-                    AxisGridLine().foregroundStyle(Color.secondary.opacity(0.12))
+                AxisMarks(values: days) { value in
                     AxisValueLabel {
-                        if let tokens = value.as(Int.self) {
-                            Text(UsageFormatters.tokens(tokens))
-                                .font(.system(size: 7))
+                        if let date = value.as(Date.self) {
+                            let selected = Calendar.current.isDate(date, inSameDayAs: selectedDate)
+                            Text(date, format: .dateTime.weekday(.narrow))
+                                .font(.system(size: 9, weight: selected ? .bold : .regular))
+                                .foregroundStyle(selected ? Color.primary : Color.secondary)
                         }
                     }
+                }
+            }
+            .chartPlotStyle { plot in
+                plot.overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.09))
+                        .frame(height: 1)
                 }
             }
             .chartOverlay { proxy in
@@ -104,7 +105,7 @@ struct ActivityChartView: View {
                         }
                 }
             }
-            .frame(height: 44)
+            .frame(height: 58)
 
             Text(selectedSummary)
                 .font(.system(size: 10))
@@ -112,7 +113,6 @@ struct ActivityChartView: View {
                 .monospacedDigit()
                 .lineLimit(1)
         }
-        .padding(.horizontal, 1)
     }
 
     private var selectedSummary: String {
@@ -148,7 +148,9 @@ struct ActivityChartView: View {
 
     private func legendItem(color: Color, title: String) -> some View {
         HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 6, height: 6)
+            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                .fill(color)
+                .frame(width: 7, height: 7)
             Text(title)
         }
     }
