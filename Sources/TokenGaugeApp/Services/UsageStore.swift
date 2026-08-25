@@ -78,8 +78,8 @@ final class UsageStore: ObservableObject {
         }
     }
 
-    var overallRemaining: Double? {
-        ProviderStateResolver.overallRemaining(states: [claude, codex])
+    var menuBarWindow: QuotaWindow? {
+        ProviderStateResolver.menuBarWindow(state: claude)
     }
 
     private nonisolated static func fetchClaude(client: ClaudeUsageClient) -> FetchOutcome {
@@ -141,11 +141,14 @@ enum ProviderStateResolver {
         snapshot.windows.isEmpty ? .waiting : .ready
     }
 
-    static func overallRemaining(states: [ProviderViewState]) -> Double? {
-        states.flatMap { state -> [Double] in
-            guard state.status == .ready, let snapshot = state.snapshot else { return [] }
-            return WindowVisibility.visible(snapshot.windows, provider: snapshot.provider)
-                .map(\.remainingPercentage)
-        }.min()
+    static func menuBarWindow(state: ProviderViewState) -> QuotaWindow? {
+        guard state.status == .ready || state.status == .stale, let snapshot = state.snapshot else { return nil }
+        let windows = WindowVisibility.visible(snapshot.windows, provider: snapshot.provider)
+        let weekly = windows.filter { $0.durationMinutes == 10_080 }
+        let scoped = weekly.filter { ($0.displayName ?? "").isEmpty == false }
+        if let tightest = scoped.min(by: { $0.remainingPercentage < $1.remainingPercentage }) {
+            return tightest
+        }
+        return weekly.first ?? windows.min { $0.remainingPercentage < $1.remainingPercentage }
     }
 }

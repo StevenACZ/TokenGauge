@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import TokenGaugeCore
 
 @MainActor
 final class StatusItemController: NSObject {
@@ -9,7 +10,7 @@ final class StatusItemController: NSObject {
     private let store: UsageStore
     private let launchAtLogin: LaunchAtLoginManager
     private var cancellables = Set<AnyCancellable>()
-    private var renderedRemaining: Int?
+    private var appearanceObservation: NSKeyValueObservation?
 
     init(store: UsageStore, launchAtLogin: LaunchAtLoginManager) {
         self.store = store
@@ -23,8 +24,10 @@ final class StatusItemController: NSObject {
         if let button = statusItem.button {
             button.target = self
             button.action = #selector(togglePopover)
-            button.imagePosition = .imageOnly
-            button.imageScaling = .scaleNone
+            button.imagePosition = .imageLeading
+            button.imageScaling = .scaleProportionallyDown
+            button.image = ProviderLogoAssets.menuBarImage(for: .claude, size: 15)
+            button.toolTip = "app.name".localized
         }
 
         Publishers.CombineLatest(store.$claude, store.$codex)
@@ -32,6 +35,10 @@ final class StatusItemController: NSObject {
                 self?.updateStatusItem()
             }
             .store(in: &cancellables)
+
+        appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
+            Task { @MainActor in self?.updateStatusItem() }
+        }
         updateStatusItem()
     }
 
@@ -53,23 +60,34 @@ final class StatusItemController: NSObject {
 
     private func updateStatusItem() {
         guard let button = statusItem.button else { return }
-        let remaining = store.overallRemaining
-        let rendered = remaining.map { Int($0.rounded()) }
-        if rendered != renderedRemaining || button.image == nil {
-            renderedRemaining = rendered
-            button.image = MenuBarGlyph.image(remaining: remaining)
-            statusItem.length = NSStatusItem.variableLength
-        }
+        let window = store.menuBarWindow
+        let remaining = window?.remainingPercentage
+        let text = remaining.map { " \(Int($0.rounded()))%" } ?? " --"
+
+        var color = NSColor.labelColor
         switch remaining {
         case .some(let value) where value < 12:
-            button.contentTintColor = .systemRed
+            color = .systemRed
         case .some(let value) where value < 30:
-            button.contentTintColor = .systemOrange
+            color = .systemOrange
         default:
-            button.contentTintColor = nil
+            break
+        }
+        button.effectiveAppearance.performAsCurrentDrawingAppearance {
+            color = color.usingColorSpace(.sRGB) ?? color
+        }
+
+        button.attributedTitle = NSAttributedString(
+            string: text,
+            attributes: [
+                .foregroundColor: color,
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold),
+            ]
+        )
+        if let window {
+            button.toolTip = "\(UsageFormatters.windowName(window)) · \(text.trimmingCharacters(in: .whitespaces))"
         }
     }
-
 }
 
 extension StatusItemController: NSPopoverDelegate {

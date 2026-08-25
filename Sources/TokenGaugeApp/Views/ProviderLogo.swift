@@ -26,13 +26,20 @@ struct ProviderLogo: View {
 }
 
 @MainActor
-private enum ProviderLogoAssets {
+enum ProviderLogoAssets {
     static func image(for provider: UsageProvider) -> NSImage? {
         provider == .claude ? claude : codex
     }
 
-    private static let claude = load("provider-claude")
-    private static let codex = load("provider-codex")
+    static func menuBarImage(for provider: UsageProvider, size: CGFloat) -> NSImage? {
+        guard let source = image(for: provider), let copy = source.copy() as? NSImage else { return nil }
+        copy.size = NSSize(width: size, height: size)
+        copy.isTemplate = false
+        return copy
+    }
+
+    static let claude = load("provider-claude")
+    static let codex = load("provider-codex")
 
     private static func load(_ name: String) -> NSImage? {
         guard let url = Bundle.module.url(forResource: name, withExtension: "svg"),

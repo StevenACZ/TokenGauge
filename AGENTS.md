@@ -32,7 +32,9 @@
 - No continuous menu bar or hidden-popover animations.
 - Centralize visual constants in `Theme.swift`; the panel is 300 pt wide and must stay under 500 pt tall.
 - The header refresh button is the ONLY refresh affordance. Never put a circular-arrow glyph on a quota row, a reset time, or a credit pill: the store refreshes every five minutes and the panel must not look like it needs clicking (Steven, 2026-08-25).
-- Render the menu bar item as a single template `NSImage` from `MenuBarGlyph` with `NSStatusItem.variableLength`, never as an image plus `attributedTitle`. **Never assign `NSStatusItem.length` from a measurement taken in the same runloop turn as the content change** — it clips the content it was measured from (lesson `tokengauge-statusitem-length-clips-title`).
+- The menu bar item is the Claude brand mark plus one percentage: the tightest model-scoped weekly window, falling back to the all-models weekly one. Keep `NSStatusItem.variableLength` and let AppKit size it. **Never assign `NSStatusItem.length` from a measurement taken in the same runloop turn as the content change** — it clips the content it was measured from (lesson `tokengauge-statusitem-length-clips-title`).
+- Resolve the title colour against `button.effectiveAppearance` and redraw on `NSApp.effectiveAppearance` changes; the image is not a template, so nothing adapts on its own.
+- `cacheDisplay` does not capture an `NSButton` title. To prove the percentage renders, compare `button.frame.width` with the title set against the width with an empty title.
 - Localize all visible strings in English and Spanish.
 
 ## Safety

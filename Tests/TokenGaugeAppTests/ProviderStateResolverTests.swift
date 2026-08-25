@@ -5,9 +5,34 @@ import XCTest
 @testable import TokenGaugeApp
 
 final class ProviderStateResolverTests: XCTestCase {
-    func testOverallRemainingUsesMostConstrainedLiveWindow() {
+    func testMenuBarPrefersTheTightestModelScopedWeeklyWindow() {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
-        let claude = ProviderViewState(
+        let state = ProviderViewState(
+            snapshot: snapshot(
+                provider: .claude,
+                windows: [
+                    window(id: "five_hour", used: 98, duration: 300, reset: now.addingTimeInterval(3600)),
+                    window(id: "seven_day", used: 20, duration: 10_080, reset: now.addingTimeInterval(86_400)),
+                    window(
+                        id: "seven_day_fable",
+                        used: 56,
+                        duration: 10_080,
+                        reset: now.addingTimeInterval(86_400),
+                        displayName: "Fable"
+                    ),
+                ],
+                capturedAt: now
+            ),
+            status: .ready,
+            isRefreshing: false
+        )
+
+        XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: state)?.id, "seven_day_fable")
+    }
+
+    func testMenuBarFallsBackToTheAllModelsWeeklyWindow() {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let state = ProviderViewState(
             snapshot: snapshot(
                 provider: .claude,
                 windows: [
@@ -19,17 +44,13 @@ final class ProviderStateResolverTests: XCTestCase {
             status: .ready,
             isRefreshing: false
         )
-        let codex = ProviderViewState(
-            snapshot: snapshot(
-                provider: .codex,
-                windows: [window(id: "codex", used: 10, duration: 10_080, reset: now.addingTimeInterval(86_400))],
-                capturedAt: now
-            ),
-            status: .ready,
-            isRefreshing: false
-        )
 
-        XCTAssertEqual(ProviderStateResolver.overallRemaining(states: [claude, codex]), 2)
+        XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: state)?.id, "seven_day")
+    }
+
+    func testMenuBarStaysEmptyWhileClaudeIsUnavailable() {
+        let state = ProviderViewState(snapshot: nil, status: .unavailable, isRefreshing: false)
+        XCTAssertNil(ProviderStateResolver.menuBarWindow(state: state))
     }
 
     func testClaudeIsStaleWhenAnyWindowHasExpired() {
@@ -72,13 +93,19 @@ final class ProviderStateResolverTests: XCTestCase {
         )
     }
 
-    private func window(id: String, used: Double, duration: Int, reset: Date) -> QuotaWindow {
+    private func window(
+        id: String,
+        used: Double,
+        duration: Int,
+        reset: Date,
+        displayName: String? = nil
+    ) -> QuotaWindow {
         QuotaWindow(
             id: id,
             usedPercentage: used,
             resetsAt: reset,
             durationMinutes: duration,
-            displayName: nil
+            displayName: displayName
         )
     }
 }
