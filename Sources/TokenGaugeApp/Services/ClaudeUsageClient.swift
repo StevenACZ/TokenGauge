@@ -27,7 +27,11 @@ struct ClaudeUsageClient: Sendable {
             return snapshot(windows: cached.windows, capturedAt: cached.capturedAt, modelBuckets: buckets)
         }
         if let capture {
-            return ClaudeUsageParser.normalize(capture, modelBuckets: buckets)
+            let normalized = ClaudeUsageParser.normalize(capture, modelBuckets: buckets)
+            let known = Set(normalized.windows.map(\.id))
+            let scoped = cached?.windows.filter { $0.displayName != nil && !known.contains($0.id) } ?? []
+            return snapshot(
+                windows: normalized.windows + scoped, capturedAt: normalized.capturedAt, modelBuckets: buckets)
         }
         return snapshot(windows: [], capturedAt: nil, modelBuckets: buckets)
     }

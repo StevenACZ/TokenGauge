@@ -28,6 +28,10 @@ public enum ClaudeOAuthTokenReader {
         }
     }
 
+    public static func invalidate() {
+        cache.withLock { $0 = nil }
+    }
+
     static func readFromKeychain(account: String) -> ClaudeOAuthToken? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
