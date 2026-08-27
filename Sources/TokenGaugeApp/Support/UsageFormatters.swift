@@ -22,17 +22,51 @@ enum UsageFormatters {
         return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
-    @MainActor static func reset(_ date: Date?) -> String {
+    @MainActor static func reset(
+        _ date: Date?,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> String {
         guard let date else { return "reset.unknown".localized }
-        let remaining = date.timeIntervalSinceNow
+        let remaining = date.timeIntervalSince(now)
         guard remaining > 0 else { return "reset.pending".localized }
+
+        if remaining < 86_400 {
+            let units: NSCalendar.Unit = remaining < 3_600 ? [.minute] : [.hour]
+            guard let span = span(remaining, units: units) else { return "reset.unknown".localized }
+            return "reset.in_at".localized(span, clock(date))
+        }
+
+        let dayDelta =
+            calendar.dateComponents(
+                [.day],
+                from: calendar.startOfDay(for: now),
+                to: calendar.startOfDay(for: date)
+            ).day ?? 0
+        if dayDelta == 1 {
+            return "reset.tomorrow_at".localized(clock(date))
+        }
+
+        let days = max(1, Int((remaining / 86_400).rounded()))
+        guard let span = span(Double(days) * 86_400, units: [.day]) else { return "reset.unknown".localized }
+        return "reset.in".localized(span)
+    }
+
+    @MainActor private static func span(_ interval: TimeInterval, units: NSCalendar.Unit) -> String? {
         let formatter = DateComponentsFormatter()
         formatter.calendar?.locale = Locale(identifier: LocalizationManager.shared.language.rawValue)
         formatter.unitsStyle = .abbreviated
         formatter.maximumUnitCount = 1
-        formatter.allowedUnits = remaining >= 86_400 ? [.day] : (remaining >= 3600 ? [.hour] : [.minute])
-        guard let span = formatter.string(from: max(remaining, 60)) else { return "reset.unknown".localized }
-        return "reset.in".localized(span)
+        formatter.allowedUnits = units
+        return formatter.string(from: max(interval, 60))
+    }
+
+    @MainActor private static func clock(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: LocalizationManager.shared.language.rawValue)
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 
     @MainActor static func resetCredits(_ count: Int) -> String {

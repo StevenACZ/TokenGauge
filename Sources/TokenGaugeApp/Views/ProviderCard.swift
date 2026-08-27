@@ -68,13 +68,24 @@ struct ProviderCard: View {
         }
     }
 
+    private var scopedFamilies: Set<String> {
+        Set(
+            visibleWindows.compactMap { window in
+                guard let name = window.displayName, !name.isEmpty else { return nil }
+                return name.lowercased()
+            }
+        )
+    }
+
     private func chips(for window: QuotaWindow) -> [ModelUsageChip] {
         guard provider == .claude, let snapshot = state.snapshot else { return [] }
+        let isAggregateWeekly = window.durationMinutes == 10_080 && (window.displayName ?? "").isEmpty
         return ModelActivity.chips(
             buckets: snapshot.modelBuckets,
             since: window.startsAt,
             limit: 2,
-            family: window.displayName
+            family: window.displayName,
+            excludingFamilies: isAggregateWeekly ? scopedFamilies : []
         )
     }
 

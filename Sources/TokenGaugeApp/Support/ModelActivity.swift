@@ -15,12 +15,13 @@ enum ModelActivity {
         buckets: [ModelTokenBucket],
         since: Date?,
         limit: Int = 3,
-        family: String? = nil
+        family: String? = nil,
+        excludingFamilies excluded: Set<String> = []
     ) -> [ModelUsageChip] {
         let scoped =
             family.map { name in
                 buckets.filter { displayName($0.model).caseInsensitiveCompare(name) == .orderedSame }
-            } ?? buckets
+            } ?? buckets.filter { !excluded.contains(displayName($0.model).lowercased()) }
         return ModelTokenAggregator.byModel(scoped, since: since)
             .prefix(limit)
             .map { ModelUsageChip(model: $0.model, tokens: $0.tokens) }

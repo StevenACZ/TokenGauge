@@ -22,6 +22,8 @@
 "reset.unknown" = "Sin reinicio informado";
 "reset.pending" = "Reiniciando";
 "reset.in" = "Reinicia en %@";
+"reset.in_at" = "Reinicia en %1$@ · %2$@";
+"reset.tomorrow_at" = "Reinicia mañana · %@";
 "reset_credits.one" = "1 reinicio";
 "reset_credits.many" = "%d reinicios";
 "updated.now" = "ahora";
