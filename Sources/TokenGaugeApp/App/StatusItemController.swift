@@ -11,6 +11,8 @@ final class StatusItemController: NSObject {
     private let launchAtLogin: LaunchAtLoginManager
     private var cancellables = Set<AnyCancellable>()
     private var appearanceObservation: NSKeyValueObservation?
+    private var outsideClickMonitor: Any?
+    private var resignObserver: (any NSObjectProtocol)?
 
     init(store: UsageStore, launchAtLogin: LaunchAtLoginManager) {
         self.store = store
@@ -56,6 +58,45 @@ final class StatusItemController: NSObject {
         popover.contentViewController = controller
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
+        startDismissMonitors()
+    }
+
+    private func startDismissMonitors() {
+        if outsideClickMonitor == nil {
+            outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+                matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+            ) { [weak self] _ in
+                Task { @MainActor in self?.dismissPopover() }
+            }
+        }
+        if resignObserver == nil {
+            resignObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didResignActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.dismissPopover() }
+            }
+        }
+    }
+
+    private func stopDismissMonitors() {
+        if let outsideClickMonitor {
+            NSEvent.removeMonitor(outsideClickMonitor)
+            self.outsideClickMonitor = nil
+        }
+        if let resignObserver {
+            NotificationCenter.default.removeObserver(resignObserver)
+            self.resignObserver = nil
+        }
+    }
+
+    private func dismissPopover() {
+        guard popover.isShown else {
+            stopDismissMonitors()
+            return
+        }
+        popover.performClose(nil)
     }
 
     private func updateStatusItem() {
@@ -92,6 +133,7 @@ final class StatusItemController: NSObject {
 
 extension StatusItemController: NSPopoverDelegate {
     func popoverDidClose(_ notification: Notification) {
+        stopDismissMonitors()
         popover.contentViewController = nil
     }
 }
