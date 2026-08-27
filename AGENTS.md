@@ -23,6 +23,8 @@
 - Claude history scans run only in the short-lived `TokenGaugeCapture --history` helper; scanning JSONL in the resident app retained hundreds of megabytes after completion.
 - Persist normalized metrics only under `~/Library/Application Support/TokenGauge` with user-only permissions.
 - Missing or stale provider data must remain visible and honest. Never fabricate usage.
+- Every successful refresh archives into the local SQLite history at `~/Library/Application Support/TokenGauge/usage-history.sqlite` (mode 0600) through `UsageHistoryStore`, off the main actor and best-effort: an archive failure must never block or alter the panel. `quota_samples` keeps percentages and reset instants collapsed into 15-minute buckets and pruned after `quotaRetentionDays`; `daily_tokens` keeps one row per (day, provider, model) and only ever grows (`MAX`), so trimmed transcripts cannot erase recorded history. Codex has no per-model detail, so its rows use the model key `all`. Never store tokens, account fields, prompts, or responses there.
+- Query the history with `scripts/usage_history.sh {status|daily|models|weekly|monthly|quota|export|sql}`; the `daily_totals`, `weekly_totals` (ISO week Monday) and `monthly_totals` views exist so both Steven and an agent read the same aggregation.
 
 ## Architecture
 
@@ -32,6 +34,9 @@
 - Use `NSStatusItem` + lazy `NSPopover`; release the hosting controller when the popover closes.
 - No continuous menu bar or hidden-popover animations.
 - Centralize visual constants in `Theme.swift`; the panel is 300 pt wide and must stay under 500 pt tall.
+- The popover closes on any click outside it: `.transient` alone does not dismiss an accessory app's popover when the click lands in another application (Steven, 2026-08-27). `StatusItemController` arms a global mouse-down monitor plus `didResignActiveNotification` while the popover is shown and tears both down in `popoverDidClose`. Keep the monitor to MOUSE events only — a global key monitor would demand Accessibility, which this app must never request.
+- Reset lines scale with distance: under an hour shows minutes plus the clock time, under a day shows hours plus the clock time, the next calendar day shows `mañana` plus the clock time, and anything further shows whole days only. Far distances count the real remaining duration, never midnight crossings — 3.4 days away reads `3 d`, not `4 d`.
+- The all-models weekly row never repeats a family that already owns its own scoped weekly row: `ProviderCard` passes those families to `ModelActivity.chips(excludingFamilies:)`, so `Semanal` and `Fable semanal` report disjoint token totals.
 - The header refresh button is the ONLY refresh affordance. Never put a circular-arrow glyph on a quota row, a reset time, or a credit pill: the store refreshes every five minutes and the panel must not look like it needs clicking (Steven, 2026-08-25).
 - The menu bar item is the Claude brand mark plus one percentage: the tightest model-scoped weekly window, falling back to the all-models weekly one. Keep `NSStatusItem.variableLength` and let AppKit size it. **Never assign `NSStatusItem.length` from a measurement taken in the same runloop turn as the content change** — it clips the content it was measured from (lesson `tokengauge-statusitem-length-clips-title`).
 - Resolve the title colour against `button.effectiveAppearance` and redraw on `NSApp.effectiveAppearance` changes; the image is not a template, so nothing adapts on its own.
@@ -60,5 +65,6 @@ make install-dev
 ```
 
 - Run `git diff --check` when the directory becomes a Git repository.
+- Exercise the history database against the live file with `scripts/usage_history.sh status` after UI or store work.
 - Verify the installed signature contains `Authority=Apple Development` and a TeamIdentifier.
 - After UI work, inspect a real popover screenshot and sample idle CPU.

@@ -75,6 +75,14 @@ final class UsageStore: ObservableObject {
             codex = Self.state(from: outcomes.1)
             lastRefresh = Date()
             isRefreshing = false
+            let snapshots = [claude.snapshot, codex.snapshot].compactMap { $0 }
+            Task.detached(priority: .background) { Self.archive(snapshots) }
+        }
+    }
+
+    private nonisolated static func archive(_ snapshots: [ProviderUsageSnapshot]) {
+        for snapshot in snapshots {
+            try? UsageHistoryStore.record(snapshot)
         }
     }
 

@@ -13,7 +13,7 @@ lint: tools
 	xcrun swift-format lint --strict --recursive --parallel --configuration .swift-format Sources Tests
 
 script-check:
-	bash -n scripts/build_and_run.sh scripts/install_dev.sh scripts/install_claude_statusline.sh
+	bash -n scripts/build_and_run.sh scripts/install_dev.sh scripts/install_claude_statusline.sh scripts/usage_history.sh
 
 build:
 	swift build -c release
