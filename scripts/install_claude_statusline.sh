@@ -7,11 +7,11 @@ if [[ ! -f "$STATUS_SCRIPT" ]]; then
     printf "claude-statusline: script not found at %s\n" "$STATUS_SCRIPT" >&2
     exit 66
 fi
-if rg -q 'TokenGauge.app/Contents/MacOS/TokenGaugeCapture' "$STATUS_SCRIPT"; then
+if grep -qF 'TokenGauge.app/Contents/MacOS/TokenGaugeCapture' "$STATUS_SCRIPT"; then
     printf "claude-statusline: TokenGauge capture is already installed\n"
     exit 0
 fi
-if ! rg -q '^input=\$\(cat\)$' "$STATUS_SCRIPT"; then
+if ! grep -qxF 'input=$(cat)' "$STATUS_SCRIPT"; then
     printf "claude-statusline: expected input capture line was not found\n" >&2
     exit 65
 fi
