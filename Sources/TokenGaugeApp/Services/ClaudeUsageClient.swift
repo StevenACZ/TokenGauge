@@ -21,19 +21,31 @@ struct ClaudeUsageClient: Sendable {
             ClaudeCapturedSnapshot.self,
             from: UsagePaths.claudeCapture(homeDirectory: homeDirectory)
         )
-        let cached = account.cached()
+        let fallback = Self.fallback(cached: account.cached(), capture: capture, modelBuckets: buckets, now: now)
+        return snapshot(windows: fallback.windows, capturedAt: fallback.capturedAt, modelBuckets: buckets)
+    }
 
-        if let cached, cached.capturedAt >= (capture?.capturedAt ?? .distantPast) {
-            return snapshot(windows: cached.windows, capturedAt: cached.capturedAt, modelBuckets: buckets)
+    static func fallback(
+        cached: ClaudeAccountSnapshot?,
+        capture: ClaudeCapturedSnapshot?,
+        modelBuckets: [ModelTokenBucket],
+        now: Date
+    ) -> (windows: [QuotaWindow], capturedAt: Date?) {
+        let cachedWindows = (cached?.windows ?? []).filter { ($0.resetsAt ?? .distantFuture) > now }
+        if let cached, !cachedWindows.isEmpty, cached.capturedAt >= (capture?.capturedAt ?? .distantPast) {
+            return (cachedWindows, cached.capturedAt)
         }
-        if let capture {
-            let normalized = ClaudeUsageParser.normalize(capture, modelBuckets: buckets)
-            let known = Set(normalized.windows.map(\.id))
-            let scoped = cached?.windows.filter { $0.displayName != nil && !known.contains($0.id) } ?? []
-            return snapshot(
-                windows: normalized.windows + scoped, capturedAt: normalized.capturedAt, modelBuckets: buckets)
+        guard let capture else {
+            return cachedWindows.isEmpty ? ([], nil) : (cachedWindows, cached?.capturedAt)
         }
-        return snapshot(windows: [], capturedAt: nil, modelBuckets: buckets)
+        let normalized = ClaudeUsageParser.normalize(capture, modelBuckets: modelBuckets)
+        let current = normalized.windows.filter { ($0.resetsAt ?? .distantFuture) > now }
+        guard !current.isEmpty else {
+            return cachedWindows.isEmpty ? ([], nil) : (cachedWindows, cached?.capturedAt)
+        }
+        let known = Set(current.map(\.id))
+        let scoped = cachedWindows.filter { $0.displayName != nil && !known.contains($0.id) }
+        return (current + scoped, normalized.capturedAt)
     }
 
     private func snapshot(

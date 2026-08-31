@@ -35,6 +35,7 @@ final class UsageStore: ObservableObject {
     private let claudeClient: ClaudeUsageClient
     private let codexClient: CodexAppServerClient
     private var timer: Timer?
+    private var resetTimer: Timer?
 
     init(
         claudeClient: ClaudeUsageClient = ClaudeUsageClient(),
@@ -75,8 +76,27 @@ final class UsageStore: ObservableObject {
             codex = Self.state(from: outcomes.1)
             lastRefresh = Date()
             isRefreshing = false
+            scheduleResetRefresh()
             let snapshots = [claude.snapshot, codex.snapshot].compactMap { $0 }
             Task.detached(priority: .background) { Self.archive(snapshots) }
+        }
+    }
+
+    private func scheduleResetRefresh() {
+        resetTimer?.invalidate()
+        let now = Date()
+        let nextReset = [claude.snapshot, codex.snapshot]
+            .compactMap { $0 }
+            .flatMap(\.windows)
+            .compactMap(\.resetsAt)
+            .filter { $0 > now }
+            .min()
+        guard let nextReset else { return }
+        let delay = max(nextReset.timeIntervalSince(now) + 5, 1)
+        resetTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.refresh(force: true)
+            }
         }
     }
 
