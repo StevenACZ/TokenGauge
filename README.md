@@ -6,9 +6,11 @@ It reads Codex metrics through the local official app-server protocol. Claude Co
 
 The panel shows the Claude five-hour window, the all-models weekly window and every model-scoped weekly window the plan defines, the Codex general weekly window and additional server-reported counters, per-model token totals for each Claude window, and a seven-day activity chart.
 
-The provider selector controls card order and the menu bar, defaults to Codex, and persists across launches. The Codex menu bar uses only its general quota. The separate `gpt-reserve` counter (`base_model_inference`) is shown without assuming model coverage or adding percentages.
+The provider selector chooses the detailed card and menu-bar provider, defaults to Codex, and persists across launches. The other provider stays in a compact clickable row. Only unusually large quota lists scroll; the chart and footer stay visible. The Codex menu bar uses only its general quota. The separate `gpt-reserve` counter (`base_model_inference`) is shown without assuming model coverage or adding percentages.
 
 The settings menu can mark Claude's subscription as cancelled locally. This preserves the SQLite usage history and does not change billing. Automatic reactivation requires a successful quota read and status-line activity newer than the cancellation; unchecking the setting also resumes tracking. Authentication failures, denied access, temporary failures, and cancellation have separate states, and historical balances are not presented as current quota.
+
+The activity chart uses fourteen native bars, with one hover/click target per day and explicit app-language weekday labels. Its seven-day data is prepared when snapshots change, and unchanged menu-bar images and titles are not assigned again.
 
 ## Local development
 

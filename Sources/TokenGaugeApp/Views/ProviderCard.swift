@@ -4,6 +4,7 @@ import TokenGaugeCore
 struct ProviderCard: View {
     let provider: UsageProvider
     let state: ProviderViewState
+    var compact = false
 
     private var tint: Color {
         provider == .claude ? Theme.claude : Theme.codex
@@ -15,60 +16,73 @@ struct ProviderCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            header
-            if visibleWindows.isEmpty {
-                statusMessage
-                if let capturedAt = state.snapshot?.capturedAt {
-                    Text("updated.last_known".localized(UsageFormatters.lastUpdated(capturedAt)))
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                }
+        VStack(alignment: .leading, spacing: 10) {
+            if compact {
+                compactHeader
             } else {
-                ForEach(visibleWindows) { window in
-                    QuotaWindowRow(
-                        window: window,
-                        tint: tint,
-                        chips: chips(for: window)
-                    )
+                header
+                if visibleWindows.isEmpty {
+                    statusMessage
+                    if let capturedAt = state.snapshot?.capturedAt {
+                        Text("updated.last_known".localized(UsageFormatters.lastUpdated(capturedAt)))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    ForEach(Array(visibleWindows.enumerated()), id: \.element.id) { index, window in
+                        if index > 0 { Divider() }
+                        QuotaWindowRow(
+                            window: window,
+                            tint: tint,
+                            chips: chips(for: window),
+                            prominent: index == 0
+                        )
+                    }
                 }
             }
         }
-        .padding(10)
+        .padding(compact ? 9 : 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .providerCard()
     }
 
-    private var header: some View {
-        HStack(spacing: 8) {
-            ProviderLogo(provider: provider, size: 14)
-                .frame(width: 21, height: 21)
-                .background(Circle().fill(tint.opacity(0.13)))
-
+    private var compactHeader: some View {
+        HStack(spacing: 7) {
+            ProviderLogo(provider: provider, size: 13)
             Text(provider == .claude ? "provider.claude".localized : "provider.codex".localized)
-                .font(.subheadline.weight(.semibold))
-
+                .font(.system(size: 11, weight: .medium))
             Spacer(minLength: 4)
+            Text(compactStatus)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .contentShape(Rectangle())
+    }
 
+    private var compactStatus: String {
+        guard state.status == .ready else { return statusText }
+        guard let window = ProviderStateResolver.menuBarWindow(state: state) else { return statusText }
+        return "quota.remaining_value".localized(UsageFormatters.percentage(window.remainingPercentage))
+    }
+
+    private var header: some View {
+        HStack(spacing: 5) {
+            Circle().fill(statusColor).frame(width: 5, height: 5)
+            Text(statusSubtitle)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 4)
             if state.status == .ready, let credits = state.snapshot?.availableResetCredits, credits > 0 {
                 Text(UsageFormatters.resetCredits(credits))
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(tint)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Capsule().fill(tint.opacity(0.13)))
-            }
-
-            if state.isRefreshing {
-                ProgressView().controlSize(.mini)
-            } else {
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: 5, height: 5)
-                    Text(statusSubtitle)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                }
+                    .background(Capsule().fill(Color.primary.opacity(0.05)))
             }
         }
     }
@@ -180,6 +194,7 @@ private struct QuotaWindowRow: View {
     let window: QuotaWindow
     let tint: Color
     let chips: [ModelUsageChip]
+    let prominent: Bool
 
     private var valueColor: Color {
         Theme.severity(remaining: window.remainingPercentage) ?? .primary
@@ -192,18 +207,26 @@ private struct QuotaWindowRow: View {
                     .font(.caption.weight(.medium))
                     .lineLimit(1)
                     .help(UsageFormatters.windowHelp(window))
+                if window.id.hasPrefix("base_model_inference.") || window.displayName?.lowercased() == "gpt-reserve" {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                        .help(UsageFormatters.windowHelp(window))
+                        .accessibilityLabel(UsageFormatters.windowHelp(window))
+                }
                 Spacer(minLength: 4)
                 Text(UsageFormatters.percentage(window.remainingPercentage))
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .font(.system(size: prominent ? 25 : 14, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(valueColor)
-                    .contentTransition(.numericText())
                 Text("quota.remaining".localized)
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
 
-            GaugeBar(fraction: window.remainingPercentage / 100, tint: tint)
+            GaugeBar(
+                fraction: window.remainingPercentage / 100,
+                tint: prominent ? (Theme.severity(remaining: window.remainingPercentage) ?? tint) : tint.opacity(0.65))
 
             HStack(spacing: 6) {
                 Text(UsageFormatters.reset(window.resetsAt))

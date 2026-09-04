@@ -3,7 +3,7 @@
 ## Product
 
 - Native macOS 14+ menu bar app for Claude Code and Codex plan usage.
-- The panel shows provider quota windows and a seven-day activity chart. A persisted provider selector controls card order and the menu bar; Codex is the default.
+- The panel shows provider quota windows and a seven-day activity chart. A persisted provider selector controls the detailed card and the menu bar; Codex is the default.
 - SwiftPM app, Apple Silicon only for local packaging.
 - Bundle ID: `com.stevenacz.TokenGauge`.
 - The app reads the Claude Code OAuth access token from the Keychain to call one read-only usage endpoint (Steven authorized this on 2026-08-25; before that the app read no credential at all). It never reads API keys and never extracts or persists prompt or response content.
@@ -32,8 +32,8 @@
 - Keep process execution, AppKit lifecycle, and UI in `TokenGaugeApp`.
 - Keep the status-line helper minimal and dependent only on `TokenGaugeCore`.
 - Use `NSStatusItem` + lazy `NSPopover`; release the hosting controller when the popover closes.
-- No continuous menu bar or hidden-popover animations.
-- Centralize visual constants in `Theme.swift`; the panel is 300 pt wide and must stay under 500 pt tall; scroll provider content when needed.
+- No continuous menu bar or hidden-popover animations. The seven-day chart uses native bars and per-day hover/click targets; never rebuild its data for every cursor pixel. Skip status-item image/title assignment when unchanged.
+- Centralize visual constants in `Theme.swift`; the panel is 300 pt wide and must stay under 500 pt tall; show only the selected provider in detail and the other as a compact switch row; scroll only when real provider content exceeds its bounded height.
 - The popover closes on any click outside it: `.transient` alone does not dismiss an accessory app's popover when the click lands in another application (Steven, 2026-08-27). `StatusItemController` arms a global mouse-down monitor plus `didResignActiveNotification` while the popover is shown and tears both down in `popoverDidClose`. Keep the monitor to MOUSE events only — a global key monitor would demand Accessibility, which this app must never request.
 - Reset lines scale with distance: under an hour shows minutes plus the clock time, under a day shows hours plus the clock time, the next calendar day shows `mañana` plus the clock time, and anything further shows whole days only. Far distances count the real remaining duration, never midnight crossings — 3.4 days away reads `3 d`, not `4 d`.
 - The all-models weekly row never repeats a family that already owns its own scoped weekly row: `ProviderCard` passes those families to `ModelActivity.chips(excludingFamilies:)`, so `Semanal` and `Fable semanal` report disjoint token totals.

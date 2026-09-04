@@ -6,7 +6,7 @@ enum Theme {
 
     enum Layout {
         static let panelWidth: CGFloat = 300
-        static let panelHeight: CGFloat = 490
+        static let providerMaxHeight: CGFloat = 238
         static let panelPadding: CGFloat = 13
         static let cardRadius: CGFloat = 11
         static let rowRadius: CGFloat = 7

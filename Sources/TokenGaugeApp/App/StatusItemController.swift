@@ -10,6 +10,7 @@ final class StatusItemController: NSObject {
     private let store: UsageStore
     private let launchAtLogin: LaunchAtLoginManager
     private var cancellables = Set<AnyCancellable>()
+    private var displayedProvider: UsageProvider?
     private var appearanceObservation: NSKeyValueObservation?
     private var outsideClickMonitor: Any?
     private var resignObserver: (any NSObjectProtocol)?
@@ -28,7 +29,6 @@ final class StatusItemController: NSObject {
             button.action = #selector(togglePopover)
             button.imagePosition = .imageLeading
             button.imageScaling = .scaleProportionallyDown
-            button.image = ProviderLogoAssets.menuBarImage(for: store.primaryProvider, size: 15)
             button.toolTip = "app.name".localized
         }
 
@@ -102,7 +102,10 @@ final class StatusItemController: NSObject {
 
     private func updateStatusItem() {
         guard let button = statusItem.button else { return }
-        button.image = ProviderLogoAssets.menuBarImage(for: store.primaryProvider, size: 15)
+        if displayedProvider != store.primaryProvider {
+            button.image = ProviderLogoAssets.menuBarImage(for: store.primaryProvider, size: 15)
+            displayedProvider = store.primaryProvider
+        }
         let providerName = "provider.\(store.primaryProvider.rawValue)".localized
         let window = store.menuBarWindow
         let remaining = window?.remainingPercentage
@@ -121,13 +124,16 @@ final class StatusItemController: NSObject {
             color = color.usingColorSpace(.sRGB) ?? color
         }
 
-        button.attributedTitle = NSAttributedString(
+        let title = NSAttributedString(
             string: text,
             attributes: [
                 .foregroundColor: color,
                 .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold),
             ]
         )
+        if !button.attributedTitle.isEqual(to: title) {
+            button.attributedTitle = title
+        }
         if let window {
             button.toolTip =
                 "\(providerName) · \(UsageFormatters.windowName(window)) · \(text.trimmingCharacters(in: .whitespaces))"

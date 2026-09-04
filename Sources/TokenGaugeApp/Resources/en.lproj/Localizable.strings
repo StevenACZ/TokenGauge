@@ -42,7 +42,7 @@
 "action.refresh" = "Refresh now";
 "action.quit" = "Quit TokenGauge";
 "settings.primary_provider" = "Menu bar provider";
-"settings.primary_provider_help" = "Choose the provider shown first and in the menu bar.";
+"settings.primary_provider_help" = "Choose the provider shown in detail and in the menu bar.";
 "settings.claude_cancelled" = "Claude subscription cancelled";
 "settings.subscription" = "Subscription status";
 "status.authentication_required" = "Sign in again";
@@ -55,3 +55,5 @@
 "window.reserve_weekly" = "GPT weekly reserve";
 "window.general_weekly" = "General weekly";
 "window.reserve_help" = "OpenAI reports this separate counter as gpt-reserve. Its model coverage and relationship to the general quota are not documented; percentages must not be added.";
+"settings.switch_provider" = "Switch to this provider";
+"quota.remaining_value" = "%@ remaining";
