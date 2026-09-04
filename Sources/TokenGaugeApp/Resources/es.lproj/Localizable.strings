@@ -41,3 +41,17 @@
 "language.english" = "English";
 "action.refresh" = "Actualizar ahora";
 "action.quit" = "Salir de TokenGauge";
+"settings.primary_provider" = "Proveedor de la barra";
+"settings.primary_provider_help" = "Elige el proveedor que aparece primero y en la barra del menú.";
+"settings.claude_cancelled" = "Suscripción de Claude cancelada";
+"settings.subscription" = "Estado de la suscripción";
+"status.authentication_required" = "Inicia sesión";
+"status.access_denied" = "Sin acceso";
+"status.cancelled" = "Cancelada";
+"message.authentication_required" = "La sesión de Claude venció o no está disponible. El historial se conserva y la app sigue comprobando el acceso.";
+"message.access_denied" = "Claude denegó el acceso. El historial se conserva y se volverá a comprobar.";
+"message.cancelled" = "Historial conservado. Se reactivará al detectar actividad nueva en Claude y confirmar el acceso.";
+"updated.last_known" = "Última lectura: %@";
+"window.reserve_weekly" = "Reserva GPT semanal";
+"window.general_weekly" = "Semanal general";
+"window.reserve_help" = "OpenAI informa este contador como gpt-reserve. No documenta qué modelos cubre ni su relación con la cuota general; los porcentajes no se suman.";

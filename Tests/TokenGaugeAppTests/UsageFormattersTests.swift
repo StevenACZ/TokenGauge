@@ -9,8 +9,8 @@ final class UsageFormattersTests: XCTestCase {
     private let calendar = Calendar(identifier: .gregorian)
     private var now = Date()
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         let anchor = Date(timeIntervalSince1970: 1_787_000_400)
         now = calendar.startOfDay(for: anchor).addingTimeInterval(9 * 3_600)
         LocalizationManager.shared.language = .spanish
@@ -69,6 +69,21 @@ final class UsageFormattersTests: XCTestCase {
             UsageFormatters.reset(now.addingTimeInterval(-60), now: now, calendar: calendar),
             "reset.pending".localized
         )
+    }
+
+    func testServerReserveIdentifierHasItsOwnLabelAndExplanationInBothLanguages() {
+        let reserve = QuotaWindow(
+            id: "base_model_inference.primary", usedPercentage: 0, resetsAt: nil,
+            durationMinutes: 10_080, displayName: "gpt-reserve")
+        for language in [AppLanguage.spanish, .english] {
+            LocalizationManager.shared.language = language
+            XCTAssertEqual(UsageFormatters.windowName(reserve), "window.reserve_weekly".localized)
+            XCTAssertTrue(UsageFormatters.windowHelp(reserve).contains("gpt-reserve"))
+            let general = QuotaWindow(
+                id: "codex.primary", usedPercentage: 92, resetsAt: nil,
+                durationMinutes: 10_080, displayName: nil)
+            XCTAssertEqual(UsageFormatters.windowName(general), "window.general_weekly".localized)
+        }
     }
 
     private func day(offset: Int) -> Date {

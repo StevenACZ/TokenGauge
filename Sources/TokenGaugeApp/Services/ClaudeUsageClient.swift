@@ -2,6 +2,20 @@ import Darwin
 import Foundation
 import TokenGaugeCore
 
+enum ClaudeAccessState: Equatable, Sendable {
+    case live
+    case cached
+    case authenticationRequired
+    case accessDenied
+    case unavailable
+}
+
+struct ClaudeUsageResult: Sendable {
+    let snapshot: ProviderUsageSnapshot
+    let access: ClaudeAccessState
+    let lastActivityAt: Date?
+}
+
 struct ClaudeUsageClient: Sendable {
     let homeDirectory: URL
 
@@ -9,20 +23,50 @@ struct ClaudeUsageClient: Sendable {
         self.homeDirectory = homeDirectory
     }
 
-    func fetch(now: Date = Date()) throws -> ProviderUsageSnapshot {
+    func fetch(now: Date = Date()) throws -> ClaudeUsageResult {
         let buckets = (try? fetchModelBuckets(now: now)) ?? []
         let account = ClaudeAccountUsageClient(homeDirectory: homeDirectory)
-
-        if let live = try? account.fetch(now: now) {
-            return snapshot(windows: live.windows, capturedAt: live.capturedAt, modelBuckets: buckets)
-        }
-
+        let outcome = Result { try account.fetch(now: now) }
         let capture = try? SecureMetricStore.read(
             ClaudeCapturedSnapshot.self,
             from: UsagePaths.claudeCapture(homeDirectory: homeDirectory)
         )
-        let fallback = Self.fallback(cached: account.cached(), capture: capture, modelBuckets: buckets, now: now)
-        return snapshot(windows: fallback.windows, capturedAt: fallback.capturedAt, modelBuckets: buckets)
+        return Self.resolve(
+            account: outcome, cached: account.cached(), capture: capture, modelBuckets: buckets, now: now
+        )
+    }
+
+    static func resolve(
+        account: Result<ClaudeAccountSnapshot, Error>,
+        cached: ClaudeAccountSnapshot?,
+        capture: ClaudeCapturedSnapshot?,
+        modelBuckets: [ModelTokenBucket],
+        now: Date
+    ) -> ClaudeUsageResult {
+        if case .success(let live) = account, !live.windows.isEmpty {
+            return ClaudeUsageResult(
+                snapshot: snapshot(windows: live.windows, capturedAt: live.capturedAt, modelBuckets: modelBuckets),
+                access: .live,
+                lastActivityAt: capture?.capturedAt
+            )
+        }
+        let fallback = Self.fallback(cached: cached, capture: capture, modelBuckets: modelBuckets, now: now)
+        let access: ClaudeAccessState
+        switch account {
+        case .success:
+            access = .unavailable
+        case .failure(let error):
+            switch error as? ClaudeAccountUsageError {
+            case .authenticationRequired: access = .authenticationRequired
+            case .accessDenied: access = .accessDenied
+            default: access = fallback.windows.isEmpty ? .unavailable : .cached
+            }
+        }
+        return ClaudeUsageResult(
+            snapshot: snapshot(windows: fallback.windows, capturedAt: fallback.capturedAt, modelBuckets: modelBuckets),
+            access: access,
+            lastActivityAt: capture?.capturedAt
+        )
     }
 
     static func fallback(
@@ -48,7 +92,7 @@ struct ClaudeUsageClient: Sendable {
         return (current + scoped, normalized.capturedAt)
     }
 
-    private func snapshot(
+    private static func snapshot(
         windows: [QuotaWindow],
         capturedAt: Date?,
         modelBuckets: [ModelTokenBucket]

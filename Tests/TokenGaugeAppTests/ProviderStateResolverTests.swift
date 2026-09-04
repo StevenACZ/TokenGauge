@@ -77,6 +77,77 @@ final class ProviderStateResolverTests: XCTestCase {
         XCTAssertEqual(ProviderStateResolver.codexStatus(snapshot: usage), .waiting)
     }
 
+    func testGeneralCodexQuotaWinsOverReserveRegardlessOfOrderOrPercentage() {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let reserve = window(
+            id: "base_model_inference.primary", used: 0, duration: 10_080,
+            reset: now.addingTimeInterval(86_400), displayName: "gpt-reserve")
+        let general = window(id: "codex.primary", used: 92, duration: 10_080, reset: now.addingTimeInterval(86_400))
+        for windows in [[reserve, general], [general, reserve]] {
+            let state = ProviderViewState(
+                snapshot: snapshot(provider: .codex, windows: windows, capturedAt: now),
+                status: .ready, isRefreshing: false)
+            XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: state)?.id, general.id)
+            XCTAssertEqual(WindowVisibility.visible(windows, provider: .codex).first?.id, general.id)
+        }
+        let reserveOnly = ProviderViewState(
+            snapshot: snapshot(provider: .codex, windows: [reserve], capturedAt: now),
+            status: .ready, isRefreshing: false)
+        XCTAssertNil(ProviderStateResolver.menuBarWindow(state: reserveOnly))
+    }
+
+    func testUnavailableOrOldQuotaNeverAppearsAsCurrentMenuBarBalance() {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let usage = snapshot(
+            provider: .claude,
+            windows: [
+                window(
+                    id: "seven_day", used: 88,
+                    duration: 10_080, reset: now)
+            ], capturedAt: now)
+        for status in [ProviderStatus.stale, .cancelled, .authenticationRequired, .accessDenied, .unavailable] {
+            XCTAssertNil(
+                ProviderStateResolver.menuBarWindow(
+                    state:
+                        ProviderViewState(snapshot: usage, status: status, isRefreshing: false)))
+        }
+    }
+
+    func testCancellationRequiresBothNewActivityAndRestoredAccessToResume() {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let usage = snapshot(
+            provider: .claude,
+            windows: [
+                window(
+                    id: "seven_day", used: 10,
+                    duration: 10_080, reset: now.addingTimeInterval(86_400))
+            ], capturedAt: now)
+        for access in [ClaudeAccessState.live, .cached, .authenticationRequired, .accessDenied, .unavailable] {
+            for activity in [nil, now.addingTimeInterval(-1), now, now.addingTimeInterval(1)] as [Date?] {
+                let result = ClaudeUsageResult(snapshot: usage, access: access, lastActivityAt: activity)
+                let expected = access == .live && (activity ?? .distantPast) > now
+                XCTAssertEqual(ProviderStateResolver.shouldResumeClaude(result: result, cancelledAt: now), expected)
+                let state = ProviderStateResolver.claudeState(result: result, cancelled: true)
+                XCTAssertEqual(state.status, .cancelled)
+                XCTAssertEqual(state.snapshot, usage)
+            }
+        }
+    }
+
+    @MainActor func testProviderChoiceAndCancellationSurviveRelaunch() {
+        let suite = "TokenGaugeTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let first = UsageStore(defaults: defaults)
+        XCTAssertEqual(first.primaryProvider, .codex)
+        first.primaryProvider = .claude
+        first.setClaudeCancelled(true)
+        let relaunched = UsageStore(defaults: defaults)
+        XCTAssertEqual(relaunched.primaryProvider, .claude)
+        XCTAssertEqual(relaunched.orderedProviders, [.claude, .codex])
+        XCTAssertEqual(relaunched.claudeCancelledAt, first.claudeCancelledAt)
+    }
+
     private func snapshot(
         provider: UsageProvider,
         windows: [QuotaWindow],

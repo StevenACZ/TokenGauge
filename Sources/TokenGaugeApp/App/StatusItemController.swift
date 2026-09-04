@@ -28,12 +28,13 @@ final class StatusItemController: NSObject {
             button.action = #selector(togglePopover)
             button.imagePosition = .imageLeading
             button.imageScaling = .scaleProportionallyDown
-            button.image = ProviderLogoAssets.menuBarImage(for: .claude, size: 15)
+            button.image = ProviderLogoAssets.menuBarImage(for: store.primaryProvider, size: 15)
             button.toolTip = "app.name".localized
         }
 
-        Publishers.CombineLatest(store.$claude, store.$codex)
-            .sink { [weak self] _, _ in
+        Publishers.CombineLatest3(store.$claude, store.$codex, store.$primaryProvider)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _, _, _ in
                 self?.updateStatusItem()
             }
             .store(in: &cancellables)
@@ -101,6 +102,8 @@ final class StatusItemController: NSObject {
 
     private func updateStatusItem() {
         guard let button = statusItem.button else { return }
+        button.image = ProviderLogoAssets.menuBarImage(for: store.primaryProvider, size: 15)
+        let providerName = "provider.\(store.primaryProvider.rawValue)".localized
         let window = store.menuBarWindow
         let remaining = window?.remainingPercentage
         let text = remaining.map { " \(Int($0.rounded()))%" } ?? " --"
@@ -126,7 +129,10 @@ final class StatusItemController: NSObject {
             ]
         )
         if let window {
-            button.toolTip = "\(UsageFormatters.windowName(window)) · \(text.trimmingCharacters(in: .whitespaces))"
+            button.toolTip =
+                "\(providerName) · \(UsageFormatters.windowName(window)) · \(text.trimmingCharacters(in: .whitespaces))"
+        } else {
+            button.toolTip = "\(providerName) · \("status.unavailable".localized)"
         }
     }
 }

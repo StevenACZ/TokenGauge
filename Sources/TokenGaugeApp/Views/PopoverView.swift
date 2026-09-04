@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import TokenGaugeCore
 
 struct PopoverView: View {
     @ObservedObject var store: UsageStore
@@ -9,8 +10,22 @@ struct PopoverView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Layout.sectionSpacing) {
             header
-            ProviderCard(provider: .claude, state: store.claude)
-            ProviderCard(provider: .codex, state: store.codex)
+            Picker("settings.primary_provider".localized, selection: $store.primaryProvider) {
+                Text("provider.codex".localized).tag(UsageProvider.codex)
+                Text("provider.claude".localized).tag(UsageProvider.claude)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .accessibilityLabel("settings.primary_provider".localized)
+            .help("settings.primary_provider_help".localized)
+
+            ScrollView {
+                VStack(spacing: Theme.Layout.sectionSpacing) {
+                    ForEach(store.orderedProviders, id: \.self) { provider in
+                        ProviderCard(provider: provider, state: store.state(for: provider))
+                    }
+                }
+            }
             ActivityChartView(claude: store.claude.snapshot, codex: store.codex.snapshot)
             Divider().padding(.top, 1)
             footer
@@ -18,7 +33,7 @@ struct PopoverView: View {
         .padding(.horizontal, Theme.Layout.panelPadding)
         .padding(.top, 12)
         .padding(.bottom, 8)
-        .frame(width: Theme.Layout.panelWidth)
+        .frame(width: Theme.Layout.panelWidth, height: Theme.Layout.panelHeight)
         .fixedSize(horizontal: false, vertical: true)
         .id(localization.language)
     }
@@ -44,6 +59,23 @@ struct PopoverView: View {
                 .font(.system(size: 14, weight: .semibold))
 
             Spacer(minLength: 0)
+
+            Menu {
+                Toggle(
+                    "settings.claude_cancelled".localized,
+                    isOn: Binding(
+                        get: { store.claudeCancelledAt != nil },
+                        set: { store.setClaudeCancelled($0) }
+                    )
+                )
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("settings.subscription".localized)
 
             Button {
                 store.refresh(force: true)

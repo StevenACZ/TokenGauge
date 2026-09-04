@@ -52,7 +52,12 @@ enum WindowVisibility {
         case .codex:
             let mainline = windows.filter { !isSpark($0) }
             let weekly = mainline.filter { $0.durationMinutes == weeklyMinutes }
-            return weekly.isEmpty ? mainline : weekly
+            return (weekly.isEmpty ? mainline : weekly).sorted { left, right in
+                let leftGeneral = left.id.hasPrefix("codex.")
+                let rightGeneral = right.id.hasPrefix("codex.")
+                if leftGeneral != rightGeneral { return leftGeneral }
+                return left.id < right.id
+            }
         }
     }
 

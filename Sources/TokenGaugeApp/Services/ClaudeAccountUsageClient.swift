@@ -1,6 +1,20 @@
 import Foundation
 import TokenGaugeCore
 
+enum ClaudeAccountUsageError: Error, Equatable {
+    case authenticationRequired
+    case accessDenied
+    case unavailable
+
+    static func httpStatus(_ status: Int) -> Self {
+        switch status {
+        case 401: .authenticationRequired
+        case 402, 403: .accessDenied
+        default: .unavailable
+        }
+    }
+}
+
 struct ClaudeAccountUsageClient: Sendable {
     let homeDirectory: URL
 
@@ -19,7 +33,7 @@ struct ClaudeAccountUsageClient: Sendable {
 
     func fetch(now: Date = Date()) throws -> ClaudeAccountSnapshot {
         guard let token = ClaudeOAuthTokenReader.read(), !token.isExpired else {
-            throw UsageDataError.missingResponse("oauth")
+            throw ClaudeAccountUsageError.authenticationRequired
         }
         var request = URLRequest(url: Self.endpoint)
         request.httpMethod = "GET"
@@ -31,18 +45,33 @@ struct ClaudeAccountUsageClient: Sendable {
         let outcome: Data
         do {
             outcome = try send(request)
-        } catch UsageDataError.processFailed(let detail) where detail.hasSuffix("401") {
+        } catch ClaudeAccountUsageError.authenticationRequired {
             ClaudeOAuthTokenReader.invalidate()
             guard let fresh = ClaudeOAuthTokenReader.read(), !fresh.isExpired, fresh.value != token.value else {
-                throw UsageDataError.processFailed(detail)
+                throw ClaudeAccountUsageError.authenticationRequired
             }
             request.setValue("Bearer \(fresh.value)", forHTTPHeaderField: "Authorization")
             outcome = try send(request)
         }
-        let windows = try ClaudeAccountUsageParser.parse(outcome)
+        let windows = try Self.parseWindows(outcome)
         let snapshot = ClaudeAccountSnapshot(capturedAt: now, windows: windows)
-        try? SecureMetricStore.write(snapshot, to: UsagePaths.claudeAccountCache(homeDirectory: homeDirectory))
+        if !windows.isEmpty {
+            try? SecureMetricStore.write(snapshot, to: UsagePaths.claudeAccountCache(homeDirectory: homeDirectory))
+        }
         return snapshot
+    }
+
+    static func parseWindows(_ data: Data) throws -> [QuotaWindow] {
+        do {
+            if let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let limits = root["limits"] as? [Any], limits.isEmpty
+            {
+                return []
+            }
+            return try ClaudeAccountUsageParser.parse(data)
+        } catch {
+            throw ClaudeAccountUsageError.unavailable
+        }
     }
 
     func cached() -> ClaudeAccountSnapshot? {
@@ -64,10 +93,13 @@ struct ClaudeAccountUsageClient: Sendable {
         task.resume()
         guard semaphore.wait(timeout: .now() + 12) == .success else {
             task.cancel()
-            throw UsageDataError.timedOut
+            throw ClaudeAccountUsageError.unavailable
         }
-        guard status == 200, let payload else {
-            throw UsageDataError.processFailed("usage endpoint status \(status)")
+        guard status == 200 else {
+            throw ClaudeAccountUsageError.httpStatus(status)
+        }
+        guard let payload else {
+            throw ClaudeAccountUsageError.unavailable
         }
         return payload
     }

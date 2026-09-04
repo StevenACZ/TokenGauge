@@ -3,7 +3,7 @@
 ## Product
 
 - Native macOS 14+ menu bar app for Claude Code and Codex plan usage.
-- The panel shows the Claude five-hour and weekly windows, the Codex mainline weekly window, and a seven-day activity chart.
+- The panel shows provider quota windows and a seven-day activity chart. A persisted provider selector controls card order and the menu bar; Codex is the default.
 - SwiftPM app, Apple Silicon only for local packaging.
 - Bundle ID: `com.stevenacz.TokenGauge`.
 - The app reads the Claude Code OAuth access token from the Keychain to call one read-only usage endpoint (Steven authorized this on 2026-08-25; before that the app read no credential at all). It never reads API keys and never extracts or persists prompt or response content.
@@ -22,7 +22,7 @@
 - Codex Spark buckets are hidden in the panel through `WindowVisibility`; the cache keeps every bucket the app-server returns.
 - Claude history scans run only in the short-lived `TokenGaugeCapture --history` helper; scanning JSONL in the resident app retained hundreds of megabytes after completion.
 - Persist normalized metrics only under `~/Library/Application Support/TokenGauge` with user-only permissions.
-- Missing or stale provider data must remain visible and honest. Never fabricate usage.
+- Missing or stale provider data must remain visible and honest. A failed live read never becomes ready because the fallback is recent; hide historical balances from current-quota surfaces. HTTP 401 means authentication required, 402/403 means no access, and neither proves subscription cancellation. Manual cancellation preserves history and clears automatically only after live quota plus newer status-line activity.
 - Every successful refresh archives into the local SQLite history at `~/Library/Application Support/TokenGauge/usage-history.sqlite` (mode 0600) through `UsageHistoryStore`, off the main actor and best-effort: an archive failure must never block or alter the panel. `quota_samples` keeps percentages and reset instants collapsed into 15-minute buckets and pruned after `quotaRetentionDays`; `daily_tokens` keeps one row per (day, provider, model) and only ever grows (`MAX`), so trimmed transcripts cannot erase recorded history. Codex has no per-model detail, so its rows use the model key `all`. Never store tokens, account fields, prompts, or responses there.
 - Query the history with `scripts/usage_history.sh {status|daily|models|weekly|monthly|quota|export|sql}`; the `daily_totals`, `weekly_totals` (ISO week Monday) and `monthly_totals` views exist so both Steven and an agent read the same aggregation.
 
@@ -33,12 +33,12 @@
 - Keep the status-line helper minimal and dependent only on `TokenGaugeCore`.
 - Use `NSStatusItem` + lazy `NSPopover`; release the hosting controller when the popover closes.
 - No continuous menu bar or hidden-popover animations.
-- Centralize visual constants in `Theme.swift`; the panel is 300 pt wide and must stay under 500 pt tall.
+- Centralize visual constants in `Theme.swift`; the panel is 300 pt wide and must stay under 500 pt tall; scroll provider content when needed.
 - The popover closes on any click outside it: `.transient` alone does not dismiss an accessory app's popover when the click lands in another application (Steven, 2026-08-27). `StatusItemController` arms a global mouse-down monitor plus `didResignActiveNotification` while the popover is shown and tears both down in `popoverDidClose`. Keep the monitor to MOUSE events only — a global key monitor would demand Accessibility, which this app must never request.
 - Reset lines scale with distance: under an hour shows minutes plus the clock time, under a day shows hours plus the clock time, the next calendar day shows `mañana` plus the clock time, and anything further shows whole days only. Far distances count the real remaining duration, never midnight crossings — 3.4 days away reads `3 d`, not `4 d`.
 - The all-models weekly row never repeats a family that already owns its own scoped weekly row: `ProviderCard` passes those families to `ModelActivity.chips(excludingFamilies:)`, so `Semanal` and `Fable semanal` report disjoint token totals.
 - The header refresh button is the ONLY refresh affordance. Never put a circular-arrow glyph on a quota row, a reset time, or a credit pill: the store refreshes every five minutes and the panel must not look like it needs clicking (Steven, 2026-08-25).
-- The menu bar item is the Claude brand mark plus one percentage: the tightest model-scoped weekly window, falling back to the all-models weekly one. Keep `NSStatusItem.variableLength` and let AppKit size it. **Never assign `NSStatusItem.length` from a measurement taken in the same runloop turn as the content change** — it clips the content it was measured from (lesson `tokengauge-statusitem-length-clips-title`).
+- The menu bar uses the selected provider brand and one current percentage. Codex uses only the general `codex.*` bucket, never the `base_model_inference` / `gpt-reserve` counter; the reserve must not be added to general quota or assigned undocumented model coverage. Claude uses the tightest model-scoped weekly window, falling back to all-models weekly. Keep `NSStatusItem.variableLength` and let AppKit size it. **Never assign `NSStatusItem.length` from a measurement taken in the same runloop turn as the content change** — it clips the content it was measured from (lesson `tokengauge-statusitem-length-clips-title`).
 - Resolve the title colour against `button.effectiveAppearance` and redraw on `NSApp.effectiveAppearance` changes; the image is not a template, so nothing adapts on its own.
 - `cacheDisplay` does not capture an `NSButton` title. To prove the percentage renders, compare `button.frame.width` with the title set against the width with an empty title.
 - Localize all visible strings in English and Spanish.

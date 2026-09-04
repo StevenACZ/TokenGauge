@@ -10,7 +10,7 @@ struct ProviderCard: View {
     }
 
     private var visibleWindows: [QuotaWindow] {
-        guard let snapshot = state.snapshot else { return [] }
+        guard state.status == .ready, let snapshot = state.snapshot else { return [] }
         return WindowVisibility.visible(snapshot.windows, provider: provider)
     }
 
@@ -19,6 +19,11 @@ struct ProviderCard: View {
             header
             if visibleWindows.isEmpty {
                 statusMessage
+                if let capturedAt = state.snapshot?.capturedAt {
+                    Text("updated.last_known".localized(UsageFormatters.lastUpdated(capturedAt)))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 ForEach(visibleWindows) { window in
                     QuotaWindowRow(
@@ -44,7 +49,7 @@ struct ProviderCard: View {
 
             Spacer(minLength: 4)
 
-            if let credits = state.snapshot?.availableResetCredits, credits > 0 {
+            if state.status == .ready, let credits = state.snapshot?.availableResetCredits, credits > 0 {
                 Text(UsageFormatters.resetCredits(credits))
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(tint)
@@ -101,6 +106,7 @@ struct ProviderCard: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.bottom, 2)
+        .help(state.snapshot?.capturedAt.map { "updated.last_known".localized(UsageFormatters.lastUpdated($0)) } ?? "")
     }
 
     private var statusText: String {
@@ -110,6 +116,9 @@ struct ProviderCard: View {
         case .waiting: return "status.waiting".localized
         case .stale: return "status.stale".localized
         case .unavailable: return "status.unavailable".localized
+        case .authenticationRequired: return "status.authentication_required".localized
+        case .accessDenied: return "status.access_denied".localized
+        case .cancelled: return "status.cancelled".localized
         }
     }
 
@@ -125,6 +134,9 @@ struct ProviderCard: View {
         case .waiting: return "ellipsis.circle"
         case .stale: return "clock.badge.exclamationmark"
         case .unavailable: return "exclamationmark.triangle"
+        case .authenticationRequired: return "person.crop.circle.badge.exclamationmark"
+        case .accessDenied: return "lock"
+        case .cancelled: return "pause.circle"
         }
     }
 
@@ -132,8 +144,9 @@ struct ProviderCard: View {
         switch state.status {
         case .ready: return .green
         case .stale: return .orange
-        case .unavailable: return .red
-        case .loading, .waiting: return .secondary
+        case .unavailable, .accessDenied: return .red
+        case .authenticationRequired: return .orange
+        case .loading, .waiting, .cancelled: return .secondary
         }
     }
 
@@ -151,6 +164,12 @@ struct ProviderCard: View {
             return "message.codex_unavailable".localized
         case .unavailable:
             return "message.claude_unavailable".localized
+        case .authenticationRequired:
+            return "message.authentication_required".localized
+        case .accessDenied:
+            return "message.access_denied".localized
+        case .cancelled:
+            return "message.cancelled".localized
         case .ready:
             return "message.ready".localized
         }
@@ -172,6 +191,7 @@ private struct QuotaWindowRow: View {
                 Text(UsageFormatters.windowName(window))
                     .font(.caption.weight(.medium))
                     .lineLimit(1)
+                    .help(UsageFormatters.windowHelp(window))
                 Spacer(minLength: 4)
                 Text(UsageFormatters.percentage(window.remainingPercentage))
                     .font(.system(size: 14, weight: .semibold, design: .rounded))

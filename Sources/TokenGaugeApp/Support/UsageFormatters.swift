@@ -84,6 +84,12 @@ enum UsageFormatters {
     }
 
     @MainActor static func windowName(_ window: QuotaWindow) -> String {
+        if isReserve(window) && window.durationMinutes == 10_080 {
+            return "window.reserve_weekly".localized
+        }
+        if window.id.hasPrefix("codex.") && window.durationMinutes == 10_080 {
+            return "window.general_weekly".localized
+        }
         if window.id == "five_hour" || window.durationMinutes == 300 {
             return "window.session".localized
         }
@@ -97,6 +103,14 @@ enum UsageFormatters {
             return displayName
         }
         return "window.usage".localized
+    }
+
+    private static func isReserve(_ window: QuotaWindow) -> Bool {
+        window.id.hasPrefix("base_model_inference.") || window.displayName?.lowercased() == "gpt-reserve"
+    }
+
+    @MainActor static func windowHelp(_ window: QuotaWindow) -> String {
+        isReserve(window) ? "window.reserve_help".localized : windowName(window)
     }
 
     @MainActor static func modelChips(_ chips: [ModelUsageChip]) -> String? {

@@ -41,3 +41,17 @@
 "language.english" = "English";
 "action.refresh" = "Refresh now";
 "action.quit" = "Quit TokenGauge";
+"settings.primary_provider" = "Menu bar provider";
+"settings.primary_provider_help" = "Choose the provider shown first and in the menu bar.";
+"settings.claude_cancelled" = "Claude subscription cancelled";
+"settings.subscription" = "Subscription status";
+"status.authentication_required" = "Sign in again";
+"status.access_denied" = "No access";
+"status.cancelled" = "Cancelled";
+"message.authentication_required" = "Claude sign-in has expired or is missing. History is preserved; checks continue automatically.";
+"message.access_denied" = "Claude denied access. History is preserved; access will be checked again.";
+"message.cancelled" = "History preserved. Resumes after new Claude activity and confirmed access.";
+"updated.last_known" = "Last reading: %@";
+"window.reserve_weekly" = "GPT weekly reserve";
+"window.general_weekly" = "General weekly";
+"window.reserve_help" = "OpenAI reports this separate counter as gpt-reserve. Its model coverage and relationship to the general quota are not documented; percentages must not be added.";
