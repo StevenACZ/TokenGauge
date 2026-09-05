@@ -52,8 +52,8 @@
 "message.access_denied" = "Claude denied access. History is preserved; access will be checked again.";
 "message.cancelled" = "History preserved. Resumes after new Claude activity and confirmed access.";
 "updated.last_known" = "Last reading: %@";
-"window.reserve_weekly" = "GPT weekly reserve";
+"window.reserve_weekly" = "Luna weekly reserve";
 "window.general_weekly" = "General weekly";
-"window.reserve_help" = "OpenAI reports this separate counter as gpt-reserve. Its model coverage and relationship to the general quota are not documented; percentages must not be added.";
+"window.reserve_help" = "Weekly quota reserved for Luna. Its percentage is shown separately from the general weekly quota.";
 "settings.switch_provider" = "Switch to this provider";
 "quota.remaining_value" = "%@ remaining";

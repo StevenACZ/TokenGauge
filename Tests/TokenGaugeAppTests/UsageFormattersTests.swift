@@ -78,7 +78,8 @@ final class UsageFormattersTests: XCTestCase {
         for language in [AppLanguage.spanish, .english] {
             LocalizationManager.shared.language = language
             XCTAssertEqual(UsageFormatters.windowName(reserve), "window.reserve_weekly".localized)
-            XCTAssertTrue(UsageFormatters.windowHelp(reserve).contains("gpt-reserve"))
+            XCTAssertTrue(UsageFormatters.windowName(reserve).contains("Luna"))
+            XCTAssertTrue(UsageFormatters.windowHelp(reserve).contains("Luna"))
             let general = QuotaWindow(
                 id: "codex.primary", usedPercentage: 92, resetsAt: nil,
                 durationMinutes: 10_080, displayName: nil)
