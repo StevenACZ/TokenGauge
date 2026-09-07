@@ -42,7 +42,7 @@ enum ProviderLogoAssets {
     static let codex = load("provider-codex")
 
     private static func load(_ name: String) -> NSImage? {
-        guard let url = Bundle.module.url(forResource: name, withExtension: "svg"),
+        guard let url = AppResources.bundle.url(forResource: name, withExtension: "svg"),
             let image = NSImage(contentsOf: url)
         else { return nil }
         image.size = NSSize(width: 128, height: 128)

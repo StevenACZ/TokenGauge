@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import os
 
@@ -16,8 +17,6 @@ public enum ClaudeOAuthTokenReader {
 
     private static let cache = OSAllocatedUnfairLock<ClaudeOAuthToken?>(initialState: nil)
 
-    // Claude Code recreates the keychain item on every token refresh, which drops any ACL grant
-    // this app earned. /usr/bin/security is the item creator, so reading through it never prompts.
     public static func read(account: String = NSUserName()) -> ClaudeOAuthToken? {
         cache.withLock { cached in
             if let cached, !cached.isExpired { return cached }
@@ -47,16 +46,66 @@ public enum ClaudeOAuthTokenReader {
     }
 
     private static func securityPayload(account: String) -> Data? {
+        boundedPayload(
+            executable: URL(fileURLWithPath: "/usr/bin/security"),
+            arguments: ["find-generic-password", "-a", account, "-s", service, "-w"],
+            timeout: 5
+        )
+    }
+
+    static func boundedPayload(executable: URL, arguments: [String], timeout: TimeInterval) -> Data? {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        process.arguments = ["find-generic-password", "-a", account, "-s", service, "-w"]
+        process.executableURL = executable
+        process.arguments = arguments
         let stdout = Pipe()
+        process.standardInput = FileHandle.nullDevice
         process.standardOutput = stdout
         process.standardError = FileHandle.nullDevice
         do { try process.run() } catch { return nil }
-        let output = stdout.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
+        defer {
+            try? stdout.fileHandleForReading.close()
+            if process.isRunning {
+                process.terminate()
+                let deadline = ProcessInfo.processInfo.systemUptime + 0.2
+                while process.isRunning, ProcessInfo.processInfo.systemUptime < deadline {
+                    usleep(10_000)
+                }
+                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+                process.waitUntilExit()
+            }
+        }
+        let deadline = ProcessInfo.processInfo.systemUptime + timeout
+        var output = Data()
+        var outputClosed = false
+        while ProcessInfo.processInfo.systemUptime < deadline {
+            if outputClosed {
+                if !process.isRunning { break }
+                usleep(10_000)
+                continue
+            }
+            var descriptor = pollfd(
+                fd: stdout.fileHandleForReading.fileDescriptor, events: Int16(POLLIN), revents: 0
+            )
+            let ready = poll(&descriptor, 1, 50)
+            if ready < 0 {
+                if errno == EINTR { continue }
+                return nil
+            }
+            guard ready > 0 else { continue }
+            var bytes = [UInt8](repeating: 0, count: 16_384)
+            let count = Darwin.read(descriptor.fd, &bytes, bytes.count)
+            if count < 0 {
+                if errno == EINTR { continue }
+                return nil
+            }
+            if count == 0 {
+                outputClosed = true
+            } else {
+                guard output.count + count <= 1024 * 1024 else { return nil }
+                output.append(contentsOf: bytes.prefix(count))
+            }
+        }
+        guard !process.isRunning, outputClosed, process.terminationStatus == 0 else { return nil }
         return output
     }
 }

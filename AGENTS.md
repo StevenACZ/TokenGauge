@@ -42,13 +42,16 @@
 - Resolve the title colour against `button.effectiveAppearance` and redraw on `NSApp.effectiveAppearance` changes; the image is not a template, so nothing adapts on its own.
 - `cacheDisplay` does not capture an `NSButton` title. To prove the percentage renders, compare `button.frame.width` with the title set against the width with an empty title.
 - Localize all visible strings in English and Spanish.
+- Resolve resources from packaged or executable-adjacent bundles; never reference `Bundle.module` in shipped code because its generated fallback embeds the builder's private path. Verify both executables with `strings` before release.
+- Settings owns language, login, provider setup and automatic update checks. About owns manual update checks and release notes; available updates also appear inline in the panel.
+- Public updates use Sparkle signatures and notarized Developer ID artifacts. Development builds stay off the public feed except explicit loopback QA. Never export signing keys.
 
 ## Safety
 
 - Do not log or persist raw JSONL lines, prompts, responses, account identifiers, emails, tokens, or credentials.
 - Do not invoke a model request to refresh usage.
 - Do not scrape provider web pages.
-- Do not request Accessibility, Automation, Full Disk Access, or Keychain access.
+- Do not request Accessibility, Automation or Full Disk Access. Claude uses its existing read-only Keychain credential; explain the system access prompt if its ACL requires one.
 - Launch at login is opt-in through `SMAppService.mainApp`.
 - Keep local installs signed with Apple Development.
 - Ask before Git staging, commits, pushes, PRs, merges, rebases, resets, or branch deletion.

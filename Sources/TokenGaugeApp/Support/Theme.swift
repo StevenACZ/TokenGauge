@@ -5,8 +5,10 @@ enum Theme {
     static let codex = Color(red: 0.33, green: 0.47, blue: 0.96)
 
     enum Layout {
+        static let menuBarIconSize: CGFloat = 18
+        static let menuBarFontSize: CGFloat = 14
         static let panelWidth: CGFloat = 300
-        static let providerMaxHeight: CGFloat = 238
+        static let providerMaxHeight: CGFloat = 210
         static let panelPadding: CGFloat = 13
         static let cardRadius: CGFloat = 11
         static let rowRadius: CGFloat = 7

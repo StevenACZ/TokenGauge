@@ -15,7 +15,9 @@ fi
 
 cd "$ROOT_DIR"
 SIGN_IDENTITY="$SIGN_IDENTITY" ./scripts/build_and_run.sh install
-./scripts/install_claude_statusline.sh
+if [[ "${TOKENGAUGE_INSTALL_CLAUDE_STATUSLINE:-0}" == 1 ]]; then
+    ./scripts/install_claude_statusline.sh
+fi
 
 SIGNING_DETAILS="$(codesign -dvvv "$APP_PATH" 2>&1 || true)"
 if ! grep -q "Authority=Apple Development" <<<"$SIGNING_DETAILS"; then

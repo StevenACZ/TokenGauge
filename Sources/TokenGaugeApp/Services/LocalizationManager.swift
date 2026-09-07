@@ -5,6 +5,14 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case english = "en"
 
     var id: String { rawValue }
+
+    static func preferred(from languages: [String]) -> AppLanguage {
+        for language in languages {
+            let code = language.split(whereSeparator: { $0 == "-" || $0 == "_" }).first.map(String.init)
+            if let code, let supported = AppLanguage(rawValue: code) { return supported }
+        }
+        return .english
+    }
 }
 
 @MainActor
@@ -22,7 +30,7 @@ final class LocalizationManager: ObservableObject {
 
     private init() {
         let stored = UserDefaults.standard.string(forKey: "appLanguage")
-        let language = AppLanguage(rawValue: stored ?? "") ?? .spanish
+        let language = AppLanguage(rawValue: stored ?? "") ?? AppLanguage.preferred(from: Locale.preferredLanguages)
         self.language = language
         bundle = Self.bundle(for: language)
     }
@@ -32,9 +40,9 @@ final class LocalizationManager: ObservableObject {
     }
 
     private static func bundle(for language: AppLanguage) -> Bundle {
-        guard let path = Bundle.module.path(forResource: language.rawValue, ofType: "lproj") else {
-            return Bundle.module
+        guard let path = AppResources.bundle.path(forResource: language.rawValue, ofType: "lproj") else {
+            return AppResources.bundle
         }
-        return Bundle(path: path) ?? Bundle.module
+        return Bundle(path: path) ?? AppResources.bundle
     }
 }

@@ -1,0 +1,81 @@
+import AppKit
+import SwiftUI
+import TokenGaugeCore
+import XCTest
+
+@testable import TokenGaugeApp
+
+@MainActor
+final class ScreenshotTests: XCTestCase {
+    func testExportSyntheticScreenshots() throws {
+        guard let directory = ProcessInfo.processInfo.environment["TOKENGAUGE_SCREENSHOT_DIR"] else {
+            throw XCTSkip("Set TOKENGAUGE_SCREENSHOT_DIR to export synthetic documentation images")
+        }
+        let output = URL(fileURLWithPath: directory)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let previousIcon = NSApplication.shared.applicationIconImage
+        let icon = output.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(
+            "Resources/AppIcon.png")
+        NSApplication.shared.applicationIconImage = try XCTUnwrap(NSImage(contentsOf: icon))
+        defer { NSApplication.shared.applicationIconImage = previousIcon }
+        let suite = "TokenGauge.screenshots.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let language = LocalizationManager.shared.language
+        defer { LocalizationManager.shared.language = language }
+        LocalizationManager.shared.language = .english
+        let now = Date()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let activity = (0..<7).map { index in
+            DailyTokenUsage(
+                day: formatter.string(from: Calendar.current.date(byAdding: .day, value: index - 6, to: now)!),
+                tokens: [21, 7, 12, 18, 9, 16, 11][index] * 1_000_000)
+        }
+        let snapshots = UsageProvider.allCases.map { provider in
+            ProviderUsageSnapshot(
+                provider: provider,
+                windows: [
+                    QuotaWindow(
+                        id: "\(provider.rawValue).primary", usedPercentage: provider == .codex ? 28 : 42,
+                        resetsAt: now.addingTimeInterval(4 * 86400), durationMinutes: 10080, displayName: nil)
+                ],
+                dailyUsage: activity.map {
+                    DailyTokenUsage(day: $0.day, tokens: $0.tokens / (provider == .codex ? 1 : 3))
+                },
+                summary: nil, availableResetCredits: nil, creditBalance: nil, capturedAt: now)
+        }
+        let store = UsageStore(defaults: defaults, initialSnapshots: snapshots)
+        try render(
+            PopoverView(store: store, showSettings: {}, showAbout: {}), to: output.appendingPathComponent("panel.png"))
+        try render(
+            SettingsView(store: store, launchAtLogin: LaunchAtLoginManager()).defaultAppStorage(defaults),
+            to: output.appendingPathComponent("settings.png"))
+    }
+
+    private func render(_ content: some View, to output: URL) throws {
+        let application = NSApplication.shared
+        let previousAppearance = application.appearance
+        application.appearance = NSAppearance(named: .darkAqua)
+        defer { application.appearance = previousAppearance }
+        let view = NSHostingView(
+            rootView: content.background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, .dark))
+        view.appearance = NSAppearance(named: .darkAqua)
+        let size = view.fittingSize
+        XCTAssertGreaterThan(size.width, 200)
+        XCTAssertLessThan(size.height, 760)
+        view.frame = NSRect(origin: .zero, size: size)
+        let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.backgroundColor = .windowBackgroundColor
+        window.contentView = view
+        view.layoutSubtreeIfNeeded()
+        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.appearance?.performAsCurrentDrawingAppearance {
+            view.cacheDisplay(in: view.bounds, to: bitmap)
+        }
+        let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        try png.write(to: output)
+        window.contentView = nil
+    }
+}

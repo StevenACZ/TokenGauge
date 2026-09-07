@@ -42,13 +42,18 @@ final class UsageStore: ObservableObject {
     init(
         claudeClient: ClaudeUsageClient = ClaudeUsageClient(),
         codexClient: CodexAppServerClient = CodexAppServerClient(),
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        initialSnapshots: [ProviderUsageSnapshot] = []
     ) {
         self.claudeClient = claudeClient
         self.codexClient = codexClient
         self.defaults = defaults
         primaryProvider = UsageProvider(rawValue: defaults.string(forKey: "primaryProvider") ?? "") ?? .codex
         claudeCancelledAt = defaults.object(forKey: "claudeCancelledAt") as? Date
+        for snapshot in initialSnapshots {
+            let state = ProviderViewState(snapshot: snapshot, status: .ready, isRefreshing: false)
+            if snapshot.provider == .claude { claude = state } else { codex = state }
+        }
     }
 
     func start() {

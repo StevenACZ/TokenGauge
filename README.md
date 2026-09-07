@@ -1,24 +1,84 @@
-# TokenGauge
+<p align="center">
+  <img src="Resources/AppIcon.png" width="128" alt="TokenGauge icon">
+</p>
+<h1 align="center">TokenGauge</h1>
+<p align="center">Your AI coding quota, one glance away.</p>
+<p align="center">
+  <img src="https://img.shields.io/badge/macOS-14%2B-black" alt="macOS 14 or later">
+  <img src="https://img.shields.io/badge/Apple%20Silicon-native-blue" alt="Apple Silicon">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
+</p>
 
-TokenGauge is a native macOS menu bar app for Claude Code and Codex plan usage.
+TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Codex quota you have left. Check reset times, compare seven days of activity, and keep a private local history without opening a terminal.
 
-It reads Codex metrics through the local official app-server protocol. Claude Code quota comes from its read-only OAuth usage endpoint, with normalized status-line data as a fallback. The existing Claude OAuth credential is read in memory and never renewed or persisted by TokenGauge. Local activity totals decode only timestamps, message IDs, model identifiers, and numeric token counters; prompt and response content is never extracted, logged, or persisted.
+<p align="center">
+  <img src="docs/images/panel.png" width="300" alt="TokenGauge panel with provider quotas and seven-day activity">
+  <img src="docs/images/settings.png" width="390" alt="TokenGauge settings with language, provider setup and update preferences">
+</p>
+<p align="center"><sub>App views rendered with synthetic demonstration data.</sub></p>
 
-The panel shows the Claude five-hour window, the all-models weekly window and every model-scoped weekly window the plan defines, the Codex general weekly window and additional server-reported counters, per-model token totals for each Claude window, and a seven-day activity chart.
+## At a glance
 
-The provider selector chooses the detailed card and menu-bar provider, defaults to Codex, and persists across launches. The other provider stays in a compact clickable row. Only unusually large quota lists scroll; the chart and footer stay visible. The Codex menu bar uses only its general quota. The separate `gpt-reserve` counter (`base_model_inference`) is shown without assuming model coverage or adding percentages.
+- **A readable menu bar:** your selected provider’s logo and remaining quota.
+- **Separate limits:** general weekly quota and additional provider windows stay separate.
+- **Seven days of activity:** daily Claude and Codex token totals, with hover or click details.
+- **Local history:** aggregated usage survives trimmed provider logs.
+- **English and Spanish:** follows your system language initially, with an explicit language choice in Settings.
+- **Native updates:** daily checks, an inline install action, and manual checks in About.
+- **No telemetry, ads, or model requests.**
 
-The settings menu can mark Claude's subscription as cancelled locally. This preserves the SQLite usage history and does not change billing. Automatic reactivation requires a successful quota read and status-line activity newer than the cancellation; unchecking the setting also resumes tracking. Authentication failures, denied access, temporary failures, and cancellation have separate states, and historical balances are not presented as current quota.
+## Install and connect
 
-The activity chart uses fourteen native bars, with one hover/click target per day and explicit app-language weekday labels. Its seven-day data is prepared when snapshots change, and unchanged menu-bar images and titles are not assigned again.
+Requires **macOS 14 or later and an Apple Silicon Mac**. Intel builds are not currently distributed.
 
-## Local development
+1. Download the DMG from [Releases](https://github.com/StevenACZ/TokenGauge/releases).
+2. Drag TokenGauge to Applications and open it. The app appears in the menu bar.
+3. Install and sign in to [Codex CLI](https://developers.openai.com/codex/cli/) or [Claude Code](https://code.claude.com/docs/en/quickstart) with the subscription you use. You do not need both.
+4. Select your provider in TokenGauge. It refreshes automatically; use the header refresh button to check immediately.
 
-```bash
+If Codex was installed using a custom npm prefix, nvm, asdf, or Volta and is not detected, use **Settings → Choose Codex executable…** to select the executable you use in Terminal. Automatic detection can be restored from the same row.
+
+TokenGauge is a usage viewer, not a replacement for either provider. On a Mac without a signed-in provider, it shows an unavailable/sign-in state and keeps the setup links accessible in **Settings**. It never invents a balance or asks for an API key.
+
+**Permissions:** no Accessibility, Automation, Screen Recording, or Full Disk Access is needed. Launch at login is optional. Claude quota requires reading Claude Code’s existing OAuth credential from the macOS Keychain; macOS may request access depending on that item’s access policy. TokenGauge does not create, renew, rotate, or export the credential. Sign-in stays in Claude Code.
+
+### Updates
+
+Release builds check for updates daily. When one is available, choose **Install update** in the panel or **About TokenGauge**. Download progress appears inline, then the app relaunches. Automatic checking can be disabled in Settings; manual checks live in About. There are no separate Sparkle update windows.
+
+Updates use [Sparkle](https://sparkle-project.org), a signed ZIP, and an EdDSA-signed appcast on GitHub Releases. Development builds stay off the public update channel.
+
+### What the numbers mean
+
+The menu bar shows the selected provider’s current balance. Codex uses its general quota; a separate Luna reserve is displayed independently and is never added to it. Claude uses its tightest scoped weekly limit, falling back to the general weekly limit. Token activity totals are not quota percentages. Provider windows and account availability depend on your plan and may change upstream.
+
+If a live read fails, historical balances are not presented as current quota. Authentication required, denied access, stale data, and a locally marked cancelled subscription remain distinct. Marking Claude cancelled in Settings only changes local tracking; it does not cancel billing.
+
+## Privacy
+
+Codex metrics come from the local `codex app-server` account methods. Claude quota comes from its read-only usage endpoint, using the existing credential only in memory. This integration depends on provider behavior and is not an official provider product.
+
+Local activity scans decode timestamps, message IDs, model identifiers, and numeric counters. Prompt and response fields are not decoded, logged, or persisted. Only normalized metrics and aggregate history are saved under `~/Library/Application Support/TokenGauge`, with user-only permissions. No usage is sent to a TokenGauge server. Provider quota requests contact the provider, and update checks contact GitHub.
+
+See [SECURITY.md](SECURITY.md) for reporting and update-channel details.
+
+## Build from source
+
+Use Xcode/Swift **6.2 or newer** on macOS. No Node, Homebrew runtime, or web service is required.
+
+```sh
 make ci-check
 make install-dev
 ```
 
-The development installer requires an Apple Development signing identity and installs the app to `~/Applications/TokenGauge.app`.
+The development installer requires an Apple Development signing identity and installs to `~/Applications/TokenGauge.app`. It does not modify Claude Code’s configuration. To stage a local bundle without installing, use `make stage`.
 
-`make install-dev` also adds an idempotent, allowlisted capture call to the existing Claude Code status-line script. The helper persists only quota percentages and reset timestamps. It never stores the rest of the status-line payload.
+The optional `scripts/install_claude_statusline.sh` supports an existing shell status-line script containing `input=$(cat)`. It adds a normalized quota capture fallback and creates a backup; it is not needed for normal live quota reads. It refuses unsupported scripts instead of overwriting a custom setup. Do not replace someone’s status-line configuration merely to enable the fallback.
+
+[Release guide](docs/RELEASING.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
+
+## Credits
+
+Created by **StevenACZ**. Also see [SapoWhisper](https://github.com/StevenACZ/SapoWhisper), [Encaje](https://github.com/StevenACZ/Encaje), and [MacGauge](https://github.com/StevenACZ/MacGauge).
+
+TokenGauge is independently developed and is not affiliated with OpenAI or Anthropic. Provider names and marks belong to their respective owners. Source code is [MIT licensed](LICENSE); Sparkle notices are included in [docs/licenses](docs/licenses).

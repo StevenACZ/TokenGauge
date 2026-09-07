@@ -4,8 +4,14 @@ import TokenGaugeCore
 
 struct PopoverView: View {
     @ObservedObject var store: UsageStore
-    @ObservedObject var launchAtLogin: LaunchAtLoginManager
+    let showSettings: () -> Void
+    let showAbout: () -> Void
+    @ObservedObject private var updates = UpdateManager.shared
     @ObservedObject private var localization = LocalizationManager.shared
+
+    private var providerMaxHeight: CGFloat {
+        Theme.Layout.providerMaxHeight - (updates.phase == .idle ? 0 : 44)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Layout.sectionSpacing) {
@@ -18,9 +24,9 @@ struct PopoverView: View {
                     providerContent
                 }
                 .scrollIndicators(.automatic)
-                .frame(height: Theme.Layout.providerMaxHeight)
+                .frame(height: providerMaxHeight)
             }
-            .frame(maxHeight: Theme.Layout.providerMaxHeight)
+            .frame(maxHeight: providerMaxHeight)
             ActivityChartView(claude: store.claude.snapshot, codex: store.codex.snapshot)
             Divider().padding(.top, 1)
             footer
@@ -87,42 +93,16 @@ struct PopoverView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Theme.claude.opacity(0.9), Theme.codex.opacity(0.9)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                Image(systemName: "chart.bar.fill")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-            .frame(width: 22, height: 22)
+            Image(nsImage: NSApplication.shared.applicationIconImage)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 22, height: 22)
+                .accessibilityHidden(true)
 
             Text("app.name".localized)
                 .font(.system(size: 14, weight: .semibold))
 
             Spacer(minLength: 0)
-
-            Menu {
-                Toggle(
-                    "settings.claude_cancelled".localized,
-                    isOn: Binding(
-                        get: { store.claudeCancelledAt != nil },
-                        set: { store.setClaudeCancelled($0) }
-                    )
-                )
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("settings.subscription".localized)
 
             Button {
                 store.refresh(force: true)
@@ -147,64 +127,15 @@ struct PopoverView: View {
 
     private var footer: some View {
         VStack(spacing: 0) {
-            SettingRow(icon: "powerplug", title: "settings.launch_at_login".localized) {
-                Toggle(
-                    "",
-                    isOn: Binding(
-                        get: { launchAtLogin.isEnabled },
-                        set: { launchAtLogin.setEnabled($0) }
-                    )
-                )
-                .labelsHidden()
-                .controlSize(.mini)
-
-                Picker("", selection: $localization.language) {
-                    Text("language.spanish".localized).tag(AppLanguage.spanish)
-                    Text("language.english".localized).tag(AppLanguage.english)
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .controlSize(.small)
-                .fixedSize()
-                .help("settings.language".localized)
+            if updates.phase != .idle {
+                UpdateActionView().padding(5)
             }
-
-            if let message = launchAtLogin.errorMessage {
-                Text(message)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.orange)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 5)
-                    .padding(.bottom, 4)
-            }
-
+            FooterActionRow(icon: "gearshape", title: "settings.title".localized, action: showSettings)
+            FooterActionRow(icon: "info.circle", title: "about.title".localized, action: showAbout)
             FooterActionRow(icon: "power", title: "action.quit".localized) {
                 NSApp.terminate(nil)
             }
         }
-    }
-}
-
-private struct SettingRow<Accessory: View>: View {
-    let icon: String
-    let title: String
-    @ViewBuilder let accessory: Accessory
-
-    var body: some View {
-        HStack(spacing: 9) {
-            Image(systemName: icon)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .frame(width: 15)
-            Text(title)
-                .font(.caption)
-                .lineLimit(1)
-            Spacer(minLength: 4)
-            accessory
-        }
-        .padding(.horizontal, 5)
-        .frame(height: 28)
     }
 }
 
@@ -224,14 +155,18 @@ private struct FooterActionRow: View {
                 Text(title)
                     .font(.caption)
                 Spacer(minLength: 0)
+                if icon != "power" {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .medium))
+                }
             }
             .padding(.horizontal, 5)
-            .frame(height: 28)
+            .frame(height: 24)
             .background(
                 RoundedRectangle(cornerRadius: Theme.Layout.rowRadius, style: .continuous)
                     .fill(hovered ? Color.primary.opacity(0.07) : Color.clear)
             )
-            .foregroundStyle(.secondary)
+            .foregroundStyle(icon == "power" ? Color.red : Color.secondary)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

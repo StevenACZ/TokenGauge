@@ -11,12 +11,16 @@ let package = Package(
         .executable(name: "TokenGaugeApp", targets: ["TokenGaugeApp"]),
         .executable(name: "TokenGaugeCapture", targets: ["TokenGaugeCapture"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.6")
+    ],
     targets: [
         .target(name: "TokenGaugeCore"),
         .executableTarget(
             name: "TokenGaugeApp",
-            dependencies: ["TokenGaugeCore"],
-            resources: [.process("Resources")]
+            dependencies: ["TokenGaugeCore", .product(name: "Sparkle", package: "Sparkle")],
+            resources: [.process("Resources")],
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
         .executableTarget(
             name: "TokenGaugeCapture",

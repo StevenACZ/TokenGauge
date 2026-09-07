@@ -9,6 +9,7 @@ final class StatusItemController: NSObject {
     private let popover = NSPopover()
     private let store: UsageStore
     private let launchAtLogin: LaunchAtLoginManager
+    private let windows: AppWindows
     private var cancellables = Set<AnyCancellable>()
     private var displayedProvider: UsageProvider?
     private var appearanceObservation: NSKeyValueObservation?
@@ -18,6 +19,7 @@ final class StatusItemController: NSObject {
     init(store: UsageStore, launchAtLogin: LaunchAtLoginManager) {
         self.store = store
         self.launchAtLogin = launchAtLogin
+        windows = AppWindows(store: store, launchAtLogin: launchAtLogin)
         super.init()
 
         popover.behavior = .transient
@@ -53,7 +55,16 @@ final class StatusItemController: NSObject {
         }
         store.refresh()
         launchAtLogin.refresh()
-        let view = PopoverView(store: store, launchAtLogin: launchAtLogin)
+        let view = PopoverView(
+            store: store,
+            showSettings: { [weak self] in
+                self?.dismissPopover()
+                self?.windows.showSettings()
+            },
+            showAbout: { [weak self] in
+                self?.dismissPopover()
+                self?.windows.showAbout()
+            })
         let controller = NSHostingController(rootView: view)
         controller.sizingOptions = [.preferredContentSize]
         popover.contentViewController = controller
@@ -103,7 +114,8 @@ final class StatusItemController: NSObject {
     private func updateStatusItem() {
         guard let button = statusItem.button else { return }
         if displayedProvider != store.primaryProvider {
-            button.image = ProviderLogoAssets.menuBarImage(for: store.primaryProvider, size: 15)
+            button.image = ProviderLogoAssets.menuBarImage(
+                for: store.primaryProvider, size: Theme.Layout.menuBarIconSize)
             displayedProvider = store.primaryProvider
         }
         let providerName = "provider.\(store.primaryProvider.rawValue)".localized
@@ -128,7 +140,7 @@ final class StatusItemController: NSObject {
             string: text,
             attributes: [
                 .foregroundColor: color,
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold),
+                .font: NSFont.monospacedDigitSystemFont(ofSize: Theme.Layout.menuBarFontSize, weight: .semibold),
             ]
         )
         if !button.attributedTitle.isEqual(to: title) {

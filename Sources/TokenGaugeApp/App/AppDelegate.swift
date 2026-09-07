@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         statusController = StatusItemController(store: store, launchAtLogin: launchAtLogin)
         store.start()
+        UpdateManager.shared.start()
     }
 
 }
