@@ -79,12 +79,13 @@ struct ActivityChartView: View {
 
             HStack(alignment: .bottom, spacing: 8) {
                 ForEach(data.days) { day in
+                    let isToday = day.id == data.days.last?.id
                     Button {
                         select(day)
                     } label: {
                         VStack(spacing: 5) {
                             HStack(alignment: .bottom, spacing: 3) {
-                                ForEach(data.providers, id: \.self) { provider in
+                                ForEach(data.providers.filter { day.tokens(for: $0) > 0 }, id: \.self) { provider in
                                     bar(
                                         tokens: day.tokens(for: provider),
                                         tint: provider == .claude ? Theme.claude : Theme.codex)
@@ -96,8 +97,16 @@ struct ActivityChartView: View {
                                 Rectangle().fill(Color.primary.opacity(0.09)).frame(height: 1)
                             }
                             Text(day.date.formatted(.dateTime.weekday(.narrow).locale(locale)))
-                                .font(.system(size: 9, weight: day.id == selectedDay?.id ? .bold : .regular))
-                                .foregroundStyle(day.id == selectedDay?.id ? Color.primary : Color.secondary)
+                                .font(.system(size: 9, weight: isToday || day.id == selectedDay?.id ? .bold : .regular))
+                                .foregroundStyle(
+                                    isToday ? .white : day.id == selectedDay?.id ? Color.primary : Color.secondary
+                                )
+                                .frame(width: 22, height: 16)
+                                .background {
+                                    if isToday {
+                                        Capsule().fill(data.providers == [.claude] ? Theme.claude : Theme.codex)
+                                    }
+                                }
                         }
                         .frame(maxWidth: .infinity)
                         .contentShape(Rectangle())

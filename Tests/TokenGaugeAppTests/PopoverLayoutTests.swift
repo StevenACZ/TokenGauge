@@ -42,7 +42,12 @@ final class PopoverLayoutTests: XCTestCase {
     private func assertHeight(_ store: UsageStore, file: StaticString = #filePath, line: UInt = #line) {
         let view = NSHostingView(rootView: PopoverView(store: store, showSettings: {}, showAbout: {}))
         XCTAssertEqual(
-            view.fittingSize.width, store.displayMode == .unified ? 560 : 300, accuracy: 1, file: file, line: line)
-        XCTAssertLessThanOrEqual(view.fittingSize.height, 500, file: file, line: line)
+            view.fittingSize.width,
+            store.displayMode == .unified ? Theme.Layout.unifiedPanelWidth : Theme.Layout.panelWidth, accuracy: 1,
+            file: file, line: line)
+        XCTAssertLessThanOrEqual(
+            view.fittingSize.height, 500,
+            "\(LocalizationManager.shared.language.rawValue) / \(store.displayMode.rawValue) / \(UpdateManager.shared.phase)",
+            file: file, line: line)
     }
 }

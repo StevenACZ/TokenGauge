@@ -5,11 +5,11 @@ enum Theme {
     static let codex = Color(red: 0.33, green: 0.47, blue: 0.96)
 
     enum Layout {
-        static let menuBarIconSize: CGFloat = 18
-        static let menuBarFontSize: CGFloat = 14
-        static let panelWidth: CGFloat = 300
+        static let menuBarIconSize: CGFloat = 17
+        static let menuBarFontSize: CGFloat = 13.5
+        static let panelWidth: CGFloat = 340
         static let unifiedPanelWidth: CGFloat = 560
-        static let providerMaxHeight: CGFloat = 210
+        static let providerMaxHeight: CGFloat = 206
         static let panelPadding: CGFloat = 13
         static let cardRadius: CGFloat = 11
         static let rowRadius: CGFloat = 7
@@ -78,5 +78,30 @@ struct GaugeBar: View {
         let clamped = min(max(fraction, 0), 1)
         guard clamped > 0 else { return 0 }
         return max(total * clamped, Theme.Layout.barHeight)
+    }
+}
+
+enum MenuBarSize: String, CaseIterable, Identifiable {
+    case large
+    case medium
+    case small
+
+    var id: String { rawValue }
+    var titleKey: String { "settings.menu_bar_size." + rawValue }
+
+    var iconSize: CGFloat {
+        switch self {
+        case .large: return Theme.Layout.menuBarIconSize
+        case .medium: return 15.5
+        case .small: return 13.5
+        }
+    }
+
+    var fontSize: CGFloat {
+        switch self {
+        case .large: return Theme.Layout.menuBarFontSize
+        case .medium: return 12.5
+        case .small: return 11
+        }
     }
 }

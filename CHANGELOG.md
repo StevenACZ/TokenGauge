@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-07
+
+### Added
+
+- Large, Medium, and Small menu-bar sizes, remembered between launches.
+- Provider icons in the Settings view selector.
+
+### Changed
+
+- Roomier individual panels, clearer provider branding, and more space between Unified menu-bar balances.
+- Move Luna reserve visibility into the Codex settings card and align provider switches.
+- Explain the difference between confirmed access and manually marked subscription cancellation.
+- Refresh documentation images to match the updated interface.
+
+### Fixed
+
+- Keep today's chart label highlighted while inspecting other days.
+- Center a day's single active provider bar in Unified view.
+- Keep the popover anchored after size and provider changes without redundant repositioning animations.
+- Keep long quota lists within the compact panel height, including update states.
+- Show a sign-in state when Codex explicitly reports that authentication is required, preserving history.
+
 ## [1.0.0] - 2026-09-07
 
 ### Added

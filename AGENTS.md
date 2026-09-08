@@ -11,7 +11,7 @@
 ## Data Contracts
 
 - Codex data comes from the local `codex app-server` stable account methods.
-- Keep app-server stdin open through responses 3 and 4, read ready pipe bytes with `poll` + `Darwin.read`, then close stdin and prove the child exits.
+- Keep app-server stdin open through responses 2, 3 and 4, read ready pipe bytes with `poll` + `Darwin.read`, then close stdin and prove the child exits.
 - Claude quota data comes from `GET https://api.anthropic.com/api/oauth/usage`, the endpoint `/usage` itself calls, with `Authorization: Bearer` and `anthropic-beta: oauth-2025-04-20`. Parse the `limits` array (`session`, `weekly_all`, `weekly_scoped` with `scope.model.display_name`), not the legacy top-level buckets: the model-scoped weekly limit exists only there.
 - **Never refresh, rotate, or write the OAuth credential.** Read the Keychain item (`Claude Code-credentials` / the login name) through `/usr/bin/security find-generic-password -w` as a subprocess, never `SecItemCopyMatching` from the app: Claude Code recreates the item on every token refresh, which drops the ACL grant Steven gave TokenGauge, so the direct read re-prompted him after every refresh (2026-08-26/27) even with "Always Allow"; `security` is the item creator and reads silently. Keep the token only in process memory (`ClaudeOAuthTokenReader` cache), read once per launch and re-read only after it expires. Claude Code owns that credential and refreshes it; a refresh from here would rotate the refresh token and sign Steven out. An expired token is a skip, not a reason to renew.
 - Call the usage endpoint through an ephemeral `URLSession` with no URL cache: `URLSession.shared` cached a 401 and replayed it (`cache_hit=true`) on every refresh while the token was valid, so the Fable row vanished (2026-08-26). On a real 401, invalidate the token cache and re-read the Keychain once — Claude Code rotates the token.
@@ -33,7 +33,7 @@
 - Keep the status-line helper minimal and dependent only on `TokenGaugeCore`.
 - Use `NSStatusItem` + lazy `NSPopover`; release the hosting controller when the popover closes.
 - No continuous menu bar or hidden-popover animations. The seven-day chart uses one or two native bars per day according to display mode and per-day hover/click targets; hidden providers never affect its legend, summary or scale; never rebuild its data for every cursor pixel. Skip status-item image/title assignment when unchanged.
-- Centralize visual constants in `Theme.swift`; individual panels are 300 pt wide and Unified is 560 pt wide; all stay under 500 pt tall. Individual views show only their own provider; Unified shows two titled cards side by side. Scroll only when real provider content exceeds its bounded height.
+- Centralize visual constants in `Theme.swift`; individual panels are 340 pt wide and Unified is 560 pt wide; all stay under 500 pt tall. Individual views show only their own provider; Unified shows two titled cards side by side. Scroll only when real provider content exceeds its bounded height.
 - The popover closes on any click outside it: `.transient` alone does not dismiss an accessory app's popover when the click lands in another application (Steven, 2026-08-27). `StatusItemController` arms a global mouse-down monitor plus `didResignActiveNotification` while the popover is shown and tears both down in `popoverDidClose`. Keep the monitor to MOUSE events only — a global key monitor would demand Accessibility, which this app must never request.
 - Reset lines scale with distance: under an hour shows minutes plus the clock time, under a day shows hours plus the clock time, the next calendar day shows `mañana` plus the clock time, and anything further shows whole days only. Far distances count the real remaining duration, never midnight crossings — 3.4 days away reads `3 d`, not `4 d`.
 - The all-models weekly row never repeats a family that already owns its own scoped weekly row: `ProviderCard` passes those families to `ModelActivity.chips(excludingFamilies:)`, so `Semanal` and `Fable semanal` report disjoint token totals.
@@ -48,6 +48,9 @@
 - Public updates use Sparkle signatures and notarized Developer ID artifacts. Development builds stay off the public feed except explicit loopback QA. Never export signing keys.
 
 ## Safety
+
+- Preparing a public release does not authorize publishing it. Repository visibility changes, release publication, release tags and assets require explicit publication authorization; preparation or signing approval alone is insufficient.
+- UI iteration is M4-only for Steven to review. Broader QA, documentation screenshots, and public release publication require his explicit scope approval.
 
 - Do not log or persist raw JSONL lines, prompts, responses, account identifiers, emails, tokens, or credentials.
 - Do not invoke a model request to refresh usage.

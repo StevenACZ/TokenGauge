@@ -11,11 +11,13 @@ struct MenuBarPresentation: Equatable {
     }
 
     let segments: [Segment]
+    let size: MenuBarSize
 
     init(
         providers: [UsageProvider], state: (UsageProvider) -> ProviderViewState,
-        appearance: NSAppearance
+        appearance: NSAppearance, size: MenuBarSize = .large
     ) {
+        self.size = size
         segments = providers.map { provider in
             let window = ProviderStateResolver.menuBarWindow(state: state(provider))
             let remaining = window?.remainingPercentage
@@ -43,17 +45,19 @@ struct MenuBarPresentation: Equatable {
 
     func attributedTitle() -> NSAttributedString {
         let title = NSMutableAttributedString(string: "")
-        let font = NSFont.monospacedDigitSystemFont(ofSize: Theme.Layout.menuBarFontSize, weight: .semibold)
+        let font = NSFont.monospacedDigitSystemFont(ofSize: size.fontSize, weight: .semibold)
         for (index, segment) in segments.enumerated() {
             let attributes: [NSAttributedString.Key: Any] = [.foregroundColor: segment.color, .font: font]
             if index > 0 {
-                title.append(NSAttributedString(string: "  ", attributes: attributes))
+                let gap = NSMutableAttributedString(string: "  ", attributes: attributes)
+                gap.addAttribute(.kern, value: 3, range: NSRange(location: 0, length: 1))
+                title.append(gap)
                 let attachment = NSTextAttachment()
                 attachment.image = ProviderLogoAssets.menuBarImage(
-                    for: segment.provider, size: Theme.Layout.menuBarIconSize)
+                    for: segment.provider, size: size.iconSize)
                 attachment.bounds = NSRect(
-                    x: 0, y: (font.capHeight - Theme.Layout.menuBarIconSize) / 2,
-                    width: Theme.Layout.menuBarIconSize, height: Theme.Layout.menuBarIconSize)
+                    x: 0, y: (font.capHeight - size.iconSize) / 2,
+                    width: size.iconSize, height: size.iconSize)
                 title.append(NSAttributedString(attachment: attachment))
             }
             title.append(NSAttributedString(string: " \(segment.text)", attributes: attributes))

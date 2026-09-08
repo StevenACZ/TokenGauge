@@ -26,7 +26,7 @@ enum UsageDisplayMode: String, CaseIterable, Identifiable {
     var titleKey: String {
         switch self {
         case .codex: return "provider.codex"
-        case .claude: return "provider.claude"
+        case .claude: return "provider.claude_short"
         case .unified: return "view.unified"
         }
     }

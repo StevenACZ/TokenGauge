@@ -40,6 +40,9 @@ final class UsageStore: ObservableObject {
             if let provider = displayMode.singleProvider, primaryProvider != provider { primaryProvider = provider }
         }
     }
+    @Published var menuBarSize: MenuBarSize {
+        didSet { defaults.set(menuBarSize.rawValue, forKey: "menuBarSize") }
+    }
     @Published var showLunaReserve: Bool {
         didSet { defaults.set(showLunaReserve, forKey: "showLunaReserve") }
     }
@@ -68,6 +71,7 @@ final class UsageStore: ObservableObject {
             ?? (savedProvider == .codex ? .codex : .claude)
         primaryProvider = mode.singleProvider ?? savedProvider
         displayMode = mode
+        menuBarSize = MenuBarSize(rawValue: defaults.string(forKey: "menuBarSize") ?? "") ?? .large
         showLunaReserve = defaults.object(forKey: "showLunaReserve") == nil || defaults.bool(forKey: "showLunaReserve")
         claudeCancelledAt = defaults.object(forKey: "claudeCancelledAt") as? Date
         codexCancelledAt = defaults.object(forKey: "codexCancelledAt") as? Date
@@ -236,6 +240,9 @@ final class UsageStore: ObservableObject {
                 status: ProviderStateResolver.codexStatus(snapshot: snapshot),
                 isRefreshing: false
             )
+        } catch UsageDataError.authenticationRequired {
+            return ProviderViewState(
+                snapshot: client.cached(), status: .authenticationRequired, isRefreshing: false)
         } catch {
             let cached = client.cached()
             return ProviderViewState(

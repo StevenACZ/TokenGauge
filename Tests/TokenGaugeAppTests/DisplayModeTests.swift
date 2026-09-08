@@ -32,6 +32,27 @@ final class DisplayModeTests: XCTestCase {
         }
     }
 
+    func testMenuBarSizeDefaultsToLargeForMissingOrUnknownPreference() {
+        withDefaults { defaults in
+            XCTAssertEqual(UsageStore(defaults: defaults).menuBarSize, .large)
+            defaults.set("unsupported-size", forKey: "menuBarSize")
+            XCTAssertEqual(UsageStore(defaults: defaults).menuBarSize, .large)
+        }
+    }
+
+    func testEveryMenuBarSizePersistsWithoutChangingDisplayMode() {
+        withDefaults { defaults in
+            let store = UsageStore(defaults: defaults)
+            store.displayMode = .unified
+            for size in MenuBarSize.allCases {
+                store.menuBarSize = size
+                let reopened = UsageStore(defaults: defaults)
+                XCTAssertEqual(reopened.menuBarSize, size)
+                XCTAssertEqual(reopened.displayMode, .unified)
+            }
+        }
+    }
+
     func testReserveVisibilityPersistsWithoutChangingGeneralQuota() {
         withDefaults { defaults in
             let general = window("codex.primary", used: 42)

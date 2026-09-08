@@ -1,5 +1,5 @@
 "app.name" = "TokenGauge";
-"provider.claude" = "Claude Code";
+"provider.claude" = "Claude";
 "provider.claude_short" = "Claude";
 "provider.codex" = "Codex";
 "status.loading" = "Checking";
@@ -48,7 +48,7 @@
 "status.authentication_required" = "Sign in again";
 "status.access_denied" = "No access";
 "status.cancelled" = "Cancelled";
-"message.authentication_required" = "Open Claude Code and sign in. Setup links are in Settings. History is preserved; TokenGauge retries automatically.";
+"message.authentication_required" = "Open the provider and sign in. Setup steps are in Settings. History is preserved and checks retry automatically.";
 "message.access_denied" = "Claude denied access. History is preserved; access will be checked again.";
 "message.cancelled" = "History preserved. Tracking resumes after new activity and confirmed access.";
 "updated.last_known" = "Last reading: %@";
@@ -59,7 +59,7 @@
 "quota.remaining_value" = "%@ remaining";
 "settings.title" = "Settings";
 "about.title" = "About TokenGauge";
-"settings.cancellation_help" = "Mark either subscription as cancelled to pause local tracking while preserving history. Tracking resumes when access and new activity are confirmed. Billing is never changed.";
+"settings.cancellation_help" = "Access is checked automatically every 5 minutes. No access or Sign in does not mean the subscription is cancelled: billing cannot be confirmed from the local session. You can mark it manually and keep history; tracking resumes with access and new activity.";
 "setup.title" = "Connect your providers";
 "setup.description" = "Install Codex CLI or Claude Code and sign in with your subscription. You only need the provider you use. TokenGauge detects the local session automatically.";
 "setup.codex" = "Set up Codex";
@@ -99,3 +99,9 @@
 "settings.display_mode_help" = "Choose one provider or both in the menu bar and panel.";
 "settings.show_reserve" = "Show Luna weekly reserve";
 "settings.show_reserve_help" = "Only changes visibility. The general quota is always separate.";
+
+"settings.access_confirmed" = "Access confirmed";
+"settings.menu_bar_size" = "Menu bar size";
+"settings.menu_bar_size.large" = "Large";
+"settings.menu_bar_size.medium" = "Medium";
+"settings.menu_bar_size.small" = "Small";

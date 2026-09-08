@@ -49,8 +49,9 @@ final class ScreenshotTests: XCTestCase {
             return ProviderUsageSnapshot(
                 provider: provider,
                 windows: windows,
-                dailyUsage: activity.map {
-                    DailyTokenUsage(day: $0.day, tokens: $0.tokens / (provider == .codex ? 1 : 3))
+                dailyUsage: activity.enumerated().map { index, usage in
+                    let tokens = provider == .codex ? usage.tokens : (index >= 3 && index <= 5 ? 0 : usage.tokens / 3)
+                    return DailyTokenUsage(day: usage.day, tokens: tokens)
                 },
                 summary: nil, availableResetCredits: nil, creditBalance: nil, capturedAt: now)
         }
@@ -66,10 +67,10 @@ final class ScreenshotTests: XCTestCase {
         )
         try render(
             SettingsView(store: store, launchAtLogin: LaunchAtLoginManager()).defaultAppStorage(defaults),
-            to: output.appendingPathComponent("settings.png"))
+            to: output.appendingPathComponent("settings.png"), maximumHeight: 900)
     }
 
-    private func render(_ content: some View, to output: URL) throws {
+    private func render(_ content: some View, to output: URL, maximumHeight: CGFloat = 500) throws {
         let application = NSApplication.shared
         let previousAppearance = application.appearance
         application.appearance = NSAppearance(named: .darkAqua)
@@ -79,7 +80,7 @@ final class ScreenshotTests: XCTestCase {
         view.appearance = NSAppearance(named: .darkAqua)
         let size = view.fittingSize
         XCTAssertGreaterThan(size.width, 200)
-        XCTAssertLessThan(size.height, 760)
+        XCTAssertLessThanOrEqual(size.height, maximumHeight)
         view.frame = NSRect(origin: .zero, size: size)
         let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
         window.backgroundColor = .windowBackgroundColor

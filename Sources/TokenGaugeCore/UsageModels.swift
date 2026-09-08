@@ -166,6 +166,7 @@ public struct ProviderUsageSnapshot: Codable, Equatable, Sendable {
 }
 
 public enum UsageDataError: Error, Equatable, Sendable {
+    case authenticationRequired
     case invalidPayload
     case missingResponse(String)
     case executableNotFound

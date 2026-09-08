@@ -1,5 +1,5 @@
 "app.name" = "TokenGauge";
-"provider.claude" = "Claude Code";
+"provider.claude" = "Claude";
 "provider.claude_short" = "Claude";
 "provider.codex" = "Codex";
 "status.loading" = "Consultando";
@@ -48,7 +48,7 @@
 "status.authentication_required" = "Inicia sesión";
 "status.access_denied" = "Sin acceso";
 "status.cancelled" = "Cancelada";
-"message.authentication_required" = "Abre Claude Code e inicia sesión. Los pasos están en Configuración. El historial se conserva y se reintenta automáticamente.";
+"message.authentication_required" = "Abre el proveedor e inicia sesión. Los pasos están en Configuración. El historial se conserva y se reintenta automáticamente.";
 "message.access_denied" = "Claude denegó el acceso. El historial se conserva y se volverá a comprobar.";
 "message.cancelled" = "Historial conservado. El seguimiento se reanuda con nueva actividad y acceso confirmado.";
 "updated.last_known" = "Última lectura: %@";
@@ -59,7 +59,7 @@
 "quota.remaining_value" = "%@ libre";
 "settings.title" = "Configuración";
 "about.title" = "Acerca de TokenGauge";
-"settings.cancellation_help" = "Puedes marcar cualquiera como cancelada y conservar su historial. El seguimiento se reactiva al confirmar acceso y actividad nueva. No modifica tu facturación.";
+"settings.cancellation_help" = "El acceso se comprueba automáticamente cada 5 minutos. Sin acceso o Inicia sesión no significa suscripción cancelada: la facturación no se puede confirmar desde la sesión local. Puedes marcarla manualmente y conservar el historial; se reactiva con acceso y actividad nueva.";
 "setup.title" = "Conecta tus proveedores";
 "setup.description" = "Instala Codex CLI o Claude Code e inicia sesión con tu suscripción. Solo necesitas el proveedor que uses. TokenGauge detecta la sesión local automáticamente.";
 "setup.codex" = "Configurar Codex";
@@ -99,3 +99,9 @@
 "settings.display_mode_help" = "Elige un proveedor o ambos para la barra y el panel.";
 "settings.show_reserve" = "Mostrar Reserva Luna semanal";
 "settings.show_reserve_help" = "Solo cambia su visibilidad. La cuota general siempre se mantiene separada.";
+
+"settings.access_confirmed" = "Acceso confirmado";
+"settings.menu_bar_size" = "Tamaño en la barra";
+"settings.menu_bar_size.large" = "Grande";
+"settings.menu_bar_size.medium" = "Mediano";
+"settings.menu_bar_size.small" = "Pequeño";

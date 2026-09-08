@@ -20,6 +20,7 @@ struct ProviderLogo: View {
                     .foregroundStyle(provider == .claude ? Theme.claude : Theme.codex)
             }
         }
+        .frame(width: provider == .codex ? size * 1.2 : size, height: provider == .codex ? size * 1.2 : size)
         .frame(width: size, height: size)
         .accessibilityHidden(true)
     }

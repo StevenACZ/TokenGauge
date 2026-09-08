@@ -13,7 +13,7 @@ struct CodexAppServerClient: Sendable {
         let capturedAt = Date()
         guard let executable = resolveExecutable() else { throw UsageDataError.executableNotFound }
         let input = """
-            {"method":"initialize","id":1,"params":{"clientInfo":{"name":"token_gauge","title":"TokenGauge","version":"1.0.0"}}}
+            {"method":"initialize","id":1,"params":{"clientInfo":{"name":"token_gauge","title":"TokenGauge","version":"1.1.0"}}}
             {"method":"initialized"}
             {"method":"account/read","id":2,"params":{}}
             {"method":"account/rateLimits/read","id":3,"params":{}}
@@ -24,7 +24,7 @@ struct CodexAppServerClient: Sendable {
             executable: executable,
             arguments: ["app-server", "--stdio"],
             input: Data(input.utf8),
-            requiredResponseIDs: [3, 4],
+            requiredResponseIDs: [2, 3, 4],
             timeout: 8
         )
         guard result.exitCode == 0 else {

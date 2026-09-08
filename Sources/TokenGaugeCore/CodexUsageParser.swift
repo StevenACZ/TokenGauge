@@ -12,6 +12,12 @@ public enum CodexUsageParser {
             responses[id] = dictionary
         }
 
+        if let accountResult = responses[2].flatMap({ JSONValue.dictionary($0["result"]) }),
+            accountResult["account"] is NSNull, accountResult["requiresOpenaiAuth"] as? Bool == true
+        {
+            throw UsageDataError.authenticationRequired
+        }
+
         guard let rateResponse = responses[3], let rateResult = JSONValue.dictionary(rateResponse["result"]) else {
             throw UsageDataError.missingResponse("account/rateLimits/read")
         }

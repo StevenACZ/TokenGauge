@@ -21,15 +21,27 @@ struct SettingsView: View {
                         Picker("settings.language".localized, selection: $localization.language) {
                             Text("Español").tag(AppLanguage.spanish)
                             Text("English").tag(AppLanguage.english)
-                        }.labelsHidden().frame(width: 160)
+                        }.labelsHidden().frame(width: 160, alignment: .trailing)
                     }
                     Divider()
                     preferenceRow("settings.display_mode".localized) {
                         Picker("settings.display_mode".localized, selection: $store.displayMode) {
                             ForEach(UsageDisplayMode.allCases) { mode in
-                                Text(mode.titleKey.localized).tag(mode)
+                                Label {
+                                    Text(mode.titleKey.localized)
+                                } icon: {
+                                    displayModeImage(mode)
+                                }.tag(mode)
                             }
-                        }.labelsHidden().frame(width: 160)
+                        }.labelsHidden().frame(width: 160, alignment: .trailing)
+                    }
+                    Divider()
+                    preferenceRow("settings.menu_bar_size".localized) {
+                        Picker("settings.menu_bar_size".localized, selection: $store.menuBarSize) {
+                            ForEach(MenuBarSize.allCases) { size in
+                                Text(size.titleKey.localized).tag(size)
+                            }
+                        }.labelsHidden().frame(width: 160, alignment: .trailing)
                     }
                     Divider()
                     preferenceRow("settings.launch_at_login".localized) {
@@ -39,12 +51,6 @@ struct SettingsView: View {
                                 get: { launchAtLogin.isEnabled }, set: { launchAtLogin.setEnabled($0) })
                         )
                         .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                    }
-                    Divider()
-                    preferenceRow("settings.show_reserve".localized) {
-                        Toggle("settings.show_reserve".localized, isOn: $store.showLunaReserve)
-                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                            .help("settings.show_reserve_help".localized)
                     }
                     if let message = launchAtLogin.errorMessage {
                         Text(message).font(.caption).foregroundStyle(.orange)
@@ -161,14 +167,41 @@ struct SettingsView: View {
                     Text("setup.claude_session".localized).foregroundStyle(.secondary)
                 }
             }.font(.caption).frame(height: 20, alignment: .leading)
+            if provider == .codex {
+                Divider()
+                HStack(spacing: 12) {
+                    Text("settings.show_reserve".localized).font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    Toggle("settings.show_reserve".localized, isOn: $store.showLunaReserve)
+                        .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                        .help("settings.show_reserve_help".localized)
+                }.frame(minHeight: 24)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16).settingsSurface()
     }
 
+    private func displayModeImage(_ mode: UsageDisplayMode) -> Image {
+        let source: NSImage?
+        if let provider = mode.singleProvider {
+            source = ProviderLogoAssets.menuBarImage(for: provider, size: 14)
+        } else {
+            source = NSImage(systemSymbolName: "square.grid.2x2.fill", accessibilityDescription: nil)
+        }
+        guard let source else { return Image(systemName: "square.grid.2x2.fill") }
+        let padded = NSImage(size: NSSize(width: 20, height: 14), flipped: false) { _ in
+            source.draw(in: NSRect(x: 0, y: 0, width: 14, height: 14))
+            return true
+        }
+        padded.isTemplate = source.isTemplate
+        return Image(nsImage: padded)
+    }
+
     private func statusTitle(for provider: UsageProvider) -> String {
         switch store.state(for: provider).status {
-        case .ready: return "status.live".localized
+        case .ready: return "settings.access_confirmed".localized
         case .loading: return "status.loading".localized
         case .waiting: return "status.waiting".localized
         case .stale: return "status.stale".localized

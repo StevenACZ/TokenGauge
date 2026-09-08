@@ -67,6 +67,7 @@ struct PopoverView: View {
                 Text(mode.titleKey.localized).font(.system(size: 11, weight: selected ? .semibold : .medium))
                     .lineLimit(1)
             }
+            .padding(.horizontal, 8)
             .frame(maxWidth: .infinity)
             .frame(height: 27)
             .background(

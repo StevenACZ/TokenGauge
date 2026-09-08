@@ -13,6 +13,15 @@ final class StatusItemController: NSObject {
     private var cancellables = Set<AnyCancellable>()
     private var displayedPresentation: MenuBarPresentation?
     private var appearanceObservation: NSKeyValueObservation?
+    private var popoverSizeObservation: NSKeyValueObservation?
+    private var positioningUpdatePending = false
+    private var positionedGeometry: PopoverGeometry?
+
+    private struct PopoverGeometry: Equatable {
+        let sourceWindow: NSRect
+        let sourceButton: NSRect
+        let contentSize: NSSize
+    }
     private var outsideClickMonitor: Any?
     private var resignObserver: (any NSObjectProtocol)?
 
@@ -32,13 +41,34 @@ final class StatusItemController: NSObject {
             button.imagePosition = .imageLeading
             button.imageScaling = .scaleProportionallyDown
             button.toolTip = "app.name".localized
+            button.postsFrameChangedNotifications = true
+            NotificationCenter.default.publisher(for: NSView.frameDidChangeNotification, object: button)
+                .receive(on: RunLoop.main)
+                .sink { [weak self] _ in self?.schedulePopoverPositionUpdate() }
+                .store(in: &cancellables)
+        }
+
+        NotificationCenter.default.publisher(for: NSWindow.didMoveNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] notification in
+                guard let self, let window = notification.object as? NSWindow,
+                    window === self.statusItem.button?.window
+                else { return }
+                self.schedulePopoverPositionUpdate()
+            }
+            .store(in: &cancellables)
+
+        popoverSizeObservation = popover.observe(\.contentSize, options: [.old, .new]) { [weak self] _, change in
+            guard change.oldValue != change.newValue else { return }
+            Task { @MainActor in self?.schedulePopoverPositionUpdate() }
         }
 
         Publishers.CombineLatest4(
             store.$claude, store.$codex, store.$displayMode, LocalizationManager.shared.$bundle
         )
         .receive(on: RunLoop.main)
-        .sink { [weak self] _, _, _, _ in
+        .combineLatest(store.$menuBarSize.receive(on: RunLoop.main))
+        .sink { [weak self] _, _ in
             self?.updateStatusItem()
         }
         .store(in: &cancellables)
@@ -52,6 +82,7 @@ final class StatusItemController: NSObject {
     @objc private func togglePopover() {
         guard let button = statusItem.button else { return }
         if popover.isShown {
+            popover.animates = true
             popover.performClose(nil)
             return
         }
@@ -68,9 +99,26 @@ final class StatusItemController: NSObject {
         let controller = NSHostingController(rootView: view)
         controller.sizingOptions = [.preferredContentSize]
         popover.contentViewController = controller
+        popover.animates = true
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.animates = false
         popover.contentViewController?.view.window?.makeKey()
         startDismissMonitors()
+    }
+
+    private func schedulePopoverPositionUpdate() {
+        guard popover.isShown, !positioningUpdatePending else { return }
+        positioningUpdatePending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.positioningUpdatePending = false
+            guard self.popover.isShown, let button = self.statusItem.button, let window = button.window else { return }
+            let geometry = PopoverGeometry(
+                sourceWindow: window.frame, sourceButton: button.frame, contentSize: self.popover.contentSize)
+            guard geometry != self.positionedGeometry else { return }
+            self.positionedGeometry = geometry
+            self.popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
     }
 
     func showSettings() {
@@ -118,6 +166,7 @@ final class StatusItemController: NSObject {
             stopDismissMonitors()
             return
         }
+        popover.animates = true
         popover.performClose(nil)
     }
 
@@ -126,22 +175,26 @@ final class StatusItemController: NSObject {
         let presentation = MenuBarPresentation(
             providers: store.displayMode.providers,
             state: { store.state(for: $0) },
-            appearance: button.effectiveAppearance)
+            appearance: button.effectiveAppearance, size: store.menuBarSize)
         guard presentation != displayedPresentation else { return }
-        if displayedPresentation?.segments.first?.provider != presentation.segments.first?.provider,
+        if displayedPresentation?.segments.first?.provider != presentation.segments.first?.provider
+            || displayedPresentation?.size != presentation.size,
             let provider = presentation.segments.first?.provider
         {
-            button.image = ProviderLogoAssets.menuBarImage(for: provider, size: Theme.Layout.menuBarIconSize)
+            button.image = ProviderLogoAssets.menuBarImage(for: provider, size: presentation.size.iconSize)
         }
         button.attributedTitle = presentation.attributedTitle()
         button.toolTip = presentation.accessibilityLabel
         button.setAccessibilityLabel(presentation.accessibilityLabel)
         displayedPresentation = presentation
+        schedulePopoverPositionUpdate()
     }
 }
 
 extension StatusItemController: NSPopoverDelegate {
     func popoverDidClose(_ notification: Notification) {
+        positionedGeometry = nil
+        popover.animates = true
         stopDismissMonitors()
         popover.contentViewController = nil
     }

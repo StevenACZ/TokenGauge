@@ -79,6 +79,39 @@ final class CodexUsageParserTests: XCTestCase {
         XCTAssertTrue(roundTrip.activityReadSucceeded)
     }
 
+    func testExplicitMissingAccountRequiresAuthenticationEvenWithQuotaResponse() {
+        let account = #"{"id":2,"result":{"account":null,"requiresOpenaiAuth":true}}"#
+        let quota = #"{"id":3,"result":{"rateLimits":{"primary":{"usedPercent":10}}}}"#
+        for input in [account, account + "\n" + quota] {
+            XCTAssertThrowsError(try CodexUsageParser.parse(Data(input.utf8))) { error in
+                XCTAssertEqual(error as? UsageDataError, .authenticationRequired)
+            }
+        }
+    }
+
+    func testAccountResponseWithoutExplicitAuthenticationRequirementPreservesQuota() throws {
+        let accounts = [
+            "",
+            #"{"id":2,"error":{"code":-32601,"message":"Method not found"}}"#,
+            #"{"id":2,"result":null}"#,
+            #"{"id":2,"result":{}}"#,
+            #"{"id":2,"result":{"account":null,"requiresOpenaiAuth":false}}"#,
+            #"{"id":2,"result":{"account":null}}"#,
+            #"{"id":2,"result":{"requiresOpenaiAuth":true}}"#,
+            #"{"id":2,"result":{"account":{"type":"chatgpt"},"requiresOpenaiAuth":true}}"#,
+        ]
+        let quota = #"{"id":3,"result":{"rateLimits":{"primary":{"usedPercent":10}}}}"#
+        for account in accounts {
+            let snapshot = try CodexUsageParser.parse(Data((account + "\n" + quota).utf8))
+            XCTAssertEqual(snapshot.windows.first?.usedPercentage, 10)
+            XCTAssertEqual(snapshot.provider, .codex)
+            XCTAssertFalse(snapshot.activityReadSucceeded)
+            XCTAssertThrowsError(try CodexUsageParser.parse(Data(account.utf8))) { error in
+                XCTAssertEqual(error as? UsageDataError, .missingResponse("account/rateLimits/read"))
+            }
+        }
+    }
+
     func testRejectsMissingQuotaResponse() {
         let input = Data("{\"id\":4,\"result\":{\"dailyUsageBuckets\":[]}}\n".utf8)
         XCTAssertThrowsError(try CodexUsageParser.parse(input))
