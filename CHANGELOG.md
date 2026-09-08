@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-07
+
 ### Added
 
+- Separate Codex and Claude Code views, plus a Unified view with both menu-bar balances and scoped seven-day token charts.
+- Independent cancellation tracking for either provider, preserving history and resuming only after confirmed access and new activity.
+- A setting to hide the separate Luna weekly reserve.
 - Native About and Settings windows with provider setup links and privacy guidance.
 - Signed Sparkle updates with daily checks, inline installation, and manual checks in About.
 - Public distribution packaging, dependency notices, and contributor documentation.

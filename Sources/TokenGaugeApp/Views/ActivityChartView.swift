@@ -1,36 +1,74 @@
 import SwiftUI
 import TokenGaugeCore
 
-private struct ActivityDay: Identifiable {
+struct ActivityDay: Identifiable {
     let id: String
     let date: Date
     let claudeTokens: Int
     let codexTokens: Int
+
+    func tokens(for provider: UsageProvider) -> Int {
+        provider == .claude ? claudeTokens : codexTokens
+    }
 }
 
-struct ActivityChartView: View {
-    private let days: [ActivityDay]
-    private let maximumTokens: Int
-    @State private var selectedKey: String
+struct ActivityChartData {
+    let days: [ActivityDay]
+    let providers: [UsageProvider]
+    let maximumTokens: Int
 
-    init(claude: ProviderUsageSnapshot?, codex: ProviderUsageSnapshot?) {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
+    init(
+        claude: ProviderUsageSnapshot?, codex: ProviderUsageSnapshot?,
+        providers: [UsageProvider] = [.claude, .codex], now: Date = Date(), calendar: Calendar = .current
+    ) {
+        var seen: Set<UsageProvider> = []
+        self.providers = providers.filter { seen.insert($0).inserted }
+        let today = calendar.startOfDay(for: now)
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
         let claudeTotals = Dictionary((claude?.dailyUsage ?? []).map { ($0.day, $0.tokens) }, uniquingKeysWith: max)
         let codexTotals = Dictionary((codex?.dailyUsage ?? []).map { ($0.day, $0.tokens) }, uniquingKeysWith: max)
-        let days = (0..<7).compactMap { offset -> ActivityDay? in
+        days = (0..<7).compactMap { offset in
             guard let date = calendar.date(byAdding: .day, value: offset - 6, to: today) else { return nil }
-            let key = Self.dayFormatter.string(from: date)
+            let key = formatter.string(from: date)
             return ActivityDay(
                 id: key, date: date, claudeTokens: claudeTotals[key] ?? 0, codexTokens: codexTotals[key] ?? 0)
         }
-        self.days = days
-        maximumTokens = max(days.map { max($0.claudeTokens, $0.codexTokens) }.max() ?? 0, 1)
-        _selectedKey = State(initialValue: Self.dayFormatter.string(from: today))
+        maximumTokens = max(days.flatMap { day in providers.map { day.tokens(for: $0) } }.max() ?? 0, 1)
+    }
+
+    func selectedDay(key: String) -> ActivityDay? {
+        days.first { $0.id == key } ?? days.last
+    }
+
+    @MainActor func summary(for day: ActivityDay, locale: Locale) -> String {
+        let label = day.date.formatted(.dateTime.weekday(.abbreviated).day().locale(locale))
+        let totals = providers.map { provider in
+            let name = (provider == .claude ? "provider.claude_short" : "provider.codex").localized
+            return "\(name) \(UsageFormatters.tokens(day.tokens(for: provider)))"
+        }.joined(separator: " · ")
+        return "activity.selected_scoped".localized(label, totals)
+    }
+}
+
+struct ActivityChartView: View {
+    private let data: ActivityChartData
+    @State private var selectedKey: String
+
+    init(
+        claude: ProviderUsageSnapshot?, codex: ProviderUsageSnapshot?,
+        providers: [UsageProvider] = [.claude, .codex]
+    ) {
+        let data = ActivityChartData(claude: claude, codex: codex, providers: providers)
+        self.data = data
+        _selectedKey = State(initialValue: data.days.last?.id ?? "")
     }
 
     var body: some View {
-        let selectedDay = days.first { $0.id == selectedKey } ?? days.last
+        let selectedDay = data.selectedDay(key: selectedKey)
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Text("activity.title".localized)
@@ -40,14 +78,17 @@ struct ActivityChartView: View {
             }
 
             HStack(alignment: .bottom, spacing: 8) {
-                ForEach(days) { day in
+                ForEach(data.days) { day in
                     Button {
                         select(day)
                     } label: {
                         VStack(spacing: 5) {
                             HStack(alignment: .bottom, spacing: 3) {
-                                bar(tokens: day.claudeTokens, tint: Theme.claude)
-                                bar(tokens: day.codexTokens, tint: Theme.codex)
+                                ForEach(data.providers, id: \.self) { provider in
+                                    bar(
+                                        tokens: day.tokens(for: provider),
+                                        tint: provider == .claude ? Theme.claude : Theme.codex)
+                                }
                             }
                             .frame(height: 44, alignment: .bottom)
                             .frame(maxWidth: .infinity)
@@ -90,20 +131,21 @@ struct ActivityChartView: View {
     private func bar(tokens: Int, tint: Color) -> some View {
         RoundedRectangle(cornerRadius: 2)
             .fill(tint)
-            .frame(width: 9, height: 44 * Double(tokens) / Double(maximumTokens))
+            .frame(width: 9, height: 44 * Double(tokens) / Double(data.maximumTokens))
             .accessibilityHidden(true)
     }
 
     private func summary(for day: ActivityDay) -> String {
-        let label = day.date.formatted(.dateTime.weekday(.abbreviated).day().locale(locale))
-        return "activity.selected".localized(
-            label, UsageFormatters.tokens(day.claudeTokens), UsageFormatters.tokens(day.codexTokens))
+        data.summary(for: day, locale: locale)
     }
 
     private var legend: some View {
         HStack(spacing: 8) {
-            legendItem(color: Theme.claude, title: "provider.claude_short".localized)
-            legendItem(color: Theme.codex, title: "provider.codex".localized)
+            ForEach(data.providers, id: \.self) { provider in
+                legendItem(
+                    color: provider == .claude ? Theme.claude : Theme.codex,
+                    title: (provider == .claude ? "provider.claude_short" : "provider.codex").localized)
+            }
         }
         .font(.system(size: 10))
         .foregroundStyle(.secondary)
@@ -116,12 +158,4 @@ struct ActivityChartView: View {
         }
     }
 
-    private static let dayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = Calendar.current.timeZone
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
 }

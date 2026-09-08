@@ -11,7 +11,7 @@ final class StatusItemController: NSObject {
     private let launchAtLogin: LaunchAtLoginManager
     private let windows: AppWindows
     private var cancellables = Set<AnyCancellable>()
-    private var displayedProvider: UsageProvider?
+    private var displayedPresentation: MenuBarPresentation?
     private var appearanceObservation: NSKeyValueObservation?
     private var outsideClickMonitor: Any?
     private var resignObserver: (any NSObjectProtocol)?
@@ -34,12 +34,14 @@ final class StatusItemController: NSObject {
             button.toolTip = "app.name".localized
         }
 
-        Publishers.CombineLatest3(store.$claude, store.$codex, store.$primaryProvider)
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _, _, _ in
-                self?.updateStatusItem()
-            }
-            .store(in: &cancellables)
+        Publishers.CombineLatest4(
+            store.$claude, store.$codex, store.$displayMode, LocalizationManager.shared.$bundle
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] _, _, _, _ in
+            self?.updateStatusItem()
+        }
+        .store(in: &cancellables)
 
         appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
             Task { @MainActor in self?.updateStatusItem() }
@@ -58,12 +60,10 @@ final class StatusItemController: NSObject {
         let view = PopoverView(
             store: store,
             showSettings: { [weak self] in
-                self?.dismissPopover()
-                self?.windows.showSettings()
+                self?.showSettings()
             },
             showAbout: { [weak self] in
-                self?.dismissPopover()
-                self?.windows.showAbout()
+                self?.showAbout()
             })
         let controller = NSHostingController(rootView: view)
         controller.sizingOptions = [.preferredContentSize]
@@ -71,6 +71,16 @@ final class StatusItemController: NSObject {
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
         startDismissMonitors()
+    }
+
+    func showSettings() {
+        dismissPopover()
+        windows.showSettings()
+    }
+
+    func showAbout() {
+        dismissPopover()
+        windows.showAbout()
     }
 
     private func startDismissMonitors() {
@@ -113,45 +123,20 @@ final class StatusItemController: NSObject {
 
     private func updateStatusItem() {
         guard let button = statusItem.button else { return }
-        if displayedProvider != store.primaryProvider {
-            button.image = ProviderLogoAssets.menuBarImage(
-                for: store.primaryProvider, size: Theme.Layout.menuBarIconSize)
-            displayedProvider = store.primaryProvider
+        let presentation = MenuBarPresentation(
+            providers: store.displayMode.providers,
+            state: { store.state(for: $0) },
+            appearance: button.effectiveAppearance)
+        guard presentation != displayedPresentation else { return }
+        if displayedPresentation?.segments.first?.provider != presentation.segments.first?.provider,
+            let provider = presentation.segments.first?.provider
+        {
+            button.image = ProviderLogoAssets.menuBarImage(for: provider, size: Theme.Layout.menuBarIconSize)
         }
-        let providerName = "provider.\(store.primaryProvider.rawValue)".localized
-        let window = store.menuBarWindow
-        let remaining = window?.remainingPercentage
-        let text = remaining.map { " \(Int($0.rounded()))%" } ?? " --"
-
-        var color = NSColor.labelColor
-        switch remaining {
-        case .some(let value) where value < 12:
-            color = .systemRed
-        case .some(let value) where value < 30:
-            color = .systemOrange
-        default:
-            break
-        }
-        button.effectiveAppearance.performAsCurrentDrawingAppearance {
-            color = color.usingColorSpace(.sRGB) ?? color
-        }
-
-        let title = NSAttributedString(
-            string: text,
-            attributes: [
-                .foregroundColor: color,
-                .font: NSFont.monospacedDigitSystemFont(ofSize: Theme.Layout.menuBarFontSize, weight: .semibold),
-            ]
-        )
-        if !button.attributedTitle.isEqual(to: title) {
-            button.attributedTitle = title
-        }
-        if let window {
-            button.toolTip =
-                "\(providerName) · \(UsageFormatters.windowName(window)) · \(text.trimmingCharacters(in: .whitespaces))"
-        } else {
-            button.toolTip = "\(providerName) · \("status.unavailable".localized)"
-        }
+        button.attributedTitle = presentation.attributedTitle()
+        button.toolTip = presentation.accessibilityLabel
+        button.setAccessibilityLabel(presentation.accessibilityLabel)
+        displayedPresentation = presentation
     }
 }
 

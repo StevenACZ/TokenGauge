@@ -22,7 +22,7 @@ final class AppWindows {
     func showSettings() {
         if settings == nil {
             settings = makeWindow(
-                title: "settings.title".localized,
+                title: "settings.title".localized, size: NSSize(width: 600, height: 750),
                 view: SettingsView(store: store, launchAtLogin: launchAtLogin))
         }
         present(settings)
@@ -30,19 +30,23 @@ final class AppWindows {
 
     func showAbout() {
         if about == nil {
-            about = makeWindow(title: "about.title".localized, view: AboutView())
+            about = makeWindow(title: "about.title".localized, size: NSSize(width: 420, height: 560), view: AboutView())
         }
         present(about)
     }
 
-    private func makeWindow(title: String, view: some View) -> NSWindow {
+    private func makeWindow(title: String, size: NSSize, view: some View) -> NSWindow {
         let window = NSWindow(
             contentRect: .zero, styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
         window.title = title
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
-        window.contentViewController = NSHostingController(rootView: view)
+        let hosting = NSHostingView(rootView: ScrollView { view }.scrollIndicators(.automatic))
+        hosting.sizingOptions = []
+        window.contentView = hosting
+        window.setContentSize(
+            NSSize(width: size.width, height: min(size.height, (NSScreen.main?.visibleFrame.height ?? 900) - 40)))
         window.center()
         return window
     }

@@ -45,12 +45,14 @@ enum ModelActivity {
 }
 
 enum WindowVisibility {
-    static func visible(_ windows: [QuotaWindow], provider: UsageProvider) -> [QuotaWindow] {
+    static func visible(_ windows: [QuotaWindow], provider: UsageProvider, showLunaReserve: Bool = true)
+        -> [QuotaWindow]
+    {
         switch provider {
         case .claude:
             return windows
         case .codex:
-            let mainline = windows.filter { !isSpark($0) }
+            let mainline = windows.filter { !isSpark($0) && (showLunaReserve || !isLunaReserve($0)) }
             let weekly = mainline.filter { $0.durationMinutes == weeklyMinutes }
             return (weekly.isEmpty ? mainline : weekly).sorted { left, right in
                 let leftGeneral = left.id.hasPrefix("codex.")
@@ -59,6 +61,10 @@ enum WindowVisibility {
                 return left.id < right.id
             }
         }
+    }
+
+    static func isLunaReserve(_ window: QuotaWindow) -> Bool {
+        window.id.hasPrefix("base_model_inference.") || window.displayName?.lowercased() == "gpt-reserve"
     }
 
     private static let weeklyMinutes = 10_080

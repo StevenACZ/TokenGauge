@@ -15,7 +15,7 @@ final class ScreenshotTests: XCTestCase {
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let previousIcon = NSApplication.shared.applicationIconImage
         let icon = output.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(
-            "Resources/AppIcon.png")
+            "Resources/AppIcon.icns")
         NSApplication.shared.applicationIconImage = try XCTUnwrap(NSImage(contentsOf: icon))
         defer { NSApplication.shared.applicationIconImage = previousIcon }
         let suite = "TokenGauge.screenshots.\(UUID().uuidString)"
@@ -34,13 +34,21 @@ final class ScreenshotTests: XCTestCase {
                 tokens: [21, 7, 12, 18, 9, 16, 11][index] * 1_000_000)
         }
         let snapshots = UsageProvider.allCases.map { provider in
-            ProviderUsageSnapshot(
-                provider: provider,
-                windows: [
+            var windows = [
+                QuotaWindow(
+                    id: "\(provider.rawValue).primary", usedPercentage: provider == .codex ? 28 : 42,
+                    resetsAt: now.addingTimeInterval(4 * 86400), durationMinutes: 10080, displayName: nil)
+            ]
+            if provider == .codex {
+                windows.append(
                     QuotaWindow(
-                        id: "\(provider.rawValue).primary", usedPercentage: provider == .codex ? 28 : 42,
-                        resetsAt: now.addingTimeInterval(4 * 86400), durationMinutes: 10080, displayName: nil)
-                ],
+                        id: "base_model_inference.primary", usedPercentage: 0,
+                        resetsAt: now.addingTimeInterval(6 * 86400), durationMinutes: 10080, displayName: "gpt-reserve")
+                )
+            }
+            return ProviderUsageSnapshot(
+                provider: provider,
+                windows: windows,
                 dailyUsage: activity.map {
                     DailyTokenUsage(day: $0.day, tokens: $0.tokens / (provider == .codex ? 1 : 3))
                 },
@@ -49,6 +57,13 @@ final class ScreenshotTests: XCTestCase {
         let store = UsageStore(defaults: defaults, initialSnapshots: snapshots)
         try render(
             PopoverView(store: store, showSettings: {}, showAbout: {}), to: output.appendingPathComponent("panel.png"))
+        store.displayMode = .claude
+        try render(
+            PopoverView(store: store, showSettings: {}, showAbout: {}), to: output.appendingPathComponent("claude.png"))
+        store.displayMode = .unified
+        try render(
+            PopoverView(store: store, showSettings: {}, showAbout: {}), to: output.appendingPathComponent("unified.png")
+        )
         try render(
             SettingsView(store: store, launchAtLogin: LaunchAtLoginManager()).defaultAppStorage(defaults),
             to: output.appendingPathComponent("settings.png"))

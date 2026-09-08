@@ -27,38 +27,45 @@ struct PopoverView: View {
                 .frame(height: providerMaxHeight)
             }
             .frame(maxHeight: providerMaxHeight)
-            ActivityChartView(claude: store.claude.snapshot, codex: store.codex.snapshot)
+            ActivityChartView(
+                claude: store.claude.snapshot, codex: store.codex.snapshot, providers: store.displayMode.providers)
             Divider().padding(.top, 1)
             footer
         }
         .padding(.horizontal, Theme.Layout.panelPadding)
         .padding(.top, 12)
         .padding(.bottom, 8)
-        .frame(width: Theme.Layout.panelWidth)
+        .frame(width: store.displayMode == .unified ? Theme.Layout.unifiedPanelWidth : Theme.Layout.panelWidth)
         .fixedSize(horizontal: false, vertical: true)
         .id(localization.language)
     }
 
     private var providerPicker: some View {
         HStack(spacing: 3) {
-            providerTab(.codex, title: "provider.codex".localized)
-            providerTab(.claude, title: "provider.claude".localized)
+            ForEach(UsageDisplayMode.allCases) { mode in
+                providerTab(mode)
+            }
         }
         .padding(3)
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05)))
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("settings.primary_provider".localized)
-        .help("settings.primary_provider_help".localized)
+        .accessibilityLabel("settings.display_mode".localized)
+        .help("settings.display_mode_help".localized)
     }
 
-    private func providerTab(_ provider: UsageProvider, title: String) -> some View {
-        let selected = store.primaryProvider == provider
+    private func providerTab(_ mode: UsageDisplayMode) -> some View {
+        let selected = store.displayMode == mode
         return Button {
-            store.primaryProvider = provider
+            store.displayMode = mode
         } label: {
-            HStack(spacing: 6) {
-                ProviderLogo(provider: provider, size: 12)
-                Text(title).font(.system(size: 11, weight: selected ? .semibold : .medium))
+            HStack(spacing: 5) {
+                if let provider = mode.singleProvider {
+                    ProviderLogo(provider: provider, size: 12)
+                } else {
+                    Image(systemName: "square.grid.2x2.fill").font(.system(size: 11))
+                }
+                Text(mode.titleKey.localized).font(.system(size: 11, weight: selected ? .semibold : .medium))
+                    .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 27)
@@ -70,25 +77,19 @@ struct PopoverView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(selected ? .primary : .secondary)
+        .accessibilityIdentifier("TokenGauge.tab.\(mode.rawValue)")
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
-    private var secondaryProvider: UsageProvider {
-        store.primaryProvider == .codex ? .claude : .codex
-    }
-
     private var providerContent: some View {
-        VStack(spacing: 8) {
-            ProviderCard(provider: store.primaryProvider, state: store.state(for: store.primaryProvider))
-            Button {
-                store.primaryProvider = secondaryProvider
-            } label: {
-                ProviderCard(provider: secondaryProvider, state: store.state(for: secondaryProvider), compact: true)
+        HStack(alignment: .top, spacing: 10) {
+            ForEach(store.displayMode.providers, id: \.self) { provider in
+                ProviderCard(
+                    provider: provider, state: store.state(for: provider),
+                    showProviderTitle: store.displayMode == .unified,
+                    showLunaReserve: store.showLunaReserve)
             }
-            .buttonStyle(.plain)
-            .help("settings.switch_provider".localized)
-        }
-        .fixedSize(horizontal: false, vertical: true)
+        }.fixedSize(horizontal: false, vertical: true)
     }
 
     private var header: some View {
@@ -170,6 +171,7 @@ private struct FooterActionRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("TokenGauge.footer.\(icon)")
         .onHover { hovered = $0 }
     }
 }

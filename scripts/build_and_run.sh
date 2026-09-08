@@ -57,11 +57,13 @@ frameworks=(.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-*/Sparkle
 }
 mkdir -p "$bundle/Contents/Frameworks"
 ditto "${frameworks[0]}" "$bundle/Contents/Frameworks/Sparkle.framework"
-binary="$bundle/Contents/MacOS/TokenGauge"
-while IFS= read -r rpath; do
-    if [[ "$rpath" == /* ]]; then install_name_tool -delete_rpath "$rpath" "$binary"; fi
-done < <(otool -l "$binary" | awk '/cmd LC_RPATH/ {getline; getline; sub(/^ *path /, ""); sub(/ \(offset.*$/, ""); print}')
-strip -S "$binary"
+for executable in TokenGauge TokenGaugeCapture; do
+    binary="$bundle/Contents/MacOS/$executable"
+    while IFS= read -r rpath; do
+        if [[ "$rpath" == /* ]]; then install_name_tool -delete_rpath "$rpath" "$binary"; fi
+    done < <(otool -l "$binary" | awk '/cmd LC_RPATH/ {getline; getline; sub(/^ *path /, ""); sub(/ \(offset.*$/, ""); print}')
+    strip -S "$binary"
+done
 if [[ "$distribution" == 1 ]]; then authority='Developer ID Application'; else authority='Apple Development'; fi
 identity="${TOKENGAUGE_SIGN_IDENTITY:-${SIGN_IDENTITY:-}}"
 if [[ -z "$identity" ]]; then

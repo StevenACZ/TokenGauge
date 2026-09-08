@@ -10,7 +10,7 @@ The release version is `CFBundleShortVersionString` in `Resources/Info.plist`. I
 
 1. Run `make ci-check` and review the complete Git diff.
 2. Scan both Git history and the intended public tree for secrets and private data. Exclude generated build output from the public source tree; inspect both distributed executables for personal build paths.
-3. Exercise a clean Mac without provider CLIs: no crash, no invented quota, clear setup links, working Settings/About, language switching, and relaunch. Then check a signed-in Mac without changing its provider credentials.
+3. Exercise a clean Mac without provider CLIs: no crash, no invented quota, clear setup links, working Settings/About, language switching, independent provider cancellation, separate/unified charts and indicators, reserve visibility, and relaunch. Then check a signed-in Mac without changing its provider credentials.
 4. Verify a real Sparkle update with two development builds, including a tampered ZIP rejection, retry, installation/relaunch, and preserved preferences.
 5. Update CHANGELOG.md, screenshots, and release notes. Use synthetic data for public screenshots.
 

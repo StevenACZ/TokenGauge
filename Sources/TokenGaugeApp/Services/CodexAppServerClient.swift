@@ -10,6 +10,7 @@ struct CodexAppServerClient: Sendable {
     }
 
     func fetch() throws -> ProviderUsageSnapshot {
+        let capturedAt = Date()
         guard let executable = resolveExecutable() else { throw UsageDataError.executableNotFound }
         let input = """
             {"method":"initialize","id":1,"params":{"clientInfo":{"name":"token_gauge","title":"TokenGauge","version":"1.0.0"}}}
@@ -29,7 +30,7 @@ struct CodexAppServerClient: Sendable {
         guard result.exitCode == 0 else {
             throw UsageDataError.processFailed("Codex app-server exited with status \(result.exitCode)")
         }
-        let snapshot = try CodexUsageParser.parse(result.standardOutput)
+        let snapshot = try CodexUsageParser.parse(result.standardOutput, capturedAt: capturedAt)
         try? SecureMetricStore.write(snapshot, to: UsagePaths.codexCache(homeDirectory: homeDirectory))
         return snapshot
     }

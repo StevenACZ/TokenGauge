@@ -144,7 +144,8 @@ final class ProviderStateResolverTests: XCTestCase {
         first.setClaudeCancelled(true)
         let relaunched = UsageStore(defaults: defaults)
         XCTAssertEqual(relaunched.primaryProvider, .claude)
-        XCTAssertEqual(relaunched.orderedProviders, [.claude, .codex])
+        XCTAssertEqual(relaunched.orderedProviders, [.claude])
+        XCTAssertEqual(relaunched.displayMode, .claude)
         XCTAssertEqual(relaunched.claudeCancelledAt, first.claudeCancelledAt)
     }
 

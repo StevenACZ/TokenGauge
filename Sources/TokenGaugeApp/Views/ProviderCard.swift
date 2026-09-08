@@ -5,6 +5,8 @@ struct ProviderCard: View {
     let provider: UsageProvider
     let state: ProviderViewState
     var compact = false
+    var showProviderTitle = false
+    var showLunaReserve = true
 
     private var tint: Color {
         provider == .claude ? Theme.claude : Theme.codex
@@ -12,7 +14,7 @@ struct ProviderCard: View {
 
     private var visibleWindows: [QuotaWindow] {
         guard state.status == .ready, let snapshot = state.snapshot else { return [] }
-        return WindowVisibility.visible(snapshot.windows, provider: provider)
+        return WindowVisibility.visible(snapshot.windows, provider: provider, showLunaReserve: showLunaReserve)
     }
 
     var body: some View {
@@ -71,11 +73,16 @@ struct ProviderCard: View {
 
     private var header: some View {
         HStack(spacing: 5) {
+            if showProviderTitle {
+                ProviderLogo(provider: provider, size: 13)
+                Text("provider.\(provider.rawValue)".localized).font(.system(size: 11, weight: .semibold))
+                Spacer(minLength: 4)
+            }
             Circle().fill(statusColor).frame(width: 5, height: 5)
             Text(statusSubtitle)
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
-            Spacer(minLength: 4)
+            if !showProviderTitle { Spacer(minLength: 4) }
             if state.status == .ready, let credits = state.snapshot?.availableResetCredits, credits > 0 {
                 Text(UsageFormatters.resetCredits(credits))
                     .font(.system(size: 9, weight: .medium))

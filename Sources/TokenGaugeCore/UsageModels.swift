@@ -118,6 +118,7 @@ public struct ProviderUsageSnapshot: Codable, Equatable, Sendable {
     public let creditBalance: Double?
     public let capturedAt: Date?
     public let modelBuckets: [ModelTokenBucket]
+    public let activityReadSucceeded: Bool
 
     public init(
         provider: UsageProvider,
@@ -127,7 +128,8 @@ public struct ProviderUsageSnapshot: Codable, Equatable, Sendable {
         availableResetCredits: Int?,
         creditBalance: Double?,
         capturedAt: Date?,
-        modelBuckets: [ModelTokenBucket] = []
+        modelBuckets: [ModelTokenBucket] = [],
+        activityReadSucceeded: Bool = true
     ) {
         self.provider = provider
         self.windows = windows
@@ -137,6 +139,7 @@ public struct ProviderUsageSnapshot: Codable, Equatable, Sendable {
         self.creditBalance = creditBalance
         self.capturedAt = capturedAt
         self.modelBuckets = modelBuckets
+        self.activityReadSucceeded = activityReadSucceeded
     }
 
     public init(from decoder: any Decoder) throws {
@@ -149,6 +152,7 @@ public struct ProviderUsageSnapshot: Codable, Equatable, Sendable {
         creditBalance = try container.decodeIfPresent(Double.self, forKey: .creditBalance)
         capturedAt = try container.decodeIfPresent(Date.self, forKey: .capturedAt)
         modelBuckets = try container.decodeIfPresent([ModelTokenBucket].self, forKey: .modelBuckets) ?? []
+        activityReadSucceeded = try container.decodeIfPresent(Bool.self, forKey: .activityReadSucceeded) ?? false
     }
 
     public var longestWindow: QuotaWindow? {

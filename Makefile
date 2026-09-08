@@ -42,4 +42,4 @@ verify-release:
 	./scripts/verify-release.sh "$(ARTIFACT)"
 
 screenshots:
-	TOKENGAUGE_SCREENSHOT_DIR="$(CURDIR)/docs/images" swift test --filter ScreenshotTests
+	TOKENGAUGE_QA_UPDATES=1 TOKENGAUGE_UPDATE_FEED_URL=http://127.0.0.1:18764/appcast.xml TOKENGAUGE_SCREENSHOT_DIR="$(CURDIR)/docs/images" swift test --filter ScreenshotTests

@@ -28,11 +28,12 @@ public enum CodexUsageParser {
         return ProviderUsageSnapshot(
             provider: .codex,
             windows: windows,
-            dailyUsage: dailyUsage,
+            dailyUsage: dailyUsage ?? [],
             summary: summary,
             availableResetCredits: resetCredits,
             creditBalance: creditBalance,
-            capturedAt: capturedAt
+            capturedAt: capturedAt,
+            activityReadSucceeded: dailyUsage != nil
         )
     }
 
@@ -81,16 +82,25 @@ public enum CodexUsageParser {
         }
     }
 
-    private static func parseDailyUsage(_ result: [String: Any]) -> [DailyTokenUsage] {
-        guard let buckets = JSONValue.array(result["dailyUsageBuckets"]) else { return [] }
-        return buckets.compactMap { value in
+    private static func parseDailyUsage(_ result: [String: Any]) -> [DailyTokenUsage]? {
+        guard let buckets = JSONValue.array(result["dailyUsageBuckets"]) else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy-MM-dd"
+        var usage: [DailyTokenUsage] = []
+        for value in buckets {
             guard
                 let bucket = JSONValue.dictionary(value),
                 let day = JSONValue.string(bucket["startDate"]),
-                let tokens = JSONValue.int(bucket["tokens"])
+                let date = formatter.date(from: day), formatter.string(from: date) == day,
+                let tokens = JSONValue.double(bucket["tokens"]), tokens.isFinite,
+                tokens >= 0, tokens < Double(Int.max), tokens.rounded(.towardZero) == tokens
             else { return nil }
-            return DailyTokenUsage(day: day, tokens: tokens)
-        }.sorted { $0.day < $1.day }
+            if let number = bucket["tokens"] as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
+            usage.append(DailyTokenUsage(day: day, tokens: Int(tokens)))
+        }
+        return usage.sorted { $0.day < $1.day }
     }
 
     private static func parseSummary(_ result: [String: Any]) -> UsageSummary? {

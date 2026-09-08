@@ -91,6 +91,19 @@ final class ClaudeAccessTests: XCTestCase {
         XCTAssertEqual(result.access, .authenticationRequired)
     }
 
+    func testHistoryFailurePreservesLiveQuotaWithoutActivitySuccessEvidence() {
+        let account = ClaudeAccountSnapshot(capturedAt: now, windows: cached().windows)
+        for activityReadSucceeded in [false, true] {
+            let result = ClaudeUsageClient.resolve(
+                account: .success(account), cached: nil, capture: nil, modelBuckets: [], now: now,
+                activityReadSucceeded: activityReadSucceeded
+            )
+            XCTAssertEqual(result.access, .live)
+            XCTAssertEqual(result.snapshot.windows, account.windows)
+            XCTAssertEqual(result.snapshot.activityReadSucceeded, activityReadSucceeded)
+        }
+    }
+
     private func resolve(
         _ account: Result<ClaudeAccountSnapshot, Error>, cached: ClaudeAccountSnapshot? = nil
     ) -> ClaudeUsageResult {

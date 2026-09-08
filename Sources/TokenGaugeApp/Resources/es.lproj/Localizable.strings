@@ -29,7 +29,7 @@
 "updated.now" = "ahora";
 "updated.never" = "sin lectura";
 "model.unknown" = "Otros";
-"activity.title" = "Actividad · 7 días";
+"activity.title" = "Tokens · 7 días";
 "activity.day" = "Día";
 "activity.tokens" = "Tokens";
 "activity.provider" = "Proveedor";
@@ -50,7 +50,7 @@
 "status.cancelled" = "Cancelada";
 "message.authentication_required" = "Abre Claude Code e inicia sesión. Los pasos están en Configuración. El historial se conserva y se reintenta automáticamente.";
 "message.access_denied" = "Claude denegó el acceso. El historial se conserva y se volverá a comprobar.";
-"message.cancelled" = "Historial conservado. Se reactivará al detectar actividad nueva en Claude y confirmar el acceso.";
+"message.cancelled" = "Historial conservado. El seguimiento se reanuda con nueva actividad y acceso confirmado.";
 "updated.last_known" = "Última lectura: %@";
 "window.reserve_weekly" = "Reserva Luna semanal";
 "window.general_weekly" = "Semanal general";
@@ -59,7 +59,7 @@
 "quota.remaining_value" = "%@ libre";
 "settings.title" = "Configuración";
 "about.title" = "Acerca de TokenGauge";
-"settings.cancellation_help" = "Solo cambia el seguimiento local. No modifica tu suscripción ni facturación.";
+"settings.cancellation_help" = "Puedes marcar cualquiera como cancelada y conservar su historial. El seguimiento se reactiva al confirmar acceso y actividad nueva. No modifica tu facturación.";
 "setup.title" = "Conecta tus proveedores";
 "setup.description" = "Instala Codex CLI o Claude Code e inicia sesión con tu suscripción. Solo necesitas el proveedor que uses. TokenGauge detecta la sesión local automáticamente.";
 "setup.codex" = "Configurar Codex";
@@ -68,7 +68,7 @@
 "updates.title" = "Actualizaciones";
 "updates.automatic" = "Buscar automáticamente";
 "updates.explanation" = "Busca cada día. Las actualizaciones aparecen en el panel y en Acerca de; tú eliges cuándo instalarlas.";
-"updates.development" = "Versión de desarrollo. Las actualizaciones se gestionan con el instalador de desarrollo.";
+"updates.development" = "Las actualizaciones de esta instalación se gestionan localmente.";
 "updates.check" = "Buscar actualizaciones";
 "updates.checking" = "Buscando actualizaciones…";
 "updates.current" = "Tienes la última versión";
@@ -85,3 +85,17 @@
 "about.made" = "Creado con cuidado para macOS";
 "setup.choose_codex" = "Elegir ejecutable de Codex…";
 "setup.automatic" = "Detectar automáticamente";
+"settings.general" = "General";
+"settings.providers" = "Proveedores y suscripciones";
+"setup.privacy" = "Privacidad y permisos";
+"setup.connect" = "Configurar conexión";
+"setup.detection" = "Opciones de detección";
+"setup.claude_session" = "Usa tu sesión local de Claude";
+"updates.local" = "Instalación local";
+"settings.mark_cancelled" = "Suscripción cancelada";
+"activity.selected_scoped" = "%@: %@";
+"view.unified" = "Unificado";
+"settings.display_mode" = "Vista de la barra";
+"settings.display_mode_help" = "Elige un proveedor o ambos para la barra y el panel.";
+"settings.show_reserve" = "Mostrar Reserva Luna semanal";
+"settings.show_reserve_help" = "Solo cambia su visibilidad. La cuota general siempre se mantiene separada.";

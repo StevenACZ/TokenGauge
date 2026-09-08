@@ -28,9 +28,23 @@ final class UsageStore: ObservableObject {
     @Published private(set) var lastRefresh: Date?
     @Published private(set) var isRefreshing = false
     @Published var primaryProvider: UsageProvider {
-        didSet { defaults.set(primaryProvider.rawValue, forKey: "primaryProvider") }
+        didSet {
+            defaults.set(primaryProvider.rawValue, forKey: "primaryProvider")
+            let mode = primaryProvider == .codex ? UsageDisplayMode.codex : .claude
+            if displayMode != mode { displayMode = mode }
+        }
+    }
+    @Published var displayMode: UsageDisplayMode {
+        didSet {
+            defaults.set(displayMode.rawValue, forKey: "displayMode")
+            if let provider = displayMode.singleProvider, primaryProvider != provider { primaryProvider = provider }
+        }
+    }
+    @Published var showLunaReserve: Bool {
+        didSet { defaults.set(showLunaReserve, forKey: "showLunaReserve") }
     }
     @Published private(set) var claudeCancelledAt: Date?
+    @Published private(set) var codexCancelledAt: Date?
 
     private let defaults: UserDefaults
 
@@ -48,12 +62,23 @@ final class UsageStore: ObservableObject {
         self.claudeClient = claudeClient
         self.codexClient = codexClient
         self.defaults = defaults
-        primaryProvider = UsageProvider(rawValue: defaults.string(forKey: "primaryProvider") ?? "") ?? .codex
+        let savedProvider = UsageProvider(rawValue: defaults.string(forKey: "primaryProvider") ?? "") ?? .codex
+        let mode =
+            UsageDisplayMode(rawValue: defaults.string(forKey: "displayMode") ?? savedProvider.rawValue)
+            ?? (savedProvider == .codex ? .codex : .claude)
+        primaryProvider = mode.singleProvider ?? savedProvider
+        displayMode = mode
+        showLunaReserve = defaults.object(forKey: "showLunaReserve") == nil || defaults.bool(forKey: "showLunaReserve")
         claudeCancelledAt = defaults.object(forKey: "claudeCancelledAt") as? Date
+        codexCancelledAt = defaults.object(forKey: "codexCancelledAt") as? Date
         for snapshot in initialSnapshots {
-            let state = ProviderViewState(snapshot: snapshot, status: .ready, isRefreshing: false)
+            let state = ProviderViewState(
+                snapshot: snapshot, status: isCancelled(provider: snapshot.provider) ? .cancelled : .ready,
+                isRefreshing: false)
             if snapshot.provider == .claude { claude = state } else { codex = state }
         }
+        if claudeCancelledAt != nil { claude.status = .cancelled }
+        if codexCancelledAt != nil { codex.status = .cancelled }
     }
 
     func start() {
@@ -83,12 +108,7 @@ final class UsageStore: ObservableObject {
             }.value
 
             let outcomes = await (claudeOutcome, codexOutcome)
-            if ProviderStateResolver.shouldResumeClaude(result: outcomes.0, cancelledAt: claudeCancelledAt) {
-                claudeCancelledAt = nil
-                defaults.removeObject(forKey: "claudeCancelledAt")
-            }
-            claude = ProviderStateResolver.claudeState(result: outcomes.0, cancelled: claudeCancelledAt != nil)
-            codex = outcomes.1
+            applyRefreshResults(claudeResult: outcomes.0, codexState: outcomes.1)
             lastRefresh = Date()
             isRefreshing = false
             scheduleResetRefresh()
@@ -122,22 +142,85 @@ final class UsageStore: ObservableObject {
     }
 
     var orderedProviders: [UsageProvider] {
-        [primaryProvider, primaryProvider == .codex ? .claude : .codex]
+        displayMode.providers
     }
 
     func state(for provider: UsageProvider) -> ProviderViewState {
         provider == .codex ? codex : claude
     }
 
+    func isCancelled(provider: UsageProvider) -> Bool {
+        (provider == .claude ? claudeCancelledAt : codexCancelledAt) != nil
+    }
+
     func setClaudeCancelled(_ cancelled: Bool) {
-        claudeCancelledAt = cancelled ? Date() : nil
-        if let claudeCancelledAt {
-            defaults.set(claudeCancelledAt, forKey: "claudeCancelledAt")
-            claude.status = .cancelled
+        setCancelled(cancelled, for: .claude)
+    }
+
+    func setCancelled(_ cancelled: Bool, for provider: UsageProvider) {
+        guard isCancelled(provider: provider) != cancelled else { return }
+        persistCancellation(cancelled ? Date() : nil, for: provider)
+        if provider == .claude {
+            claude.status = cancelled ? .cancelled : .loading
         } else {
-            defaults.removeObject(forKey: "claudeCancelledAt")
-            claude.status = .loading
-            refresh(force: true)
+            codex.status = cancelled ? .cancelled : .loading
+        }
+        if !cancelled { refresh(force: true) }
+    }
+
+    private func persistCancellation(_ date: Date?, for provider: UsageProvider) {
+        if provider == .claude { claudeCancelledAt = date } else { codexCancelledAt = date }
+        let key = "\(provider.rawValue)CancelledAt"
+        if let date { defaults.set(date, forKey: key) } else { defaults.removeObject(forKey: key) }
+        defaults.removeObject(forKey: baselineKey(for: provider))
+    }
+
+    private func baselineKey(for provider: UsageProvider) -> String {
+        "\(provider.rawValue)CancellationDailyBaseline"
+    }
+
+    func applyRefreshResults(claudeResult: ClaudeUsageResult?, codexState: ProviderViewState) {
+        if ProviderStateResolver.shouldResumeClaude(result: claudeResult, cancelledAt: claudeCancelledAt) {
+            persistCancellation(nil, for: .claude)
+        } else {
+            resumeIfActivityIncreased(
+                provider: .claude, snapshot: claudeResult?.snapshot, live: claudeResult?.access == .live)
+        }
+        resumeIfActivityIncreased(
+            provider: .codex, snapshot: codexState.snapshot, live: codexState.status == .ready)
+        let previousClaudeSnapshot = claude.snapshot
+        claude = ProviderStateResolver.claudeState(result: claudeResult, cancelled: isCancelled(provider: .claude))
+        if claude.snapshot == nil { claude.snapshot = previousClaudeSnapshot }
+        let previousCodexSnapshot = codex.snapshot
+        codex = codexState
+        if codex.snapshot == nil { codex.snapshot = previousCodexSnapshot }
+        if isCancelled(provider: .codex) { codex.status = .cancelled }
+    }
+
+    private func resumeIfActivityIncreased(provider: UsageProvider, snapshot: ProviderUsageSnapshot?, live: Bool) {
+        guard let cancelledAt = provider == .claude ? claudeCancelledAt : codexCancelledAt,
+            live, let snapshot, !snapshot.windows.isEmpty, snapshot.activityReadSucceeded,
+            let capturedAt = snapshot.capturedAt, capturedAt > cancelledAt
+        else { return }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy-MM-dd"
+        let cancelledDay = formatter.string(from: cancelledAt)
+        var totals: [String: Int] = [:]
+        for usage in snapshot.dailyUsage {
+            guard usage.day >= cancelledDay, let day = formatter.date(from: usage.day),
+                formatter.string(from: day) == usage.day
+            else { continue }
+            totals[usage.day] = max(totals[usage.day, default: 0], usage.tokens)
+        }
+        let key = baselineKey(for: provider)
+        guard let baseline = defaults.dictionary(forKey: key) as? [String: Int] else {
+            defaults.set(totals, forKey: key)
+            return
+        }
+        if totals.contains(where: { $0.value > baseline[$0.key, default: 0] }) {
+            persistCancellation(nil, for: provider)
         }
     }
 
@@ -205,7 +288,7 @@ enum ProviderStateResolver {
 
     static func menuBarWindow(state: ProviderViewState) -> QuotaWindow? {
         guard state.status == .ready, let snapshot = state.snapshot else { return nil }
-        let windows = WindowVisibility.visible(snapshot.windows, provider: snapshot.provider)
+        let windows = WindowVisibility.visible(snapshot.windows, provider: snapshot.provider, showLunaReserve: false)
             .filter { ($0.resetsAt ?? .distantFuture) > Date() }
         let weekly = windows.filter { $0.durationMinutes == 10_080 }
         if snapshot.provider == .codex {

@@ -12,15 +12,24 @@
 TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Codex quota you have left. Check reset times, compare seven days of activity, and keep a private local history without opening a terminal.
 
 <p align="center">
-  <img src="docs/images/panel.png" width="300" alt="TokenGauge panel with provider quotas and seven-day activity">
-  <img src="docs/images/settings.png" width="390" alt="TokenGauge settings with language, provider setup and update preferences">
+  <img src="docs/images/unified.png" width="560" alt="Unified TokenGauge view with separate Codex and Claude quotas and activity">
 </p>
 <p align="center"><sub>App views rendered with synthetic demonstration data.</sub></p>
 
+<details>
+<summary>Individual provider views and Settings</summary>
+<p align="center">
+  <img src="docs/images/panel.png" width="300" alt="Codex view showing only Codex quota and token activity">
+  <img src="docs/images/claude.png" width="300" alt="Claude view showing only Claude quota and token activity">
+</p>
+<p align="center"><img src="docs/images/settings.png" width="600" alt="Settings with aligned controls and independent subscription state for both providers"></p>
+</details>
+
 ## At a glance
 
-- **A readable menu bar:** your selected provider’s logo and remaining quota.
-- **Separate limits:** general weekly quota and additional provider windows stay separate.
+- **Three views:** Codex, Claude Code, or Unified. Individual views show only that provider; Unified puts both quota cards side by side.
+- **A readable menu bar:** one provider’s logo and balance, or both independent balances in Unified.
+- **Separate limits:** general weekly quota and additional provider windows stay separate. Hide Luna weekly reserve in Settings if you do not use it.
 - **Seven days of activity:** daily Claude and Codex token totals, with hover or click details.
 - **Local history:** aggregated usage survives trimmed provider logs.
 - **English and Spanish:** follows your system language initially, with an explicit language choice in Settings.
@@ -36,7 +45,7 @@ Requires **macOS 14 or later and an Apple Silicon Mac**. Intel builds are not cu
 3. Install and sign in to [Codex CLI](https://developers.openai.com/codex/cli/) or [Claude Code](https://code.claude.com/docs/en/quickstart) with the subscription you use. You do not need both.
 4. Select your provider in TokenGauge. It refreshes automatically; use the header refresh button to check immediately.
 
-If Codex was installed using a custom npm prefix, nvm, asdf, or Volta and is not detected, use **Settings → Choose Codex executable…** to select the executable you use in Terminal. Automatic detection can be restored from the same row.
+If Codex was installed using a custom npm prefix, nvm, asdf, or Volta and is not detected, use **Settings → Detection options → Choose Codex executable…** to select the executable you use in Terminal. Automatic detection can be restored from the same row.
 
 TokenGauge is a usage viewer, not a replacement for either provider. On a Mac without a signed-in provider, it shows an unavailable/sign-in state and keeps the setup links accessible in **Settings**. It never invents a balance or asks for an API key.
 
@@ -50,9 +59,9 @@ Updates use [Sparkle](https://sparkle-project.org), a signed ZIP, and an EdDSA-s
 
 ### What the numbers mean
 
-The menu bar shows the selected provider’s current balance. Codex uses its general quota; a separate Luna reserve is displayed independently and is never added to it. Claude uses its tightest scoped weekly limit, falling back to the general weekly limit. Token activity totals are not quota percentages. Provider windows and account availability depend on your plan and may change upstream.
+The menu bar shows the selected provider’s current balance. Codex uses its general quota; a separate Luna reserve is displayed independently and is never added to it. Claude uses its tightest scoped weekly limit, falling back to the general weekly limit. Token activity totals are not quota percentages. The current Codex account protocol supplies daily tokens, not daily turn counts; the chart labels its unit explicitly. Provider windows and account availability depend on your plan and may change upstream.
 
-If a live read fails, historical balances are not presented as current quota. Authentication required, denied access, stale data, and a locally marked cancelled subscription remain distinct. Marking Claude cancelled in Settings only changes local tracking; it does not cancel billing.
+If a live read fails, historical balances are not presented as current quota. Authentication required, denied access, stale data, and a locally marked cancelled subscription remain distinct. Each provider has an independent cancellation switch in Settings. It preserves local history and your selected view; it does not cancel billing. Tracking resumes only after live access and newly observed activity are confirmed.
 
 ## Privacy
 

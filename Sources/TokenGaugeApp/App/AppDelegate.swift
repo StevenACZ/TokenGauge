@@ -13,4 +13,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         UpdateManager.shared.start()
     }
 
+    func showSettings() {
+        statusController?.showSettings()
+    }
+
+    func showAbout() {
+        statusController?.showAbout()
+    }
 }

@@ -24,6 +24,7 @@ struct AboutView: View {
                 UpdateActionView().frame(maxWidth: 300)
             } else {
                 Text("updates.development".localized).font(.caption).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center).frame(maxWidth: .infinity)
             }
             Text("about.description".localized)
                 .multilineTextAlignment(.center).foregroundStyle(.secondary)

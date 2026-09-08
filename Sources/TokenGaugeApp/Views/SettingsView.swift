@@ -7,47 +7,144 @@ struct SettingsView: View {
     @ObservedObject var launchAtLogin: LaunchAtLoginManager
     @ObservedObject private var localization = LocalizationManager.shared
     @ObservedObject private var updates = UpdateManager.shared
-
     @AppStorage("codexExecutablePath") private var codexExecutablePath = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 18) {
             Label("settings.title".localized, systemImage: "slider.horizontal.3")
-                .font(.title2.bold())
-            GroupBox {
-                VStack(alignment: .leading, spacing: 14) {
-                    Picker("settings.language".localized, selection: $localization.language) {
-                        Text("Español").tag(AppLanguage.spanish)
-                        Text("English").tag(AppLanguage.english)
+                .font(.system(size: 22, weight: .semibold))
+                .padding(.bottom, 2)
+
+            section("settings.general".localized) {
+                VStack(spacing: 12) {
+                    preferenceRow("settings.language".localized) {
+                        Picker("settings.language".localized, selection: $localization.language) {
+                            Text("Español").tag(AppLanguage.spanish)
+                            Text("English").tag(AppLanguage.english)
+                        }.labelsHidden().frame(width: 160)
                     }
-                    Picker("settings.primary_provider".localized, selection: $store.primaryProvider) {
-                        Text("Codex").tag(UsageProvider.codex)
-                        Text("Claude Code").tag(UsageProvider.claude)
+                    Divider()
+                    preferenceRow("settings.display_mode".localized) {
+                        Picker("settings.display_mode".localized, selection: $store.displayMode) {
+                            ForEach(UsageDisplayMode.allCases) { mode in
+                                Text(mode.titleKey.localized).tag(mode)
+                            }
+                        }.labelsHidden().frame(width: 160)
                     }
-                    Toggle(
-                        "settings.launch_at_login".localized,
-                        isOn: Binding(
-                            get: { launchAtLogin.isEnabled }, set: { launchAtLogin.setEnabled($0) }))
+                    Divider()
+                    preferenceRow("settings.launch_at_login".localized) {
+                        Toggle(
+                            "settings.launch_at_login".localized,
+                            isOn: Binding(
+                                get: { launchAtLogin.isEnabled }, set: { launchAtLogin.setEnabled($0) })
+                        )
+                        .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                    }
+                    Divider()
+                    preferenceRow("settings.show_reserve".localized) {
+                        Toggle("settings.show_reserve".localized, isOn: $store.showLunaReserve)
+                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                            .help("settings.show_reserve_help".localized)
+                    }
                     if let message = launchAtLogin.errorMessage {
                         Text(message).font(.caption).foregroundStyle(.orange)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    Toggle(
-                        "settings.claude_cancelled".localized,
-                        isOn: Binding(
-                            get: { store.claudeCancelledAt != nil }, set: { store.setClaudeCancelled($0) }))
-                    Text("settings.cancellation_help".localized)
-                        .font(.caption).foregroundStyle(.secondary)
-                }.padding(10)
+                }.padding(16).settingsSurface()
             }
-            GroupBox("setup.title".localized) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("setup.description".localized)
-                    HStack {
-                        Link("setup.codex".localized, destination: AppLinks.codexSetup)
-                        Spacer()
-                        Link("setup.claude".localized, destination: AppLinks.claudeSetup)
+
+            section("settings.providers".localized) {
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(UsageProvider.allCases, id: \.self) { provider in
+                        providerSettings(provider)
                     }
-                    HStack {
+                }
+                Text("settings.cancellation_help".localized)
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 2).padding(.top, 2)
+                DisclosureGroup("setup.privacy".localized) {
+                    Text("setup.permissions".localized)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 6)
+                }.font(.caption).padding(.top, 2)
+            }
+
+            section("updates.title".localized) {
+                VStack(alignment: .leading, spacing: 10) {
+                    if updates.available {
+                        preferenceRow("updates.automatic".localized) {
+                            Toggle(
+                                "updates.automatic".localized,
+                                isOn: Binding(
+                                    get: { updates.autoCheckEnabled }, set: { updates.setAutoCheckEnabled($0) })
+                            )
+                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                        }
+                        Text("updates.explanation".localized).font(.caption).foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center).frame(maxWidth: .infinity)
+                    } else {
+                        Label("updates.local".localized, systemImage: "desktopcomputer")
+                            .font(.callout.weight(.medium)).frame(maxWidth: .infinity)
+                        Text("updates.development".localized).font(.caption).foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center).frame(maxWidth: .infinity)
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(16).settingsSurface()
+            }
+        }
+        .padding(24)
+        .frame(width: 600)
+        .fixedSize(horizontal: false, vertical: true)
+        .onAppear { launchAtLogin.refresh() }
+        .id(localization.language)
+    }
+
+    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                .padding(.horizontal, 2)
+            content()
+        }
+    }
+
+    private func preferenceRow<Control: View>(_ title: String, @ViewBuilder control: () -> Control) -> some View {
+        HStack(spacing: 24) {
+            Text(title).font(.callout)
+            Spacer(minLength: 16)
+            control()
+        }.frame(minHeight: 24)
+    }
+
+    private func providerSettings(_ provider: UsageProvider) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                ProviderLogo(provider: provider, size: 18)
+                Text("provider.\(provider.rawValue)".localized).font(.headline)
+            }
+            Label(statusTitle(for: provider), systemImage: "circle.fill")
+                .font(.caption).foregroundStyle(statusColor(for: provider))
+                .labelStyle(.titleAndIcon)
+            HStack(spacing: 12) {
+                Text("settings.mark_cancelled".localized).font(.callout)
+                Spacer(minLength: 0)
+                Toggle(
+                    "settings.mark_cancelled".localized,
+                    isOn: Binding(
+                        get: { store.isCancelled(provider: provider) },
+                        set: { store.setCancelled($0, for: provider) })
+                )
+                .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                .accessibilityLabel(
+                    "provider.\(provider.rawValue)".localized + " · " + "settings.mark_cancelled".localized)
+            }.frame(minHeight: 24)
+            Divider()
+            Link(destination: provider == .codex ? AppLinks.codexSetup : AppLinks.claudeSetup) {
+                Label("setup.connect".localized, systemImage: "arrow.up.right.square")
+            }.font(.callout)
+            Group {
+                if provider == .codex {
+                    Menu {
                         Button("setup.choose_codex".localized, action: chooseCodex)
                         if !codexExecutablePath.isEmpty {
                             Button("setup.automatic".localized) {
@@ -55,36 +152,41 @@ struct SettingsView: View {
                                 store.refresh(force: true)
                             }
                         }
+                    } label: {
+                        Text("setup.detection".localized)
                     }
-                    if !codexExecutablePath.isEmpty {
-                        Text(codexExecutablePath).font(.caption).foregroundStyle(.secondary)
-                            .lineLimit(2).truncationMode(.middle)
-                    }
-                    Text("setup.permissions".localized)
-                        .foregroundStyle(.secondary)
-                }.font(.callout).padding(10)
-            }
-            GroupBox("updates.title".localized) {
-                VStack(alignment: .leading, spacing: 10) {
-                    if updates.available {
-                        Toggle(
-                            "updates.automatic".localized,
-                            isOn: Binding(
-                                get: { updates.autoCheckEnabled }, set: { updates.setAutoCheckEnabled($0) }))
-                        Text("updates.explanation".localized)
-                            .font(.caption).foregroundStyle(.secondary)
-                    } else {
-                        Text("updates.development".localized).font(.callout).foregroundStyle(.secondary)
-                    }
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
-            }
+                    .menuStyle(.borderlessButton).fixedSize()
+                    .help(codexExecutablePath.isEmpty ? "setup.automatic".localized : codexExecutablePath)
+                } else {
+                    Text("setup.claude_session".localized).foregroundStyle(.secondary)
+                }
+            }.font(.caption).frame(height: 20, alignment: .leading)
         }
-        .padding(24)
-        .frame(width: 470)
-        .fixedSize(horizontal: false, vertical: true)
-        .onAppear { launchAtLogin.refresh() }
-        .id(localization.language)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16).settingsSurface()
     }
+
+    private func statusTitle(for provider: UsageProvider) -> String {
+        switch store.state(for: provider).status {
+        case .ready: return "status.live".localized
+        case .loading: return "status.loading".localized
+        case .waiting: return "status.waiting".localized
+        case .stale: return "status.stale".localized
+        case .unavailable: return "status.unavailable".localized
+        case .authenticationRequired: return "status.authentication_required".localized
+        case .accessDenied: return "status.access_denied".localized
+        case .cancelled: return "status.cancelled".localized
+        }
+    }
+
+    private func statusColor(for provider: UsageProvider) -> Color {
+        switch store.state(for: provider).status {
+        case .ready: return .green
+        case .authenticationRequired, .accessDenied, .stale: return .orange
+        default: return .secondary
+        }
+    }
+
     private func chooseCodex() {
         let panel = NSOpenPanel()
         panel.title = "setup.choose_codex".localized
@@ -97,6 +199,17 @@ struct SettingsView: View {
         codexExecutablePath = url.path
         store.refresh(force: true)
     }
+}
+
+private struct SettingsSurface: ViewModifier {
+    func body(content: Content) -> some View {
+        content.background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.04)))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.06)))
+    }
+}
+
+extension View {
+    fileprivate func settingsSurface() -> some View { modifier(SettingsSurface()) }
 }
 
 enum AppLinks {
