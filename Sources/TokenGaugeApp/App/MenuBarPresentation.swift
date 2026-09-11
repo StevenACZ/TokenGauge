@@ -15,11 +15,11 @@ struct MenuBarPresentation: Equatable {
 
     init(
         providers: [UsageProvider], state: (UsageProvider) -> ProviderViewState,
-        appearance: NSAppearance, size: MenuBarSize = .large
+        appearance: NSAppearance, size: MenuBarSize = .large, claudeSource: ClaudeMenuBarSource = .automatic
     ) {
         self.size = size
         segments = providers.map { provider in
-            let window = ProviderStateResolver.menuBarWindow(state: state(provider))
+            let window = ProviderStateResolver.menuBarWindow(state: state(provider), claudeSource: claudeSource)
             let remaining = window?.remainingPercentage
             let text = remaining.map { "\(Int($0.rounded()))%" } ?? "--"
             var color: NSColor = .labelColor

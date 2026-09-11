@@ -88,7 +88,9 @@ struct PopoverView: View {
                 ProviderCard(
                     provider: provider, state: store.state(for: provider),
                     showProviderTitle: store.displayMode == .unified,
-                    showLunaReserve: store.showLunaReserve)
+                    showLunaReserve: store.showLunaReserve,
+                    hiddenClaudeWindows: store.hiddenClaudeWindows,
+                    claudeMenuBarSource: store.claudeMenuBarSource)
             }
         }.fixedSize(horizontal: false, vertical: true)
     }

@@ -177,10 +177,56 @@ struct SettingsView: View {
                         .labelsHidden().toggleStyle(.switch).controlSize(.small)
                         .help("settings.show_reserve_help".localized)
                 }.frame(minHeight: 24)
+            } else {
+                Divider()
+                claudeWindowSettings
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16).settingsSurface()
+    }
+
+    private var claudeWindowSettings: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("settings.claude_windows".localized).font(.caption).foregroundStyle(.secondary)
+            ForEach(ClaudeWindowKind.allCases) { kind in
+                HStack(spacing: 12) {
+                    Text(claudeWindowName(kind)).font(.callout)
+                    Spacer(minLength: 0)
+                    Toggle(
+                        claudeWindowName(kind),
+                        isOn: Binding(
+                            get: { store.isClaudeWindowVisible(kind) },
+                            set: { store.setClaudeWindow(kind, visible: $0) })
+                    )
+                    .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                    .accessibilityLabel("settings.claude_windows".localized + " · " + claudeWindowName(kind))
+                }.frame(minHeight: 24)
+            }
+            Divider()
+            HStack(spacing: 12) {
+                Text("settings.claude_menu_bar".localized).font(.callout)
+                Spacer(minLength: 0)
+                Picker("settings.claude_menu_bar".localized, selection: $store.claudeMenuBarSource) {
+                    ForEach(ClaudeMenuBarSource.allCases) { source in
+                        Text(source.kind.map(claudeWindowName) ?? "settings.claude_menu_bar.automatic".localized)
+                            .tag(source)
+                    }
+                }.labelsHidden().frame(width: 150, alignment: .trailing)
+            }.frame(minHeight: 24)
+            Text("settings.claude_menu_bar_help".localized).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func claudeWindowName(_ kind: ClaudeWindowKind) -> String {
+        switch kind {
+        case .session: return "window.session".localized
+        case .weekly: return "window.weekly".localized
+        case .modelWeekly:
+            let scoped = store.claude.snapshot?.windows.first { ClaudeWindowKind.of($0) == .modelWeekly }
+            return "window.model_weekly".localized(scoped?.displayName ?? "settings.claude_model_placeholder".localized)
+        }
     }
 
     private func displayModeImage(_ mode: UsageDisplayMode) -> Image {

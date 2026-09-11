@@ -67,8 +67,10 @@ final class StatusItemController: NSObject {
             store.$claude, store.$codex, store.$displayMode, LocalizationManager.shared.$bundle
         )
         .receive(on: RunLoop.main)
-        .combineLatest(store.$menuBarSize.receive(on: RunLoop.main))
-        .sink { [weak self] _, _ in
+        .combineLatest(
+            store.$menuBarSize.receive(on: RunLoop.main), store.$claudeMenuBarSource.receive(on: RunLoop.main)
+        )
+        .sink { [weak self] _, _, _ in
             self?.updateStatusItem()
         }
         .store(in: &cancellables)
@@ -82,7 +84,6 @@ final class StatusItemController: NSObject {
     @objc private func togglePopover() {
         guard let button = statusItem.button else { return }
         if popover.isShown {
-            popover.animates = true
             popover.performClose(nil)
             return
         }
@@ -99,9 +100,7 @@ final class StatusItemController: NSObject {
         let controller = NSHostingController(rootView: view)
         controller.sizingOptions = [.preferredContentSize]
         popover.contentViewController = controller
-        popover.animates = true
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover.animates = false
         popover.contentViewController?.view.window?.makeKey()
         startDismissMonitors()
     }
@@ -117,7 +116,9 @@ final class StatusItemController: NSObject {
                 sourceWindow: window.frame, sourceButton: button.frame, contentSize: self.popover.contentSize)
             guard geometry != self.positionedGeometry else { return }
             self.positionedGeometry = geometry
+            self.popover.animates = false
             self.popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            self.popover.animates = true
         }
     }
 
@@ -166,7 +167,6 @@ final class StatusItemController: NSObject {
             stopDismissMonitors()
             return
         }
-        popover.animates = true
         popover.performClose(nil)
     }
 
@@ -175,7 +175,8 @@ final class StatusItemController: NSObject {
         let presentation = MenuBarPresentation(
             providers: store.displayMode.providers,
             state: { store.state(for: $0) },
-            appearance: button.effectiveAppearance, size: store.menuBarSize)
+            appearance: button.effectiveAppearance, size: store.menuBarSize,
+            claudeSource: store.claudeMenuBarSource)
         guard presentation != displayedPresentation else { return }
         if displayedPresentation?.segments.first?.provider != presentation.segments.first?.provider
             || displayedPresentation?.size != presentation.size,
@@ -194,7 +195,6 @@ final class StatusItemController: NSObject {
 extension StatusItemController: NSPopoverDelegate {
     func popoverDidClose(_ notification: Notification) {
         positionedGeometry = nil
-        popover.animates = true
         stopDismissMonitors()
         popover.contentViewController = nil
     }

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-10
+
+### Added
+
+- Claude settings to show or hide the 5h session, weekly and model weekly windows in the panel, and to choose which of them the menu bar shows.
+
+### Fixed
+
+- Close the panel with its fade animation when the menu bar icon is clicked again.
+
 ## [1.1.0] - 2026-09-07
 
 ### Added

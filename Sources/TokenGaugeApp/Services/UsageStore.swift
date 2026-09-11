@@ -46,6 +46,12 @@ final class UsageStore: ObservableObject {
     @Published var showLunaReserve: Bool {
         didSet { defaults.set(showLunaReserve, forKey: "showLunaReserve") }
     }
+    @Published private(set) var hiddenClaudeWindows: Set<ClaudeWindowKind> {
+        didSet { defaults.set(hiddenClaudeWindows.map(\.rawValue).sorted(), forKey: "hiddenClaudeWindows") }
+    }
+    @Published var claudeMenuBarSource: ClaudeMenuBarSource {
+        didSet { defaults.set(claudeMenuBarSource.rawValue, forKey: "claudeMenuBarSource") }
+    }
     @Published private(set) var claudeCancelledAt: Date?
     @Published private(set) var codexCancelledAt: Date?
 
@@ -73,6 +79,9 @@ final class UsageStore: ObservableObject {
         displayMode = mode
         menuBarSize = MenuBarSize(rawValue: defaults.string(forKey: "menuBarSize") ?? "") ?? .large
         showLunaReserve = defaults.object(forKey: "showLunaReserve") == nil || defaults.bool(forKey: "showLunaReserve")
+        hiddenClaudeWindows = ClaudeWindowKind.decode(defaults.stringArray(forKey: "hiddenClaudeWindows"))
+        claudeMenuBarSource =
+            ClaudeMenuBarSource(rawValue: defaults.string(forKey: "claudeMenuBarSource") ?? "") ?? .automatic
         claudeCancelledAt = defaults.object(forKey: "claudeCancelledAt") as? Date
         codexCancelledAt = defaults.object(forKey: "codexCancelledAt") as? Date
         for snapshot in initialSnapshots {
@@ -161,6 +170,17 @@ final class UsageStore: ObservableObject {
         setCancelled(cancelled, for: .claude)
     }
 
+    func isClaudeWindowVisible(_ kind: ClaudeWindowKind) -> Bool {
+        !hiddenClaudeWindows.contains(kind)
+    }
+
+    func setClaudeWindow(_ kind: ClaudeWindowKind, visible: Bool) {
+        var hidden = hiddenClaudeWindows
+        if visible { hidden.remove(kind) } else { hidden.insert(kind) }
+        guard hidden.count < ClaudeWindowKind.allCases.count else { return }
+        hiddenClaudeWindows = hidden
+    }
+
     func setCancelled(_ cancelled: Bool, for provider: UsageProvider) {
         guard isCancelled(provider: provider) != cancelled else { return }
         persistCancellation(cancelled ? Date() : nil, for: provider)
@@ -229,7 +249,7 @@ final class UsageStore: ObservableObject {
     }
 
     var menuBarWindow: QuotaWindow? {
-        ProviderStateResolver.menuBarWindow(state: state(for: primaryProvider))
+        ProviderStateResolver.menuBarWindow(state: state(for: primaryProvider), claudeSource: claudeMenuBarSource)
     }
 
     private nonisolated static func fetchCodex(client: CodexAppServerClient) -> ProviderViewState {
@@ -293,7 +313,9 @@ enum ProviderStateResolver {
         snapshot.windows.isEmpty ? .waiting : .ready
     }
 
-    static func menuBarWindow(state: ProviderViewState) -> QuotaWindow? {
+    static func menuBarWindow(state: ProviderViewState, claudeSource: ClaudeMenuBarSource = .automatic)
+        -> QuotaWindow?
+    {
         guard state.status == .ready, let snapshot = state.snapshot else { return nil }
         let windows = WindowVisibility.visible(snapshot.windows, provider: snapshot.provider, showLunaReserve: false)
             .filter { ($0.resetsAt ?? .distantFuture) > Date() }
@@ -301,6 +323,9 @@ enum ProviderStateResolver {
         if snapshot.provider == .codex {
             return weekly.first { $0.id.hasPrefix("codex.") }
                 ?? windows.first { $0.id.hasPrefix("codex.") }
+        }
+        if let kind = claudeSource.kind, let chosen = windows.first(where: { ClaudeWindowKind.of($0) == kind }) {
+            return chosen
         }
         let scoped = weekly.filter { ($0.displayName ?? "").isEmpty == false }
         if let tightest = scoped.min(by: { $0.remainingPercentage < $1.remainingPercentage }) {

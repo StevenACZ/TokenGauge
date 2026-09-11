@@ -105,3 +105,8 @@
 "settings.menu_bar_size.large" = "Large";
 "settings.menu_bar_size.medium" = "Medium";
 "settings.menu_bar_size.small" = "Small";
+"settings.claude_windows" = "Quota windows in the panel";
+"settings.claude_menu_bar" = "Menu bar shows";
+"settings.claude_menu_bar.automatic" = "Automatic";
+"settings.claude_menu_bar_help" = "Automatic shows the tightest weekly limit. Hiding a window only changes the panel.";
+"settings.claude_model_placeholder" = "Model";

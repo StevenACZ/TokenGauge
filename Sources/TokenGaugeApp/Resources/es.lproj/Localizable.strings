@@ -105,3 +105,8 @@
 "settings.menu_bar_size.large" = "Grande";
 "settings.menu_bar_size.medium" = "Mediano";
 "settings.menu_bar_size.small" = "Pequeño";
+"settings.claude_windows" = "Ventanas de cuota en el panel";
+"settings.claude_menu_bar" = "La barra muestra";
+"settings.claude_menu_bar.automatic" = "Automático";
+"settings.claude_menu_bar_help" = "Automático muestra el límite semanal más ajustado. Ocultar una ventana solo cambia el panel.";
+"settings.claude_model_placeholder" = "Modelo";

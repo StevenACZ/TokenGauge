@@ -7,6 +7,8 @@ struct ProviderCard: View {
     var compact = false
     var showProviderTitle = false
     var showLunaReserve = true
+    var hiddenClaudeWindows: Set<ClaudeWindowKind> = []
+    var claudeMenuBarSource: ClaudeMenuBarSource = .automatic
 
     private var tint: Color {
         provider == .claude ? Theme.claude : Theme.codex
@@ -14,7 +16,9 @@ struct ProviderCard: View {
 
     private var visibleWindows: [QuotaWindow] {
         guard state.status == .ready, let snapshot = state.snapshot else { return [] }
-        return WindowVisibility.visible(snapshot.windows, provider: provider, showLunaReserve: showLunaReserve)
+        return WindowVisibility.visible(
+            snapshot.windows, provider: provider, showLunaReserve: showLunaReserve,
+            hiddenClaudeWindows: hiddenClaudeWindows)
     }
 
     var body: some View {
@@ -67,7 +71,8 @@ struct ProviderCard: View {
 
     private var compactStatus: String {
         guard state.status == .ready else { return statusText }
-        guard let window = ProviderStateResolver.menuBarWindow(state: state) else { return statusText }
+        guard let window = ProviderStateResolver.menuBarWindow(state: state, claudeSource: claudeMenuBarSource)
+        else { return statusText }
         return "quota.remaining_value".localized(UsageFormatters.percentage(window.remainingPercentage))
     }
 
