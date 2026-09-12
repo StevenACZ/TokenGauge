@@ -7,6 +7,7 @@ struct HistoryPanelView: View {
     let providers: [UsageProvider]
     var compact = false
     @State private var scrollToCurrentDay = true
+    @State private var showingDetails = false
 
     private var locale: Locale { Locale(identifier: LocalizationManager.shared.language.rawValue) }
     private var today: Date { Calendar.current.startOfDay(for: Date()) }
@@ -14,23 +15,36 @@ struct HistoryPanelView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Text("history.title".localized).font(.caption.weight(.semibold))
+            HStack(spacing: 8) {
+                Text("history.heading".localized).font(.system(size: 11, weight: .semibold))
                 Spacer(minLength: 0)
-                legend
-            }
-            HStack(spacing: 6) {
-                Picker("history.view".localized, selection: $mode) {
+                HStack(spacing: 2) {
                     ForEach(HistoryMode.allCases) { item in
-                        Text(item.titleKey.localized).tag(item)
+                        Button {
+                            mode = item
+                        } label: {
+                            Text(item.titleKey.localized)
+                                .font(.system(size: 10, weight: mode == item ? .semibold : .regular))
+                                .foregroundStyle(mode == item ? .primary : .secondary)
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background {
+                                    if mode == item {
+                                        RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.1))
+                                    }
+                                }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(mode == item ? [.isSelected] : [])
                     }
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .fixedSize()
-                Spacer(minLength: 0)
-                if mode != .recent {
-                    navigation
+                .padding(2)
+                .background(RoundedRectangle(cornerRadius: 7).fill(Color.primary.opacity(0.035)))
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("history.view".localized)
+            }
+            if mode != .recent {
+                HStack {
+                    Spacer(); navigation
                 }
             }
             if model.loadFailed {
@@ -52,18 +66,6 @@ struct HistoryPanelView: View {
             model.selectedDayKey = nil
             scrollToCurrentDay = newValue == .calendar
         }
-    }
-
-    private var legend: some View {
-        HStack(spacing: 6) {
-            ForEach(providers, id: \.self) { provider in
-                HStack(spacing: 3) {
-                    RoundedRectangle(cornerRadius: 1.5).fill(color(provider)).frame(width: 7, height: 7)
-                    Text(name(provider))
-                }
-            }
-        }
-        .font(.system(size: 10)).foregroundStyle(.secondary)
     }
 
     private var navigation: some View {
@@ -111,25 +113,33 @@ struct HistoryPanelView: View {
                                     RoundedRectangle(cornerRadius: 2)
                                         .fill(color(provider).opacity(tokens == 0 ? 0.2 : 1))
                                         .frame(
-                                            width: compact ? 6 : 8,
+                                            width: compact ? 8 : 10,
                                             height: max(
                                                 1, Theme.Layout.activityChartHeight * Double(tokens) / Double(maximum)))
                                 } else if day.date <= today {
-                                    RoundedRectangle(cornerRadius: 1).strokeBorder(
-                                        Color.secondary.opacity(0.4), lineWidth: 1
-                                    )
-                                    .frame(width: compact ? 6 : 8, height: 3)
+                                    Capsule().fill(Color.secondary.opacity(0.25))
+                                        .frame(width: 5, height: 1)
                                 }
                             }
                         }
                         .frame(height: Theme.Layout.activityChartHeight, alignment: .bottom)
                         .frame(maxWidth: .infinity)
                         .overlay(alignment: .bottom) { Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1) }
-                        Text(day.date.formatted(.dateTime.weekday(.narrow).locale(locale)))
-                            .font(.system(size: 9, weight: selectedID == day.id ? .bold : .regular))
-                            .foregroundStyle(day.date == today ? .white : .secondary)
-                            .frame(width: 20, height: 15)
-                            .background { if day.date == today { Capsule().fill(accent) } }
+                        HStack(spacing: 3) {
+                            Text(day.date.formatted(.dateTime.weekday(.narrow).locale(locale)))
+                            Text(day.date.formatted(.dateTime.day().locale(locale)))
+                        }
+                        .font(.system(size: 9, weight: selectedID == day.id ? .semibold : .regular))
+                        .foregroundStyle(selectedID == day.id ? .primary : .secondary)
+                        .frame(height: 18).frame(maxWidth: .infinity)
+                        .background {
+                            if selectedID == day.id {
+                                RoundedRectangle(cornerRadius: 5).fill(accent.opacity(0.14))
+                            }
+                        }
+                        .overlay(alignment: .bottom) {
+                            if day.date == today { Circle().fill(accent).frame(width: 3, height: 3) }
+                        }
                     }
                     .frame(maxWidth: .infinity).contentShape(Rectangle())
                 }
@@ -227,31 +237,92 @@ struct HistoryPanelView: View {
 
     @ViewBuilder private var selectionSummary: some View {
         if let day = model.selectedDay {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(summary(day)).font(.system(size: 10)).foregroundStyle(.secondary)
-                    .monospacedDigit().fixedSize(horizontal: false, vertical: true)
-                let efforts = day.efforts.filter { providers.contains($0.provider) }.sorted { $0.tokens > $1.tokens }
-                if !efforts.isEmpty {
-                    Text("history.local_tokens".localized).font(.system(size: 9)).foregroundStyle(.tertiary)
-                    ForEach(Array(efforts.prefix(2).enumerated()), id: \.offset) { _, row in
-                        Text(
-                            "\(name(row.provider)) · \(row.model) · \(effortName(row.effort)): \(exact(row.tokens))"
-                        )
-                        .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
-                        .help("\(row.model) · \(row.effort): \(exact(row.tokens))")
+            VStack(alignment: .leading, spacing: 7) {
+                HStack {
+                    Text(day.date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated).locale(locale)))
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        showingDetails.toggle()
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text("history.details".localized)
+                            Image(systemName: "chevron.right").font(.system(size: 8, weight: .semibold))
+                        }.font(.system(size: 10))
                     }
-                    if efforts.count > 2 {
-                        Menu("history.all_efforts".localized) {
-                            ForEach(Array(efforts.enumerated()), id: \.offset) { _, row in
-                                Text(
-                                    "\(name(row.provider)) · \(row.model) · \(effortName(row.effort)): \(exact(row.tokens))"
-                                )
-                            }
-                        }.font(.system(size: 9)).menuStyle(.borderlessButton).fixedSize()
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
+                    .disabled(day.efforts.filter { providers.contains($0.provider) }.isEmpty)
+                    .popover(isPresented: $showingDetails, arrowEdge: .bottom) {
+                        effortDetails(day)
+                    }
+                }
+                HStack(spacing: 10) {
+                    ForEach(providers, id: \.self) { provider in
+                        providerTotal(provider, day: day)
                     }
                 }
             }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(0.035)))
         }
+    }
+
+    private func providerTotal(_ provider: UsageProvider, day: HistoryCalendarDay) -> some View {
+        let tokens = day.tokens(for: provider)
+        let full = name(provider) + ": " + (tokens.map { exact($0) } ?? "history.unknown".localized)
+        let value = tokens.map { UsageFormatters.tokens($0) } ?? "—"
+        return HStack(spacing: 5) {
+            Circle().fill(color(provider)).frame(width: 5, height: 5)
+            Text(name(provider)).font(.system(size: 10)).foregroundStyle(.secondary)
+            Spacer(minLength: 3)
+            Text(value).font(.system(size: 13, weight: .semibold)).monospacedDigit()
+        }
+        .frame(maxWidth: .infinity)
+        .help(full).accessibilityElement(children: .ignore).accessibilityLabel(full)
+    }
+
+    private func effortDetails(_ day: HistoryCalendarDay) -> some View {
+        let rows = day.efforts.filter { providers.contains($0.provider) }.sorted { $0.tokens > $1.tokens }
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("history.details_title".localized).font(.system(size: 12, weight: .semibold))
+                    Text(day.date.formatted(.dateTime.day().month(.wide).year().locale(locale)))
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    showingDetails = false
+                } label: {
+                    Image(systemName: "xmark").font(.system(size: 10, weight: .medium))
+                        .padding(5).background(Circle().fill(Color.primary.opacity(0.06)))
+                }
+                .buttonStyle(.plain).accessibilityLabel("history.close_details".localized)
+            }
+            ScrollView {
+                VStack(spacing: 10) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                        HStack(spacing: 8) {
+                            ProviderLogo(provider: row.provider, size: 13)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(row.model).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                                Text(effortName(row.effort)).font(.system(size: 10)).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 8)
+                            Text(UsageFormatters.tokens(row.tokens))
+                                .font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                                .help(exact(row.tokens))
+                                .accessibilityLabel(exact(row.tokens))
+                        }
+                    }
+                }
+            }
+            .frame(height: min(CGFloat(rows.count) * 41, 230))
+            Text("history.details_note".localized)
+                .font(.system(size: 9)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14).frame(width: 300)
     }
 
     private func effortName(_ value: String) -> String {
@@ -261,7 +332,7 @@ struct HistoryPanelView: View {
     }
 
     private func select(_ day: HistoryCalendarDay) {
-        guard day.date <= today, model.selectedDayKey != day.id else { return }
+        guard !showingDetails, day.date <= today, model.selectedDayKey != day.id else { return }
         model.selectedDayKey = day.id
     }
 

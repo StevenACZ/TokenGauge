@@ -155,3 +155,8 @@
 "pace.insufficient" = "Requiere al menos tres lecturas verificadas que cubran 30 minutos. Se excluyen reinicios y huecos largos.";
 "pace.setting" = "Mostrar uso semanal por hora";
 "history.all_efforts" = "Todos los esfuerzos";
+"history.heading" = "Tokens";
+"history.details" = "Modelo y esfuerzo";
+"history.details_title" = "Uso por modelo y esfuerzo";
+"history.close_details" = "Cerrar detalle";
+"history.details_note" = "Tokens observados en este Mac. Pasa el cursor sobre una cifra para ver el valor exacto.";
