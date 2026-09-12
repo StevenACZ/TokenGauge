@@ -65,12 +65,7 @@ struct ProviderCard: View {
             if visibleWindows.count == 1, let window = visibleWindows.first {
                 QuotaRingWindow(window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown)
             } else {
-                LazyVGrid(
-                    columns: [
-                        GridItem(
-                            .adaptive(minimum: Theme.Layout.quotaRingCellWidth), spacing: Theme.Layout.quotaRingSpacing)
-                    ], alignment: .center, spacing: 14
-                ) {
+                QuotaRingGrid {
                     ForEach(visibleWindows) { window in
                         QuotaRingWindow(
                             window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown)

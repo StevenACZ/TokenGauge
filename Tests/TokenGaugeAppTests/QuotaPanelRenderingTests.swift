@@ -42,6 +42,17 @@ final class QuotaPanelRenderingTests: XCTestCase {
         }
     }
 
+    func testTwoRingCellsFillTheAvailableWidthWithoutAnEmptyThirdSlot() throws {
+        let bitmap = try render(
+            QuotaRingGrid {
+                Color.red.frame(height: 20)
+                Color.blue.frame(height: 20)
+            }.frame(width: 320), maximumHeight: 20)
+        let pixel = try XCTUnwrap(bitmap.colorAt(x: bitmap.pixelsWide - 2, y: 4)?.usingColorSpace(.deviceRGB))
+        XCTAssertGreaterThan(pixel.alphaComponent, 0.9)
+        XCTAssertGreaterThan(pixel.blueComponent, pixel.redComponent)
+    }
+
     func testProportionalRingWidthsKeepTwoAndThreeWindowsOnOneRow() throws {
         let originalLanguage = LocalizationManager.shared.language
         defer { LocalizationManager.shared.language = originalLanguage }

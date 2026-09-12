@@ -58,6 +58,28 @@ struct MenuBarPresentation: Equatable {
         let font = NSFont.monospacedDigitSystemFont(ofSize: size.fontSize, weight: .semibold)
         for (index, segment) in segments.enumerated() {
             let attributes: [NSAttributedString.Key: Any] = [.foregroundColor: segment.color, .font: font]
+            if style == .rings {
+                if index > 0 { title.append(NSAttributedString(string: " ", attributes: attributes)) }
+                let image =
+                    quotaImage(for: segment)
+                    ?? ProviderLogoAssets.menuBarImage(for: segment.provider, size: size.iconSize)
+                if let image {
+                    let attachment = NSTextAttachment()
+                    attachment.image = image
+                    attachment.bounds = NSRect(
+                        x: 0, y: (font.capHeight - image.size.height) / 2,
+                        width: image.size.width, height: image.size.height)
+                    title.append(NSAttributedString(attachment: attachment))
+                } else {
+                    title.append(
+                        NSAttributedString(
+                            string: "provider.\(segment.provider.rawValue)".localized, attributes: attributes))
+                }
+                if segment.remainingPercentage == nil {
+                    title.append(NSAttributedString(string: " --", attributes: attributes))
+                }
+                continue
+            }
             if index > 0 {
                 let gap = NSMutableAttributedString(string: "  ", attributes: attributes)
                 gap.addAttribute(.kern, value: 3, range: NSRange(location: 0, length: 1))
@@ -87,7 +109,11 @@ struct MenuBarPresentation: Equatable {
 
     func quotaImage(for segment: Segment) -> NSImage? {
         guard style != .numbers, let remaining = segment.remainingPercentage else { return nil }
-        let imageSize = NSSize(width: style == .bars ? size.iconSize * 1.8 : size.iconSize, height: size.iconSize)
+        let diameter = min(22, size.iconSize + 5)
+        let imageSize =
+            style == .bars
+            ? NSSize(width: size.iconSize * 1.8, height: size.iconSize)
+            : NSSize(width: diameter, height: diameter)
         let image = NSImage(size: imageSize)
         image.lockFocus()
         let fraction = min(max(remaining / 100, 0), 1)
@@ -107,7 +133,7 @@ struct MenuBarPresentation: Equatable {
                 NSGraphicsContext.restoreGraphicsState()
             }
         } else {
-            let lineWidth = max(2, size.iconSize * 0.18)
+            let lineWidth: CGFloat = 2
             let rect = NSRect(origin: .zero, size: imageSize).insetBy(dx: lineWidth / 2, dy: lineWidth / 2)
             let track = NSBezierPath(ovalIn: rect)
             track.lineWidth = lineWidth
@@ -123,6 +149,14 @@ struct MenuBarPresentation: Equatable {
                 segment.graphicColor.setStroke()
                 if fraction == 1 { track.stroke() } else { arc.stroke() }
             }
+            let logoSize = min(14, diameter - 6)
+            let logo = ProviderLogoAssets.menuBarImage(for: segment.provider, size: logoSize)
+            NSGraphicsContext.saveGraphicsState()
+            NSBezierPath(ovalIn: NSRect(origin: .zero, size: imageSize).insetBy(dx: 3, dy: 3)).addClip()
+            logo?.draw(
+                in: NSRect(
+                    x: (diameter - logoSize) / 2, y: (diameter - logoSize) / 2, width: logoSize, height: logoSize))
+            NSGraphicsContext.restoreGraphicsState()
         }
         image.unlockFocus()
         image.isTemplate = false

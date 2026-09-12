@@ -77,7 +77,7 @@ final class MenuBarPresentationTests: XCTestCase {
         }
     }
 
-    @MainActor func testStylesInvalidateCacheAndKeepExactQuotaDescription() {
+    @MainActor func testStylesInvalidateCacheAndKeepExactQuotaDescription() throws {
         let state: (UsageProvider) -> ProviderViewState = { self.state(provider: $0, status: .ready) }
         let appearance = NSAppearance(named: .aqua)!
         let numbers = MenuBarPresentation(providers: [.codex, .claude], state: state, appearance: appearance)
@@ -94,7 +94,13 @@ final class MenuBarPresentationTests: XCTestCase {
             title.enumerateAttribute(.attachment, in: NSRange(location: 0, length: title.length)) { value, _, _ in
                 if value is NSTextAttachment { attachmentCount += 1 }
             }
-            XCTAssertEqual(attachmentCount, 3)
+            XCTAssertEqual(attachmentCount, style == .rings ? 2 : 3)
+            if style == .rings {
+                for segment in presentation.segments {
+                    let image = try XCTUnwrap(presentation.quotaImage(for: segment))
+                    XCTAssertGreaterThan(try centerOpacity(image), 1)
+                }
+            }
         }
     }
 
@@ -110,10 +116,16 @@ final class MenuBarPresentationTests: XCTestCase {
                             appearance: NSAppearance(named: appearanceName)!, size: size, style: style)
                         images.append(try XCTUnwrap(presentation.quotaImage(for: presentation.segments[0])))
                     }
-                    let expected = NSSize(
-                        width: style == .bars ? size.iconSize * 1.8 : size.iconSize, height: size.iconSize)
+                    let diameter = min(22, size.iconSize + 5)
+                    let expected =
+                        style == .bars
+                        ? NSSize(width: size.iconSize * 1.8, height: size.iconSize)
+                        : NSSize(width: diameter, height: diameter)
                     XCTAssertTrue(images.allSatisfy { $0.size == expected && !$0.isTemplate })
-                    let ink = try images.map { try blueInk($0) }
+                    let ink = try images.map { try blueInk($0, annulusOnly: style == .rings) }
+                    if style == .rings {
+                        for image in images { XCTAssertGreaterThan(try centerOpacity(image), 1) }
+                    }
                     XCTAssertLessThan(ink[0], ink[2] * 0.05)
                     XCTAssertGreaterThan(ink[2], 0)
                     XCTAssertEqual(ink[1] / ink[2], 0.5, accuracy: 0.12)
@@ -129,7 +141,12 @@ final class MenuBarPresentationTests: XCTestCase {
                 let presentation = MenuBarPresentation(
                     providers: [.claude], state: { self.state(provider: $0, status: status) },
                     appearance: NSAppearance(named: .aqua)!, style: style)
-                XCTAssertEqual(presentation.attributedTitle().string, " --")
+                let title = presentation.attributedTitle()
+                XCTAssertTrue(title.string.hasSuffix(" --"))
+                if style == .rings {
+                    XCTAssertNotNil(title.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)
+                    XCTAssertTrue(presentation.accessibilityLabel.contains("Claude"))
+                }
                 XCTAssertNil(presentation.segments[0].remainingPercentage)
                 XCTAssertNil(presentation.quotaImage(for: presentation.segments[0]))
                 XCTAssertFalse(presentation.accessibilityLabel.contains("%"))
@@ -160,21 +177,35 @@ final class MenuBarPresentationTests: XCTestCase {
                 style: style, claudeSource: .modelWeekly)
             XCTAssertEqual(weekly.segments[0].remainingPercentage, 60)
             XCTAssertNil(missingModel.segments[0].remainingPercentage)
-            XCTAssertEqual(missingModel.attributedTitle().string, " --")
+            XCTAssertTrue(missingModel.attributedTitle().string.hasSuffix(" --"))
         }
     }
 
-    @MainActor private func blueInk(_ image: NSImage) throws -> Double {
+    @MainActor private func blueInk(_ image: NSImage, annulusOnly: Bool) throws -> Double {
         let data = try XCTUnwrap(image.tiffRepresentation)
         let bitmap = try XCTUnwrap(NSBitmapImageRep(data: data))
         var total = 0.0
         for y in 0..<bitmap.pixelsHigh {
             for x in 0..<bitmap.pixelsWide {
+                let pointX = (Double(x) + 0.5) * image.size.width / Double(bitmap.pixelsWide) - image.size.width / 2
+                let pointY = (Double(y) + 0.5) * image.size.height / Double(bitmap.pixelsHigh) - image.size.height / 2
+                if annulusOnly && hypot(pointX, pointY) < image.size.width / 2 - 2.2 { continue }
                 let color = try XCTUnwrap(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
                 total += max(0, color.blueComponent - color.redComponent) * color.alphaComponent
             }
         }
         return total
+    }
+
+    @MainActor private func centerOpacity(_ image: NSImage) throws -> Double {
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: XCTUnwrap(image.tiffRepresentation)))
+        var opacity = 0.0
+        for y in (bitmap.pixelsHigh / 3)..<(bitmap.pixelsHigh * 2 / 3) {
+            for x in (bitmap.pixelsWide / 3)..<(bitmap.pixelsWide * 2 / 3) {
+                opacity += try XCTUnwrap(bitmap.colorAt(x: x, y: y)).alphaComponent
+            }
+        }
+        return opacity
     }
 
     private func state(provider: UsageProvider, status: ProviderStatus, usedPercentage: Double? = nil)

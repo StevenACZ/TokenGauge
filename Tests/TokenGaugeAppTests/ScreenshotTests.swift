@@ -116,6 +116,13 @@ final class ScreenshotTests: XCTestCase {
             }
         }
 
+        store.showLunaReserve = false
+        store.setClaudeWindow(.weekly, visible: false)
+        let fitted = try render(
+            PopoverView(store: store, showSettings: {}, showAbout: {}),
+            to: output.appendingPathComponent("rings-current.png"))
+        XCTAssertEqual(fitted.width, Theme.Layout.compactUnifiedWidth)
+
     }
 
     @discardableResult

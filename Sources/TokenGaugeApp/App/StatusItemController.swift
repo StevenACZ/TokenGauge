@@ -180,10 +180,13 @@ final class StatusItemController: NSObject {
             claudeSource: store.claudeMenuBarSource)
         guard presentation != displayedPresentation else { return }
         if displayedPresentation?.segments.first?.provider != presentation.segments.first?.provider
-            || displayedPresentation?.size != presentation.size,
+            || displayedPresentation?.size != presentation.size
+            || displayedPresentation?.style != presentation.style,
             let provider = presentation.segments.first?.provider
         {
-            button.image = ProviderLogoAssets.menuBarImage(for: provider, size: presentation.size.iconSize)
+            button.image =
+                presentation.style == .rings
+                ? nil : ProviderLogoAssets.menuBarImage(for: provider, size: presentation.size.iconSize)
         }
         button.attributedTitle = presentation.attributedTitle()
         button.toolTip = presentation.accessibilityLabel

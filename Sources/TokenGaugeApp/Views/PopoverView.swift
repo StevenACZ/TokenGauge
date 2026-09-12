@@ -21,7 +21,7 @@ struct PopoverView: View {
         switch store.panelStyle {
         case .standard: return unified ? Theme.Layout.unifiedPanelWidth : Theme.Layout.panelWidth
         case .compact: return unified ? Theme.Layout.compactUnifiedWidth : Theme.Layout.compactPanelWidth
-        case .rings: return unified ? Theme.Layout.ringUnifiedWidth : Theme.Layout.ringPanelWidth
+        case .rings: return unified ? ringUnifiedWidth : Theme.Layout.ringPanelWidth
         }
     }
 
@@ -122,30 +122,39 @@ struct PopoverView: View {
         }.fixedSize(horizontal: false, vertical: true)
     }
 
+    private func ringWindowCount(_ provider: UsageProvider) -> CGFloat {
+        let windows = store.state(for: provider).snapshot?.windows ?? []
+        return CGFloat(
+            max(
+                1,
+                WindowVisibility.visible(
+                    windows, provider: provider, showLunaReserve: store.showLunaReserve,
+                    hiddenClaudeWindows: store.hiddenClaudeWindows
+                ).count))
+    }
+
+    private func minimumRingWidth(_ count: CGFloat) -> CGFloat {
+        let cells = min(count, 3)
+        return max(
+            Theme.Layout.minimumRingCardWidth,
+            cells * Theme.Layout.quotaRingCellWidth + (cells - 1) * Theme.Layout.quotaRingSpacing
+                + Theme.Layout.cardPadding * 2)
+    }
+
+    private var ringUnifiedWidth: CGFloat {
+        let content =
+            minimumRingWidth(ringWindowCount(.codex)) + minimumRingWidth(ringWindowCount(.claude))
+            + Theme.Layout.panelPadding * 2 + Theme.Layout.quotaRingSpacing
+        return min(max(content, Theme.Layout.compactUnifiedWidth), Theme.Layout.ringUnifiedWidth)
+    }
+
     private func ringCardWidth(for provider: UsageProvider) -> CGFloat? {
         guard store.panelStyle == .rings, store.displayMode == .unified else { return nil }
-        func count(_ provider: UsageProvider) -> CGFloat {
-            let windows = store.state(for: provider).snapshot?.windows ?? []
-            return CGFloat(
-                max(
-                    1,
-                    WindowVisibility.visible(
-                        windows, provider: provider, showLunaReserve: store.showLunaReserve,
-                        hiddenClaudeWindows: store.hiddenClaudeWindows
-                    ).count))
-        }
-        let available = Theme.Layout.ringUnifiedWidth - Theme.Layout.panelPadding * 2 - 10
-        let codexCount = count(.codex)
-        let claudeCount = count(.claude)
-        func minimumWidth(_ count: CGFloat) -> CGFloat {
-            let cells = min(count, 3)
-            return max(
-                Theme.Layout.minimumRingCardWidth,
-                cells * Theme.Layout.quotaRingCellWidth + (cells - 1) * Theme.Layout.quotaRingSpacing
-                    + Theme.Layout.cardPadding * 2)
-        }
-        let minimumCodex = minimumWidth(codexCount)
-        let minimumClaude = minimumWidth(claudeCount)
+        let available = ringUnifiedWidth - Theme.Layout.panelPadding * 2 - Theme.Layout.quotaRingSpacing
+        let codexCount = ringWindowCount(.codex)
+        let claudeCount = ringWindowCount(.claude)
+        let minimumCodex = minimumRingWidth(codexCount)
+        let minimumClaude = minimumRingWidth(claudeCount)
         let fitsOneRow = minimumCodex + minimumClaude <= available
         let lower = fitsOneRow ? minimumCodex : Theme.Layout.minimumRingCardWidth
         let upper = fitsOneRow ? available - minimumClaude : available - Theme.Layout.minimumRingCardWidth
