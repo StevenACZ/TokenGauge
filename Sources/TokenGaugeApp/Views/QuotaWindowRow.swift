@@ -7,6 +7,8 @@ struct QuotaWindowRow: View {
     let chips: [ModelUsageChip]
     let prominent: Bool
     var historical = false
+    var showPace = false
+    var pace: QuotaPace?
 
     private var valueColor: Color {
         Theme.severity(remaining: window.remainingPercentage) ?? .primary
@@ -56,6 +58,7 @@ struct QuotaWindowRow: View {
                         .layoutPriority(-1)
                 }
             }
+            if showPace { QuotaPaceLabel(pace: pace) }
         }
     }
 }

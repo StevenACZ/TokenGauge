@@ -9,6 +9,19 @@ struct PopoverView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var updates = UpdateManager.shared
     @ObservedObject private var localization = LocalizationManager.shared
+    @StateObject private var history: HistoryDashboardModel
+
+    init(
+        store: UsageStore, showSettings: @escaping () -> Void, showAbout: @escaping () -> Void,
+        history: HistoryDashboardModel? = nil
+    ) {
+        self.store = store
+        self.showSettings = showSettings
+        self.showAbout = showAbout
+        let preview = store.historyReadsEnabled ? nil : [store.claude.snapshot, store.codex.snapshot].compactMap { $0 }
+        _history = StateObject(
+            wrappedValue: history ?? HistoryDashboardModel(previewSnapshots: preview, mode: store.historyMode))
+    }
 
     private var providerMaxHeight: CGFloat {
         let height: CGFloat =
@@ -28,6 +41,21 @@ struct PopoverView: View {
     }
 
     var body: some View {
+        ViewThatFits(in: .vertical) {
+            content
+            ScrollView { content }.scrollIndicators(.automatic).frame(height: 500)
+        }
+        .frame(width: panelWidth)
+        .frame(maxHeight: 500)
+        .fixedSize(horizontal: false, vertical: true)
+        .task(id: "\(store.historyMode.rawValue):\(history.offset):\(store.historyRevision)") {
+            let preview =
+                store.historyReadsEnabled ? nil : [store.claude.snapshot, store.codex.snapshot].compactMap { $0 }
+            await history.load(mode: store.historyMode, revision: store.historyRevision, previewSnapshots: preview)
+        }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: Theme.Layout.sectionSpacing) {
             header
             providerPicker
@@ -42,9 +70,9 @@ struct PopoverView: View {
             }
             .frame(maxHeight: providerMaxHeight)
             .animation(store.animateChanges && !reduceMotion ? Theme.Motion.content : nil, value: store.panelStyle)
-            ActivityChartView(
-                claude: store.claude.snapshot, codex: store.codex.snapshot, providers: store.displayMode.providers,
-                compact: store.panelStyle != .standard)
+            HistoryPanelView(
+                model: history, mode: $store.historyMode,
+                providers: store.displayMode.providers, compact: store.panelStyle != .standard)
             if store.panelStyle == .standard {
                 Divider().padding(.top, 1)
                 footer
@@ -117,11 +145,21 @@ struct PopoverView: View {
                     showLunaReserve: store.showLunaReserve,
                     hiddenClaudeWindows: store.hiddenClaudeWindows,
                     claudeMenuBarSource: store.claudeMenuBarSource,
-                    claudeAutomaticRecovery: store.claudeAutomaticRecovery
+                    claudeAutomaticRecovery: store.claudeAutomaticRecovery,
+                    showHourlyPace: store.showHourlyPace,
+                    paces: paces(for: provider)
                 )
                 .frame(width: ringCardWidth(for: provider))
             }
         }.fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func paces(for provider: UsageProvider) -> [String: QuotaPace] {
+        var result: [String: QuotaPace] = [:]
+        for window in store.state(for: provider).snapshot?.windows ?? [] {
+            result[window.id] = history.pace(provider: provider, window: window)
+        }
+        return result
     }
 
     private func ringWindowCount(_ provider: UsageProvider) -> CGFloat {

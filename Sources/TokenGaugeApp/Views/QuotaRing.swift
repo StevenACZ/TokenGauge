@@ -40,6 +40,8 @@ struct QuotaRingWindow: View {
     let tint: Color
     let chips: [ModelUsageChip]
     var historical = false
+    var showPace = false
+    var pace: QuotaPace?
 
     var body: some View {
         VStack(spacing: 4) {
@@ -58,6 +60,7 @@ struct QuotaRingWindow: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+            if showPace { QuotaPaceLabel(pace: pace) }
             if let summary = UsageFormatters.modelChips(chips) {
                 Text(summary)
                     .font(.system(size: 9))

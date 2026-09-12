@@ -135,4 +135,23 @@
 "settings.animate_changes" = "Animate changes";
 "settings.animate_changes_help" = "Brief transitions when data or views change. No continuous animation; respects Reduce Motion.";
 
-"setup.local_history" = "History stays on this Mac: daily tokens by provider, with model detail when available, have no expiry; quota and reset readings are kept for two years. Conversations are not stored and history is never uploaded.";
+"setup.local_history" = "History stays on this Mac: daily tokens by provider, with model and reasoning effort detail when available, have no expiry; quota and reset readings are kept for two years. Conversations are not stored and history is never uploaded.";
+
+"history.title" = "Token history";
+"history.view" = "History view";
+"history.mode.recent" = "7 days";
+"history.mode.week" = "Week";
+"history.mode.calendar" = "Year";
+"history.previous" = "Previous period";
+"history.next" = "Next period";
+"history.loading" = "Loading history…";
+"history.load_failed" = "History unavailable";
+"history.unknown" = "No record";
+"history.local_tokens" = "Local tokens · model / effort";
+"history.effort_unknown" = "Unspecified";
+"pace.value" = "≈ %@ pp/h";
+"pace.details" = "Estimated percentage points of weekly allowance per hour, over %@ observed minutes in the last hour. This account-wide rate is not attributed to a reasoning effort.";
+"pace.collecting" = "Pace: —";
+"pace.insufficient" = "Requires at least three verified readings covering 30 minutes. Resets and long gaps are excluded.";
+"pace.setting" = "Show weekly use per hour";
+"history.all_efforts" = "All efforts";

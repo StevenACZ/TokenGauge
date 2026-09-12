@@ -24,7 +24,7 @@ final class PopoverLayoutTests: XCTestCase {
                     resetsAt: Date().addingTimeInterval(86400 * 3), durationMinutes: 10080,
                     displayName: index == 0 ? nil : "Model \(index)")
             }, dailyUsage: [], summary: nil, availableResetCredits: nil, creditBalance: nil, capturedAt: Date())
-        let store = UsageStore(defaults: defaults, initialSnapshots: [snapshot])
+        let store = UsageStore(defaults: defaults, initialSnapshots: [snapshot], historyReadsEnabled: false)
         for language in AppLanguage.allCases {
             LocalizationManager.shared.language = language
             for mode in UsageDisplayMode.allCases {

@@ -135,4 +135,23 @@
 "settings.animate_changes" = "Animar cambios";
 "settings.animate_changes_help" = "Transiciones breves al actualizar datos o cambiar de vista. Sin animación continua; respeta Reducir movimiento.";
 
-"setup.local_history" = "El historial se guarda solo en este Mac: tokens diarios por proveedor, con detalle de modelo cuando esté disponible, sin caducidad; cuotas y reinicios durante dos años. No se guardan conversaciones ni se envía el historial.";
+"setup.local_history" = "El historial se guarda solo en este Mac: tokens diarios por proveedor, con detalle de modelo y nivel de esfuerzo cuando esté disponible, sin caducidad; cuotas y reinicios durante dos años. No se guardan conversaciones ni se envía el historial.";
+
+"history.title" = "Historial de tokens";
+"history.view" = "Vista del historial";
+"history.mode.recent" = "7 días";
+"history.mode.week" = "Semana";
+"history.mode.calendar" = "Año";
+"history.previous" = "Periodo anterior";
+"history.next" = "Periodo siguiente";
+"history.loading" = "Cargando historial…";
+"history.load_failed" = "Historial no disponible";
+"history.unknown" = "Sin registro";
+"history.local_tokens" = "Tokens locales · modelo / esfuerzo";
+"history.effort_unknown" = "Sin especificar";
+"pace.value" = "≈ %@ pp/h";
+"pace.details" = "Puntos porcentuales estimados de la cuota semanal por hora, con %@ minutos observados en la última hora. Este ritmo corresponde a la cuenta, no a un nivel de esfuerzo concreto.";
+"pace.collecting" = "Ritmo: —";
+"pace.insufficient" = "Requiere al menos tres lecturas verificadas que cubran 30 minutos. Se excluyen reinicios y huecos largos.";
+"pace.setting" = "Mostrar uso semanal por hora";
+"history.all_efforts" = "Todos los esfuerzos";

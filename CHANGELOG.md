@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Navigable weekly history and a yearly activity calendar, with local model and reasoning effort token details.
+- Optional weekly quota pace estimates based on verified readings, with reset and observation-gap handling.
+
 - Optional compact and ring quota panels that adapt to visible limits, plus independent mini-bar and mini-ring menu indicators with integrated provider logos.
 - Appearance settings and a panel view picker, with brief optional transitions that respect Reduce Motion.
 - Optional automatic Claude reconnection after session expiry, with one-time consent, bounded retries, and no model requests.

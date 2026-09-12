@@ -11,6 +11,8 @@ struct ProviderCard: View {
     var hiddenClaudeWindows: Set<ClaudeWindowKind> = []
     var claudeMenuBarSource: ClaudeMenuBarSource = .automatic
     var claudeAutomaticRecovery = false
+    var showHourlyPace = false
+    var paces: [String: QuotaPace] = [:]
 
     private var tint: Color {
         provider == .claude ? Theme.claude : Theme.codex
@@ -63,12 +65,15 @@ struct ProviderCard: View {
     private var quotaContent: some View {
         if panelStyle == .rings {
             if visibleWindows.count == 1, let window = visibleWindows.first {
-                QuotaRingWindow(window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown)
+                QuotaRingWindow(
+                    window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown,
+                    showPace: canShowPace(window), pace: paces[window.id])
             } else {
                 QuotaRingGrid {
                     ForEach(visibleWindows) { window in
                         QuotaRingWindow(
-                            window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown)
+                            window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown,
+                            showPace: canShowPace(window), pace: paces[window.id])
                     }
                 }
             }
@@ -77,18 +82,24 @@ struct ProviderCard: View {
                 if index > 0 { Divider() }
                 if panelStyle == .compact {
                     CompactQuotaWindowRow(
-                        window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown)
+                        window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown,
+                        showPace: canShowPace(window), pace: paces[window.id])
                 } else {
                     QuotaWindowRow(
                         window: window,
                         tint: tint,
                         chips: chips(for: window),
                         prominent: index == 0 && !showsLastKnown,
-                        historical: showsLastKnown
+                        historical: showsLastKnown,
+                        showPace: canShowPace(window), pace: paces[window.id]
                     )
                 }
             }
         }
+    }
+
+    private func canShowPace(_ window: QuotaWindow) -> Bool {
+        showHourlyPace && state.status == .ready && window.durationMinutes == 10080
     }
 
     private var compactHeader: some View {

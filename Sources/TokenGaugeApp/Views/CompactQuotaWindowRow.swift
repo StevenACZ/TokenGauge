@@ -6,6 +6,8 @@ struct CompactQuotaWindowRow: View {
     let tint: Color
     let chips: [ModelUsageChip]
     var historical = false
+    var showPace = false
+    var pace: QuotaPace?
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
@@ -32,6 +34,7 @@ struct CompactQuotaWindowRow: View {
                 Text(UsageFormatters.reset(window.resetsAt))
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
+                if showPace { QuotaPaceLabel(pace: pace) }
             }
             .fixedSize(horizontal: true, vertical: false)
         }

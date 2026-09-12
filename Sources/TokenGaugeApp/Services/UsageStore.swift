@@ -53,6 +53,14 @@ final class UsageStore: ObservableObject {
     @Published var animateChanges: Bool {
         didSet { defaults.set(animateChanges, forKey: "quotaAnimateChanges") }
     }
+    @Published var historyMode: HistoryMode {
+        didSet { defaults.set(historyMode.rawValue, forKey: "historyMode") }
+    }
+    @Published var showHourlyPace: Bool {
+        didSet { defaults.set(showHourlyPace, forKey: "showHourlyPace") }
+    }
+    @Published private(set) var historyRevision = 0
+    let historyReadsEnabled: Bool
     @Published var showLunaReserve: Bool {
         didSet { defaults.set(showLunaReserve, forKey: "showLunaReserve") }
     }
@@ -83,11 +91,14 @@ final class UsageStore: ObservableObject {
         claudeClient: ClaudeUsageClient = ClaudeUsageClient(),
         codexClient: CodexAppServerClient = CodexAppServerClient(),
         defaults: UserDefaults = .standard,
-        initialSnapshots: [ProviderUsageSnapshot] = []
+        initialSnapshots: [ProviderUsageSnapshot] = [],
+        historyReadsEnabled: Bool? = nil
     ) {
         self.claudeClient = claudeClient
         self.codexClient = codexClient
         self.defaults = defaults
+        self.historyReadsEnabled =
+            historyReadsEnabled ?? (defaults === UserDefaults.standard && initialSnapshots.isEmpty)
         recoveryAuthorization = ClaudeRecoveryAuthorization(
             allowed: defaults.bool(forKey: "claudeAutomaticRecovery")
                 && defaults.object(forKey: "claudeCancelledAt") == nil)
@@ -98,6 +109,8 @@ final class UsageStore: ObservableObject {
         primaryProvider = mode.singleProvider ?? savedProvider
         displayMode = mode
         menuBarSize = MenuBarSize(rawValue: defaults.string(forKey: "menuBarSize") ?? "") ?? .large
+        historyMode = HistoryMode(rawValue: defaults.string(forKey: "historyMode") ?? "") ?? .recent
+        showHourlyPace = defaults.object(forKey: "showHourlyPace") == nil || defaults.bool(forKey: "showHourlyPace")
         panelStyle = QuotaPanelStyle(rawValue: defaults.string(forKey: "quotaPanelStyle") ?? "") ?? .standard
         menuBarStyle = QuotaMenuBarStyle(rawValue: defaults.string(forKey: "quotaMenuBarStyle") ?? "") ?? .numbers
         animateChanges =
@@ -159,8 +172,12 @@ final class UsageStore: ObservableObject {
             lastRefresh = Date()
             isRefreshing = false
             scheduleResetRefresh()
-            Task.detached(priority: .background) {
-                Self.archive(claudeResult: claudeResult, codexState: codexState)
+            if historyReadsEnabled {
+                await Task.detached(priority: .background) {
+                    Self.archive(claudeResult: claudeResult, codexState: codexState)
+                    try? EffortHistoryClient.collect()
+                }.value
+                historyRevision &+= 1
             }
         }
     }

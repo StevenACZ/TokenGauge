@@ -87,6 +87,20 @@ struct SettingsView: View {
                     Text("settings.animate_changes_help".localized)
                         .font(.caption).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    Divider()
+                    preferenceRow("history.view".localized) {
+                        Picker("history.view".localized, selection: $store.historyMode) {
+                            ForEach(HistoryMode.allCases) { mode in
+                                Text(mode.titleKey.localized).tag(mode)
+                            }
+                        }.labelsHidden().frame(width: 170, alignment: .trailing)
+                    }
+                    Divider()
+                    preferenceRow("pace.setting".localized) {
+                        Toggle("pace.setting".localized, isOn: $store.showHourlyPace)
+                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                    }
+
                 }.padding(16).settingsSurface()
             }
 
