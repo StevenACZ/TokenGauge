@@ -43,7 +43,7 @@ struct PopoverView: View {
     var body: some View {
         ViewThatFits(in: .vertical) {
             content
-            ScrollView { content }.scrollIndicators(.automatic).frame(height: 500)
+            ScrollView { content }.scrollIndicators(.never).frame(height: 500)
         }
         .frame(width: panelWidth)
         .frame(maxHeight: 500)
@@ -65,7 +65,7 @@ struct PopoverView: View {
                 ScrollView {
                     providerContent
                 }
-                .scrollIndicators(.automatic)
+                .scrollIndicators(.never)
                 .frame(height: providerMaxHeight)
             }
             .frame(maxHeight: providerMaxHeight)

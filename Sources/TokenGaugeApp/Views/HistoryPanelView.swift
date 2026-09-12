@@ -6,7 +6,9 @@ struct HistoryPanelView: View {
     @Binding var mode: HistoryMode
     let providers: [UsageProvider]
     var compact = false
-    @State private var scrollToCurrentDay = true
+    @State private var centeredPeriod: Date?
+    @State private var calendarFocusRequest = 0
+    @State private var centeredRequest = -1
     @State private var showingDetails = false
 
     private var locale: Locale { Locale(identifier: LocalizationManager.shared.language.rawValue) }
@@ -16,7 +18,11 @@ struct HistoryPanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                Text("history.heading".localized).font(.system(size: 11, weight: .semibold))
+                if mode == .recent {
+                    Text("history.heading".localized).font(.system(size: 11, weight: .semibold))
+                } else {
+                    navigation
+                }
                 Spacer(minLength: 0)
                 HStack(spacing: 2) {
                     ForEach(HistoryMode.allCases) { item in
@@ -42,14 +48,9 @@ struct HistoryPanelView: View {
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("history.view".localized)
             }
-            if mode != .recent {
-                HStack {
-                    Spacer(); navigation
-                }
-            }
             if model.loadFailed {
                 Text("history.load_failed".localized).font(.caption).foregroundStyle(.secondary)
-            } else if model.isLoading {
+            } else if model.isLoading && model.days.isEmpty {
                 Text("history.loading".localized).font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity).frame(height: Theme.Layout.activityChartHeight)
             } else {
@@ -64,31 +65,54 @@ struct HistoryPanelView: View {
         .onChange(of: mode) { _, newValue in
             model.offset = 0
             model.selectedDayKey = nil
-            scrollToCurrentDay = newValue == .calendar
+            centeredPeriod = nil
+            if newValue == .calendar { model.selectedDayKey = HistoryDashboardModel.dayKey(today) }
         }
     }
 
-    private var navigation: some View {
-        HStack(spacing: 3) {
-            Button {
-                model.move(-1)
-            } label: {
-                Image(systemName: "chevron.left")
+    private var todayButton: some View {
+        Button {
+            model.offset = 0
+            model.selectedDayKey = HistoryDashboardModel.dayKey(today)
+            calendarFocusRequest &+= 1
+        } label: {
+            HStack(spacing: 3) {
+                Circle().fill(accent).frame(width: 3, height: 3)
+                Text("history.today".localized)
             }
-            .disabled(!model.canGoBack || model.isLoading)
-            .help("history.previous".localized)
-            .accessibilityLabel("history.previous".localized)
-            Text(periodLabel).font(.system(size: 10)).monospacedDigit().lineLimit(1)
-            Button {
-                model.move(1)
-            } label: {
-                Image(systemName: "chevron.right")
-            }
-            .disabled(!model.canGoForward || model.isLoading)
-            .help("history.next".localized)
-            .accessibilityLabel("history.next".localized)
+            .font(.system(size: 9, weight: .medium))
+            .padding(.horizontal, 6).padding(.vertical, 3)
+            .background(RoundedRectangle(cornerRadius: 5).fill(accent.opacity(0.08)))
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.plain)
+        .help("history.return_today".localized)
+    }
+
+    private var navigation: some View {
+        HStack(spacing: 0) {
+            periodButton(-1, enabled: model.canGoBack)
+            Text(periodLabel)
+                .font(.system(size: 10, weight: .medium)).monospacedDigit().lineLimit(1)
+                .frame(width: mode == .calendar ? 52 : 90)
+            periodButton(1, enabled: model.canGoForward)
+        }
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.045)))
+    }
+
+    private func periodButton(_ direction: Int, enabled: Bool) -> some View {
+        Button {
+            model.move(direction)
+        } label: {
+            Image(systemName: direction < 0 ? "chevron.left" : "chevron.right")
+                .font(.system(size: 9, weight: .semibold))
+                .frame(width: 22, height: 24)
+                .contentShape(Rectangle())
+                .opacity(enabled && !model.isLoading ? 1 : 0.25)
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled || model.isLoading)
+        .help((direction < 0 ? "history.previous" : "history.next").localized)
+        .accessibilityLabel((direction < 0 ? "history.previous" : "history.next").localized)
     }
 
     private var periodLabel: String {
@@ -145,7 +169,6 @@ struct HistoryPanelView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(day.date > today)
-                .onHover { if $0 { select(day) } }
                 .help(summary(day))
                 .accessibilityLabel(summary(day))
                 .accessibilityAddTraits(selectedID == day.id ? [.isSelected] : [])
@@ -158,39 +181,49 @@ struct HistoryPanelView: View {
         let count = (padding + model.days.count + 6) / 7
         let maximum = max(1, model.days.compactMap { $0.total(for: providers) }.max() ?? 0)
         let selectedID = model.selectedDay?.id
-        return ScrollViewReader { proxy in
-            ScrollView(.horizontal) {
-                HStack(alignment: .top, spacing: 3) {
-                    ForEach(0..<count, id: \.self) { week in
-                        VStack(spacing: 3) {
-                            Text(monthLabel(week: week, padding: padding))
-                                .font(.system(size: 8)).foregroundStyle(.secondary)
-                                .fixedSize().frame(width: 9, height: 10, alignment: .leading)
-                            ForEach(0..<7, id: \.self) { weekday in
-                                let index = week * 7 + weekday - padding
-                                if model.days.indices.contains(index) {
-                                    calendarCell(
-                                        model.days[index], maximum: maximum,
-                                        selected: selectedID == model.days[index].id)
-                                } else {
-                                    Color.clear.frame(width: 9, height: 9)
+        return GeometryReader { geometry in
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal) {
+                    HStack(alignment: .top, spacing: 3) {
+                        ForEach(0..<count, id: \.self) { week in
+                            VStack(spacing: 3) {
+                                Text(monthLabel(week: week, padding: padding))
+                                    .font(.system(size: 8)).foregroundStyle(.secondary)
+                                    .fixedSize().frame(width: 9, height: 10, alignment: .leading)
+                                ForEach(0..<7, id: \.self) { weekday in
+                                    let index = week * 7 + weekday - padding
+                                    if model.days.indices.contains(index) {
+                                        calendarCell(
+                                            model.days[index], maximum: maximum,
+                                            selected: selectedID == model.days[index].id)
+                                    } else {
+                                        Color.clear.frame(width: 9, height: 9)
+                                    }
                                 }
                             }
+                            .id(week)
                         }
-                        .id(week)
                     }
+                    .padding(.vertical, 2)
+                    .padding(.horizontal, max(0, (geometry.size.width - 9) / 2))
                 }
-                .padding(.vertical, 2)
-            }
-            .scrollIndicators(.automatic)
-            .task(id: model.periodStart) {
-                guard scrollToCurrentDay, model.days.count > 7 else { return }
-                await Task.yield()
-                guard !Task.isCancelled else { return }
-                if let index = model.days.firstIndex(where: { $0.id == model.selectedDay?.id }) {
-                    proxy.scrollTo((index + padding) / 7, anchor: .trailing)
+                .scrollIndicators(.never)
+                .task(id: "\(model.periodStart.timeIntervalSince1970):\(calendarFocusRequest)") {
+                    guard model.days.count > 7,
+                        centeredPeriod != model.periodStart || centeredRequest != calendarFocusRequest
+                    else { return }
+                    await Task.yield()
+                    guard !Task.isCancelled else { return }
+                    let target =
+                        model.days.first(where: { $0.date == today })
+                        ?? model.days.last(where: { $0.total(for: providers) != nil }) ?? model.days.last
+                    if let target, let index = model.days.firstIndex(where: { $0.id == target.id }) {
+                        model.selectedDayKey = target.id
+                        proxy.scrollTo((index + padding) / 7, anchor: .center)
+                    }
+                    centeredPeriod = model.periodStart
+                    centeredRequest = calendarFocusRequest
                 }
-                scrollToCurrentDay = false
             }
         }
         .frame(height: 96)
@@ -208,6 +241,8 @@ struct HistoryPanelView: View {
     private func calendarCell(_ day: HistoryCalendarDay, maximum: Int, selected: Bool) -> some View {
         let total = day.total(for: providers)
         let future = day.date > today
+        let isToday = day.date == today
+        let description = (isToday ? "history.today".localized + " · " : "") + summary(day)
         return Button {
             select(day)
         } label: {
@@ -221,17 +256,21 @@ struct HistoryPanelView: View {
                 .overlay {
                     RoundedRectangle(cornerRadius: 2)
                         .strokeBorder(
-                            selected ? Color.primary : Color.secondary.opacity(total == nil && !future ? 0.4 : 0),
-                            lineWidth: 1)
+                            isToday
+                                ? accent
+                                : selected ? Color.primary : Color.secondary.opacity(total == nil && !future ? 0.4 : 0),
+                            lineWidth: isToday ? 2 : 1)
+                }
+                .overlay {
+                    if isToday { Circle().fill(Color.primary).frame(width: 3, height: 3) }
                 }
                 .frame(width: 9, height: 9)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(future)
-        .onHover { if $0 { select(day) } }
-        .help(summary(day))
-        .accessibilityLabel(summary(day))
+        .help(description)
+        .accessibilityLabel(description)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
@@ -241,6 +280,7 @@ struct HistoryPanelView: View {
                 HStack {
                     Text(day.date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated).locale(locale)))
                         .font(.system(size: 10)).foregroundStyle(.secondary)
+                    if mode != .recent { todayButton }
                     Spacer()
                     Button {
                         showingDetails.toggle()

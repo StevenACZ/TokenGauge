@@ -160,3 +160,5 @@
 "history.details_title" = "Usage by model and effort";
 "history.close_details" = "Close details";
 "history.details_note" = "Tokens observed on this Mac. Hover over a number to see its exact value.";
+"history.today" = "Today";
+"history.return_today" = "Return to today";
