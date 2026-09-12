@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep local quota history tied to verified readings and preserve explicitly reported zero-token days without inventing missing observations.
 - Preserve clearly marked last-known Claude limits during temporary connection failures, including model weekly usage.
 - Keep Codex readings responsive while Claude reconnects, and never substitute a different quota for a selected model limit.
 

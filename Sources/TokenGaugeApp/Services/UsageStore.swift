@@ -159,8 +159,9 @@ final class UsageStore: ObservableObject {
             lastRefresh = Date()
             isRefreshing = false
             scheduleResetRefresh()
-            let snapshots = [claude.snapshot, codex.snapshot].compactMap { $0 }
-            Task.detached(priority: .background) { Self.archive(snapshots) }
+            Task.detached(priority: .background) {
+                Self.archive(claudeResult: claudeResult, codexState: codexState)
+            }
         }
     }
 
@@ -182,9 +183,17 @@ final class UsageStore: ObservableObject {
         }
     }
 
-    private nonisolated static func archive(_ snapshots: [ProviderUsageSnapshot]) {
-        for snapshot in snapshots {
-            try? UsageHistoryStore.record(snapshot)
+    nonisolated static func archive(
+        claudeResult: ClaudeUsageResult?, codexState: ProviderViewState,
+        at url: URL = UsagePaths.history()
+    ) {
+        if let result = claudeResult {
+            try? UsageHistoryStore.record(result.snapshot, at: url, recordQuota: result.access == .live)
+        }
+        if let snapshot = codexState.snapshot {
+            try? UsageHistoryStore.record(
+                snapshot, at: url, recordQuota: codexState.status == .ready,
+                recordTokens: codexState.status == .ready || codexState.status == .waiting)
         }
     }
 

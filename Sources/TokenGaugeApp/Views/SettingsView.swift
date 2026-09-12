@@ -101,10 +101,13 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 2).padding(.top, 2)
                 DisclosureGroup("setup.privacy".localized) {
-                    Text("setup.permissions".localized)
-                        .font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 6)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("setup.permissions".localized)
+                        Text("setup.local_history".localized)
+                    }
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 6)
                 }.font(.caption).padding(.top, 2)
             }
 

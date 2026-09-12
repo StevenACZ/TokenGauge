@@ -52,7 +52,9 @@ final class UsageHistoryStoreTests: XCTestCase {
         try UsageHistoryStore.record(snapshot, at: database)
 
         let rows = try UsageHistoryStore.tokenRows(at: database)
-        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows.last?.tokens, 0)
+        XCTAssertEqual(rows.last?.day, "2026-08-27")
         XCTAssertEqual(rows.first?.model, "all")
         XCTAssertEqual(rows.first?.tokens, 911_600)
         XCTAssertEqual(rows.first?.provider, .codex)
@@ -89,6 +91,19 @@ final class UsageHistoryStoreTests: XCTestCase {
         try UsageHistoryStore.record(claudeSnapshot(used: 55, capturedAt: now), at: database, now: now)
 
         XCTAssertEqual(try UsageHistoryStore.quotaRows(at: database).map(\.usedPercentage), [55])
+    }
+
+    func testUnknownQuotaTimestampAndFailedActivityAreNotFabricated() throws {
+        let snapshot = ProviderUsageSnapshot(
+            provider: .claude,
+            windows: [
+                QuotaWindow(id: "weekly", usedPercentage: 20, resetsAt: nil, durationMinutes: 10080, displayName: nil)
+            ],
+            dailyUsage: [DailyTokenUsage(day: "2026-09-12", tokens: 123)], summary: nil,
+            availableResetCredits: nil, creditBalance: nil, capturedAt: nil, activityReadSucceeded: false)
+        try UsageHistoryStore.record(snapshot, at: database)
+        XCTAssertTrue(try UsageHistoryStore.quotaRows(at: database).isEmpty)
+        XCTAssertTrue(try UsageHistoryStore.tokenRows(at: database).isEmpty)
     }
 
     func testDatabaseStaysUserOnly() throws {

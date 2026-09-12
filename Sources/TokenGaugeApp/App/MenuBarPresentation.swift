@@ -59,7 +59,11 @@ struct MenuBarPresentation: Equatable {
         for (index, segment) in segments.enumerated() {
             let attributes: [NSAttributedString.Key: Any] = [.foregroundColor: segment.color, .font: font]
             if style == .rings {
-                if index > 0 { title.append(NSAttributedString(string: " ", attributes: attributes)) }
+                if index > 0 {
+                    let gap = NSMutableAttributedString(string: " ", attributes: attributes)
+                    gap.addAttribute(.kern, value: Theme.Layout.menuRingGap, range: NSRange(location: 0, length: 1))
+                    title.append(gap)
+                }
                 let image =
                     quotaImage(for: segment)
                     ?? ProviderLogoAssets.menuBarImage(for: segment.provider, size: size.iconSize)

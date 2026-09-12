@@ -134,3 +134,5 @@
 "settings.indicator_style_help" = "Exact percentages are available on hover and in the panel. Each indicator uses the selected quota window.";
 "settings.animate_changes" = "Animate changes";
 "settings.animate_changes_help" = "Brief transitions when data or views change. No continuous animation; respects Reduce Motion.";
+
+"setup.local_history" = "History stays on this Mac: daily tokens by provider, with model detail when available, have no expiry; quota and reset readings are kept for two years. Conversations are not stored and history is never uploaded.";

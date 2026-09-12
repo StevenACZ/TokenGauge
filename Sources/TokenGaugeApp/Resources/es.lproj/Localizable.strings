@@ -134,3 +134,5 @@
 "settings.indicator_style_help" = "El porcentaje exacto aparece al pasar el cursor y al abrir el panel. Cada indicador respeta el límite seleccionado.";
 "settings.animate_changes" = "Animar cambios";
 "settings.animate_changes_help" = "Transiciones breves al actualizar datos o cambiar de vista. Sin animación continua; respeta Reducir movimiento.";
+
+"setup.local_history" = "El historial se guarda solo en este Mac: tokens diarios por proveedor, con detalle de modelo cuando esté disponible, sin caducidad; cuotas y reinicios durante dos años. No se guardan conversaciones ni se envía el historial.";

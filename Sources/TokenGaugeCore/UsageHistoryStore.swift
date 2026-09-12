@@ -53,15 +53,19 @@ public enum UsageHistoryStore {
     public static func record(
         _ snapshot: ProviderUsageSnapshot,
         at url: URL = UsagePaths.history(),
-        now: Date = Date()
+        now: Date = Date(),
+        recordQuota: Bool = true,
+        recordTokens: Bool = true
     ) throws {
         let handle = try open(url)
         defer { sqlite3_close(handle) }
         try exec(handle, Schema.statements)
         try exec(handle, "BEGIN IMMEDIATE;")
         do {
-            try writeQuota(handle, snapshot: snapshot, now: now)
-            try writeTokens(handle, snapshot: snapshot, now: now)
+            if recordQuota { try writeQuota(handle, snapshot: snapshot) }
+            if recordTokens && snapshot.activityReadSucceeded {
+                try writeTokens(handle, snapshot: snapshot, now: now)
+            }
             try prune(handle, now: now)
             try exec(handle, "COMMIT;")
         } catch {
@@ -171,8 +175,9 @@ extension UsageHistoryStore {
             """
     }
 
-    private static func writeQuota(_ handle: OpaquePointer, snapshot: ProviderUsageSnapshot, now: Date) throws {
-        let sampledAt = bucket(snapshot.capturedAt ?? now)
+    private static func writeQuota(_ handle: OpaquePointer, snapshot: ProviderUsageSnapshot) throws {
+        guard let capturedAt = snapshot.capturedAt else { return }
+        let sampledAt = bucket(capturedAt)
         let sql = """
             INSERT INTO quota_samples
                 (provider, window_id, sampled_at, display_name, duration_minutes, used_percentage, resets_at)
@@ -218,11 +223,11 @@ extension UsageHistoryStore {
     static func tokenRows(for snapshot: ProviderUsageSnapshot) -> [HistoryTokenRow] {
         if snapshot.modelBuckets.isEmpty {
             return snapshot.dailyUsage
-                .filter { $0.tokens > 0 }
+                .filter { $0.tokens >= 0 }
                 .map { HistoryTokenRow(day: $0.day, provider: snapshot.provider, model: "all", tokens: $0.tokens) }
         }
         var totals: [String: [String: Int]] = [:]
-        for item in snapshot.modelBuckets where item.tokens > 0 {
+        for item in snapshot.modelBuckets where item.tokens >= 0 {
             totals[item.day, default: [:]][item.model, default: 0] += item.tokens
         }
         return
