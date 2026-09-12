@@ -68,38 +68,10 @@ struct HistoryPanelView: View {
     }
 
     private var modePicker: some View {
-        let width = Theme.Layout.historyModeSegmentWidth
-        let height = Theme.Layout.historyModeSegmentHeight
-        let index = HistoryMode.allCases.firstIndex(of: mode) ?? 0
-        return ZStack(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 5)
-                .fill(Color.primary.opacity(0.1))
-                .frame(width: width, height: height)
-                .offset(x: CGFloat(index) * width)
-                .animation(motion, value: mode)
-            HStack(spacing: 0) {
-                ForEach(HistoryMode.allCases) { item in
-                    Button {
-                        mode = item
-                    } label: {
-                        Text(item.titleKey.localized)
-                            .font(.system(size: 10, weight: mode == item ? .semibold : .regular))
-                            .foregroundStyle(mode == item ? .primary : .secondary)
-                            .lineLimit(1)
-                            .frame(width: width, height: height)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("TokenGauge.historyMode." + item.rawValue)
-                    .accessibilityAddTraits(mode == item ? [.isSelected] : [])
-                }
-            }
-        }
-        .padding(2)
-        .background(RoundedRectangle(cornerRadius: 7).fill(Color.primary.opacity(0.035)))
-        .fixedSize()
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("history.view".localized)
+        HistoryModeControl(mode: $mode)
+            .frame(
+                width: Theme.Layout.historyModeSegmentWidth * 3 + 4,
+                height: Theme.Layout.historyModeSegmentHeight + 4)
     }
 
     private var todayButton: some View {
