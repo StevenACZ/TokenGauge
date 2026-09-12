@@ -105,7 +105,9 @@ final class ProviderStateResolverTests: XCTestCase {
                     id: "seven_day", used: 88,
                     duration: 10_080, reset: now)
             ], capturedAt: now)
-        for status in [ProviderStatus.stale, .cancelled, .authenticationRequired, .accessDenied, .unavailable] {
+        for status in [
+            ProviderStatus.stale, .cancelled, .authenticationRequired, .credentialExpired, .accessDenied, .unavailable,
+        ] {
             XCTAssertNil(
                 ProviderStateResolver.menuBarWindow(
                     state:
@@ -122,7 +124,9 @@ final class ProviderStateResolverTests: XCTestCase {
                     id: "seven_day", used: 10,
                     duration: 10_080, reset: now.addingTimeInterval(86_400))
             ], capturedAt: now)
-        for access in [ClaudeAccessState.live, .cached, .authenticationRequired, .accessDenied, .unavailable] {
+        for access in [
+            ClaudeAccessState.live, .cached, .authenticationRequired, .credentialExpired, .accessDenied, .unavailable,
+        ] {
             for activity in [nil, now.addingTimeInterval(-1), now, now.addingTimeInterval(1)] as [Date?] {
                 let result = ClaudeUsageResult(snapshot: usage, access: access, lastActivityAt: activity)
                 let expected = access == .live && (activity ?? .distantPast) > now

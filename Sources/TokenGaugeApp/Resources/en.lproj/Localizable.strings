@@ -64,7 +64,7 @@
 "setup.description" = "Install Codex CLI or Claude Code and sign in with your subscription. You only need the provider you use. TokenGauge detects the local session automatically.";
 "setup.codex" = "Set up Codex";
 "setup.claude" = "Set up Claude Code";
-"setup.permissions" = "No Accessibility, Automation or Full Disk Access required. Claude quota uses its existing local sign-in credential, read only. TokenGauge never signs in or renews credentials for you.";
+"setup.permissions" = "No Accessibility, Automation or Full Disk Access required. Claude quota uses its existing local sign-in credential, read only. With your permission, it can start Claude Code in the background to renew its session without sending messages. Sign-in stays in Claude Code.";
 "updates.title" = "Updates";
 "updates.automatic" = "Check automatically";
 "updates.explanation" = "Checks daily. Available updates appear in the panel and About; you choose when to install.";
@@ -110,3 +110,14 @@
 "settings.claude_menu_bar.automatic" = "Automatic";
 "settings.claude_menu_bar_help" = "Automatic shows the tightest weekly limit. Hiding a window only changes the panel.";
 "settings.claude_model_placeholder" = "Model";
+
+"status.credential_expired" = "Connection pending";
+"message.credential_expired" = "The shared session expired. Enable automatic reconnection in Settings or open Claude Code.";
+"quota.last_remaining" = "last remaining";
+"settings.claude_recovery" = "Automatic reconnection";
+"settings.claude_recovery_help" = "Allow Claude Code to start briefly in the background when its session expires. No messages or model tokens. Requires an existing Claude Code login.";
+"setup.claude_recovery_title" = "Allow automatic Claude reconnection?";
+"setup.claude_recovery_message" = "TokenGauge can briefly start Claude Code in the background so it renews its own session. No messages will be sent to the model. This restores session, weekly, and model limits. You can disable it in Settings. Revoked access still requires signing in again.";
+"setup.claude_recovery_allow" = "Allow";
+"setup.claude_recovery_decline" = "Not now";
+"message.claude_recovery_retry" = "Reconnection will retry automatically.";

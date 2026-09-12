@@ -5,6 +5,7 @@ enum ClaudeAccessState: Equatable, Sendable {
     case live
     case cached
     case authenticationRequired
+    case credentialExpired
     case accessDenied
     case unavailable
 }
@@ -22,10 +23,17 @@ struct ClaudeUsageClient: Sendable {
         self.homeDirectory = homeDirectory
     }
 
-    func fetch(now: Date = Date()) throws -> ClaudeUsageResult {
+    func fetch(
+        now: Date = Date(), recoveryAuthorization: ClaudeRecoveryAuthorization = ClaudeRecoveryAuthorization()
+    ) throws -> ClaudeUsageResult {
         let buckets = try? fetchModelBuckets()
         let account = ClaudeAccountUsageClient(homeDirectory: homeDirectory)
-        let outcome = Result { try account.fetch(now: now) }
+        let outcome = Self.readAccount(
+            fetch: { try account.fetch(now: Date()) },
+            recover: {
+                ClaudeSessionRecovery.shared.attempt(homeDirectory: homeDirectory, authorization: recoveryAuthorization)
+            }
+        )
         let capture = try? SecureMetricStore.read(
             ClaudeCapturedSnapshot.self,
             from: UsagePaths.claudeCapture(homeDirectory: homeDirectory)
@@ -34,6 +42,21 @@ struct ClaudeUsageClient: Sendable {
             account: outcome, cached: account.cached(), capture: capture, modelBuckets: buckets ?? [], now: now,
             activityReadSucceeded: buckets != nil
         )
+    }
+
+    static func readAccount(
+        fetch: () throws -> ClaudeAccountSnapshot,
+        recover: () -> Bool
+    ) -> Result<ClaudeAccountSnapshot, Error> {
+        do {
+            return .success(try fetch())
+        } catch ClaudeAccountUsageError.credentialExpired {
+            guard recover() else { return .failure(ClaudeAccountUsageError.credentialExpired) }
+            ClaudeOAuthTokenReader.invalidate()
+            return Result { try fetch() }
+        } catch {
+            return .failure(error)
+        }
     }
 
     static func resolve(
@@ -61,6 +84,7 @@ struct ClaudeUsageClient: Sendable {
         case .failure(let error):
             switch error as? ClaudeAccountUsageError {
             case .authenticationRequired: access = .authenticationRequired
+            case .credentialExpired: access = .credentialExpired
             case .accessDenied: access = .accessDenied
             default: access = fallback.windows.isEmpty ? .unavailable : .cached
             }
@@ -94,7 +118,9 @@ struct ClaudeUsageClient: Sendable {
         }
         let known = Set(current.map(\.id))
         let scoped = cachedWindows.filter { $0.displayName != nil && !known.contains($0.id) }
-        return (current + scoped, normalized.capturedAt)
+        let oldest =
+            scoped.isEmpty ? normalized.capturedAt : min(capture.capturedAt, cached?.capturedAt ?? capture.capturedAt)
+        return (current + scoped, oldest)
     }
 
     private static func snapshot(

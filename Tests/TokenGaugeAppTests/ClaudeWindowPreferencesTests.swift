@@ -28,12 +28,12 @@ final class ClaudeWindowPreferencesTests: XCTestCase {
             ProviderStateResolver.menuBarWindow(state: state, claudeSource: .modelWeekly)?.id, "seven_day_fable")
     }
 
-    func testMissingExplicitSourceFallsBackToAutomatic() {
+    func testMissingExplicitSourceNeverSubstitutesAnotherLimit() {
         let snapshot = ProviderUsageSnapshot(
             provider: .claude, windows: [session, weekly], dailyUsage: [], summary: nil,
             availableResetCredits: nil, creditBalance: nil, capturedAt: Date())
         let state = ProviderViewState(snapshot: snapshot, status: .ready, isRefreshing: false)
-        XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: state, claudeSource: .modelWeekly)?.id, "seven_day")
+        XCTAssertNil(ProviderStateResolver.menuBarWindow(state: state, claudeSource: .modelWeekly))
     }
 
     func testStorePersistsPreferencesAndKeepsOneWindowVisible() {

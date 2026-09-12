@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Optional automatic Claude reconnection after session expiry, with one-time consent, bounded retries, and no model requests.
+
+### Fixed
+
+- Preserve clearly marked last-known Claude limits during temporary connection failures, including model weekly usage.
+- Keep Codex readings responsive while Claude reconnects, and never substitute a different quota for a selected model limit.
+
 ## [1.2.0] - 2026-09-10
 
 ### Added

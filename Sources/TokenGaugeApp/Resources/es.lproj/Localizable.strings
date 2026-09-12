@@ -64,7 +64,7 @@
 "setup.description" = "Instala Codex CLI o Claude Code e inicia sesión con tu suscripción. Solo necesitas el proveedor que uses. TokenGauge detecta la sesión local automáticamente.";
 "setup.codex" = "Configurar Codex";
 "setup.claude" = "Configurar Claude Code";
-"setup.permissions" = "No requiere Accesibilidad, Automatización ni acceso completo al disco. La cuota de Claude usa su credencial local existente, solo para lectura. TokenGauge no inicia sesión ni renueva credenciales por ti.";
+"setup.permissions" = "No requiere Accesibilidad, Automatización ni acceso completo al disco. La cuota de Claude usa su credencial local existente, solo para lectura. Con tu permiso, puede abrir Claude Code en segundo plano para que renueve su sesión sin enviar mensajes. El inicio de sesión sigue en Claude Code.";
 "updates.title" = "Actualizaciones";
 "updates.automatic" = "Buscar automáticamente";
 "updates.explanation" = "Busca cada día. Las actualizaciones aparecen en el panel y en Acerca de; tú eliges cuándo instalarlas.";
@@ -110,3 +110,14 @@
 "settings.claude_menu_bar.automatic" = "Automático";
 "settings.claude_menu_bar_help" = "Automático muestra el límite semanal más ajustado. Ocultar una ventana solo cambia el panel.";
 "settings.claude_model_placeholder" = "Modelo";
+
+"status.credential_expired" = "Conexión pendiente";
+"message.credential_expired" = "La sesión compartida caducó. Activa la reconexión automática en Configuración o abre Claude Code.";
+"quota.last_remaining" = "último saldo";
+"settings.claude_recovery" = "Reconexión automática";
+"settings.claude_recovery_help" = "Permite iniciar Claude Code brevemente en segundo plano si su sesión caduca. Sin enviar mensajes ni consumir tokens. Requiere haber iniciado sesión en Claude Code.";
+"setup.claude_recovery_title" = "¿Permitir la reconexión automática de Claude?";
+"setup.claude_recovery_message" = "TokenGauge puede iniciar Claude Code brevemente en segundo plano para que renueve su propia sesión. No enviará mensajes al modelo. Así recupera los límites de sesión, semanal y por modelo. Puedes desactivarlo en Configuración. Si revocas el acceso, tendrás que iniciar sesión de nuevo.";
+"setup.claude_recovery_allow" = "Permitir";
+"setup.claude_recovery_decline" = "Ahora no";
+"message.claude_recovery_retry" = "Se reintentará automáticamente.";

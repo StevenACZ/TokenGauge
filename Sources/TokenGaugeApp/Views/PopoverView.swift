@@ -90,7 +90,8 @@ struct PopoverView: View {
                     showProviderTitle: store.displayMode == .unified,
                     showLunaReserve: store.showLunaReserve,
                     hiddenClaudeWindows: store.hiddenClaudeWindows,
-                    claudeMenuBarSource: store.claudeMenuBarSource)
+                    claudeMenuBarSource: store.claudeMenuBarSource,
+                    claudeAutomaticRecovery: store.claudeAutomaticRecovery)
             }
         }.fixedSize(horizontal: false, vertical: true)
     }

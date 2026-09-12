@@ -179,6 +179,14 @@ struct SettingsView: View {
                 }.frame(minHeight: 24)
             } else {
                 Divider()
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle("settings.claude_recovery".localized, isOn: $store.claudeAutomaticRecovery)
+                        .toggleStyle(.switch).controlSize(.small)
+                    Text("settings.claude_recovery_help".localized)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Divider()
                 claudeWindowSettings
             }
         }
@@ -253,6 +261,7 @@ struct SettingsView: View {
         case .stale: return "status.stale".localized
         case .unavailable: return "status.unavailable".localized
         case .authenticationRequired: return "status.authentication_required".localized
+        case .credentialExpired: return "status.credential_expired".localized
         case .accessDenied: return "status.access_denied".localized
         case .cancelled: return "status.cancelled".localized
         }
@@ -261,7 +270,7 @@ struct SettingsView: View {
     private func statusColor(for provider: UsageProvider) -> Color {
         switch store.state(for: provider).status {
         case .ready: return .green
-        case .authenticationRequired, .accessDenied, .stale: return .orange
+        case .authenticationRequired, .credentialExpired, .accessDenied, .stale: return .orange
         default: return .secondary
         }
     }

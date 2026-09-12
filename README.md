@@ -49,7 +49,7 @@ If Codex was installed using a custom npm prefix, nvm, asdf, or Volta and is not
 
 TokenGauge is a usage viewer, not a replacement for either provider. On a Mac without a signed-in provider, it shows an unavailable/sign-in state and keeps the setup links accessible in **Settings**. It never invents a balance or asks for an API key.
 
-**Permissions:** no Accessibility, Automation, Screen Recording, or Full Disk Access is needed. Launch at login is optional. Claude quota requires reading Claude Code’s existing OAuth credential from the macOS Keychain; macOS may request access depending on that item’s access policy. TokenGauge does not create, renew, rotate, or export the credential. Sign-in stays in Claude Code.
+**Permissions:** no Accessibility, Automation, Screen Recording, or Full Disk Access is needed. Launch at login is optional. Claude quota requires reading Claude Code’s existing OAuth credential from the macOS Keychain; macOS may request access depending on that item’s access policy. TokenGauge never creates, directly renews, rotates, or exports the credential. Optional automatic reconnection briefly starts Claude Code in safe mode without a prompt so Claude Code can renew its own expired session. This requires one-time consent, can be disabled in Settings, and uses bounded retries. Missing or revoked access still requires signing in through Claude Code. During temporary failures, last-known limits remain explicitly marked as historical.
 
 ### Updates
 

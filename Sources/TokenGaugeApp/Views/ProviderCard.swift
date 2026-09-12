@@ -9,16 +9,23 @@ struct ProviderCard: View {
     var showLunaReserve = true
     var hiddenClaudeWindows: Set<ClaudeWindowKind> = []
     var claudeMenuBarSource: ClaudeMenuBarSource = .automatic
+    var claudeAutomaticRecovery = false
 
     private var tint: Color {
         provider == .claude ? Theme.claude : Theme.codex
     }
 
     private var visibleWindows: [QuotaWindow] {
-        guard state.status == .ready, let snapshot = state.snapshot else { return [] }
+        guard state.status == .ready || showsLastKnown, let snapshot = state.snapshot else { return [] }
         return WindowVisibility.visible(
             snapshot.windows, provider: provider, showLunaReserve: showLunaReserve,
-            hiddenClaudeWindows: hiddenClaudeWindows)
+            hiddenClaudeWindows: hiddenClaudeWindows
+        )
+        .filter { ($0.resetsAt ?? .distantFuture) > Date() }
+    }
+
+    private var showsLastKnown: Bool {
+        provider == .claude && [.stale, .credentialExpired, .unavailable].contains(state.status)
     }
 
     var body: some View {
@@ -35,13 +42,21 @@ struct ProviderCard: View {
                             .foregroundStyle(.secondary)
                     }
                 } else {
+                    if showsLastKnown {
+                        statusMessage
+                        if let capturedAt = state.snapshot?.capturedAt {
+                            Text("updated.last_known".localized(UsageFormatters.lastUpdated(capturedAt)))
+                                .font(.system(size: 10)).foregroundStyle(.secondary)
+                        }
+                    }
                     ForEach(Array(visibleWindows.enumerated()), id: \.element.id) { index, window in
                         if index > 0 { Divider() }
                         QuotaWindowRow(
                             window: window,
                             tint: tint,
                             chips: chips(for: window),
-                            prominent: index == 0
+                            prominent: index == 0 && !showsLastKnown,
+                            historical: showsLastKnown
                         )
                     }
                 }
@@ -143,6 +158,7 @@ struct ProviderCard: View {
         case .stale: return "status.stale".localized
         case .unavailable: return "status.unavailable".localized
         case .authenticationRequired: return "status.authentication_required".localized
+        case .credentialExpired: return "status.credential_expired".localized
         case .accessDenied: return "status.access_denied".localized
         case .cancelled: return "status.cancelled".localized
         }
@@ -161,6 +177,7 @@ struct ProviderCard: View {
         case .stale: return "clock.badge.exclamationmark"
         case .unavailable: return "exclamationmark.triangle"
         case .authenticationRequired: return "person.crop.circle.badge.exclamationmark"
+        case .credentialExpired: return "clock.badge.exclamationmark"
         case .accessDenied: return "lock"
         case .cancelled: return "pause.circle"
         }
@@ -171,7 +188,7 @@ struct ProviderCard: View {
         case .ready: return .green
         case .stale: return .orange
         case .unavailable, .accessDenied: return .red
-        case .authenticationRequired: return .orange
+        case .authenticationRequired, .credentialExpired: return .orange
         case .loading, .waiting, .cancelled: return .secondary
         }
     }
@@ -192,6 +209,8 @@ struct ProviderCard: View {
             return "message.claude_unavailable".localized
         case .authenticationRequired:
             return "message.authentication_required".localized
+        case .credentialExpired:
+            return (claudeAutomaticRecovery ? "message.claude_recovery_retry" : "message.credential_expired").localized
         case .accessDenied:
             return "message.access_denied".localized
         case .cancelled:
@@ -207,6 +226,7 @@ private struct QuotaWindowRow: View {
     let tint: Color
     let chips: [ModelUsageChip]
     let prominent: Bool
+    var historical = false
 
     private var valueColor: Color {
         Theme.severity(remaining: window.remainingPercentage) ?? .primary
@@ -231,7 +251,7 @@ private struct QuotaWindowRow: View {
                     .font(.system(size: prominent ? 25 : 14, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(valueColor)
-                Text("quota.remaining".localized)
+                Text((historical ? "quota.last_remaining" : "quota.remaining").localized)
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }

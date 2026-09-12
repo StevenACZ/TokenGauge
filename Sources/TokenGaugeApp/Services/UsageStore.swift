@@ -9,6 +9,7 @@ enum ProviderStatus: Sendable, Equatable {
     case stale
     case unavailable
     case authenticationRequired
+    case credentialExpired
     case accessDenied
     case cancelled
 }
@@ -52,9 +53,16 @@ final class UsageStore: ObservableObject {
     @Published var claudeMenuBarSource: ClaudeMenuBarSource {
         didSet { defaults.set(claudeMenuBarSource.rawValue, forKey: "claudeMenuBarSource") }
     }
+    @Published var claudeAutomaticRecovery: Bool {
+        didSet {
+            defaults.set(claudeAutomaticRecovery, forKey: "claudeAutomaticRecovery")
+            recoveryAuthorization.setAllowed(claudeAutomaticRecovery && claudeCancelledAt == nil)
+        }
+    }
     @Published private(set) var claudeCancelledAt: Date?
     @Published private(set) var codexCancelledAt: Date?
 
+    let recoveryAuthorization: ClaudeRecoveryAuthorization
     private let defaults: UserDefaults
 
     private let claudeClient: ClaudeUsageClient
@@ -71,6 +79,9 @@ final class UsageStore: ObservableObject {
         self.claudeClient = claudeClient
         self.codexClient = codexClient
         self.defaults = defaults
+        recoveryAuthorization = ClaudeRecoveryAuthorization(
+            allowed: defaults.bool(forKey: "claudeAutomaticRecovery")
+                && defaults.object(forKey: "claudeCancelledAt") == nil)
         let savedProvider = UsageProvider(rawValue: defaults.string(forKey: "primaryProvider") ?? "") ?? .codex
         let mode =
             UsageDisplayMode(rawValue: defaults.string(forKey: "displayMode") ?? savedProvider.rawValue)
@@ -82,6 +93,7 @@ final class UsageStore: ObservableObject {
         hiddenClaudeWindows = ClaudeWindowKind.decode(defaults.stringArray(forKey: "hiddenClaudeWindows"))
         claudeMenuBarSource =
             ClaudeMenuBarSource(rawValue: defaults.string(forKey: "claudeMenuBarSource") ?? "") ?? .automatic
+        claudeAutomaticRecovery = defaults.bool(forKey: "claudeAutomaticRecovery")
         claudeCancelledAt = defaults.object(forKey: "claudeCancelledAt") as? Date
         codexCancelledAt = defaults.object(forKey: "codexCancelledAt") as? Date
         for snapshot in initialSnapshots {
@@ -103,6 +115,12 @@ final class UsageStore: ObservableObject {
         }
     }
 
+    func stop() {
+        timer?.invalidate()
+        resetTimer?.invalidate()
+        recoveryAuthorization.setAllowed(false)
+    }
+
     func refresh(force: Bool = false) {
         guard !isRefreshing else { return }
         if !force, let lastRefresh, Date().timeIntervalSince(lastRefresh) < 60 { return }
@@ -111,17 +129,20 @@ final class UsageStore: ObservableObject {
         codex.isRefreshing = true
         let claudeClient = self.claudeClient
         let codexClient = self.codexClient
+        let recoveryAuthorization = self.recoveryAuthorization
 
         Task {
             async let claudeOutcome = Task.detached(priority: .utility) {
-                try? claudeClient.fetch()
+                try? claudeClient.fetch(recoveryAuthorization: recoveryAuthorization)
             }.value
             async let codexOutcome = Task.detached(priority: .utility) {
                 Self.fetchCodex(client: codexClient)
             }.value
 
-            let outcomes = await (claudeOutcome, codexOutcome)
-            applyRefreshResults(claudeResult: outcomes.0, codexState: outcomes.1)
+            let codexState = await codexOutcome
+            applyCodexState(codexState)
+            let claudeResult = await claudeOutcome
+            applyRefreshResults(claudeResult: claudeResult, codexState: codexState)
             lastRefresh = Date()
             isRefreshing = false
             scheduleResetRefresh()
@@ -193,7 +214,12 @@ final class UsageStore: ObservableObject {
     }
 
     private func persistCancellation(_ date: Date?, for provider: UsageProvider) {
-        if provider == .claude { claudeCancelledAt = date } else { codexCancelledAt = date }
+        if provider == .claude {
+            claudeCancelledAt = date
+            recoveryAuthorization.setAllowed(claudeAutomaticRecovery && date == nil)
+        } else {
+            codexCancelledAt = date
+        }
         let key = "\(provider.rawValue)CancelledAt"
         if let date { defaults.set(date, forKey: key) } else { defaults.removeObject(forKey: key) }
         defaults.removeObject(forKey: baselineKey(for: provider))
@@ -215,9 +241,13 @@ final class UsageStore: ObservableObject {
         let previousClaudeSnapshot = claude.snapshot
         claude = ProviderStateResolver.claudeState(result: claudeResult, cancelled: isCancelled(provider: .claude))
         if claude.snapshot == nil { claude.snapshot = previousClaudeSnapshot }
-        let previousCodexSnapshot = codex.snapshot
-        codex = codexState
-        if codex.snapshot == nil { codex.snapshot = previousCodexSnapshot }
+        applyCodexState(codexState)
+    }
+
+    private func applyCodexState(_ state: ProviderViewState) {
+        let previous = codex.snapshot
+        codex = state
+        if codex.snapshot == nil { codex.snapshot = previous }
         if isCancelled(provider: .codex) { codex.status = .cancelled }
     }
 
@@ -288,6 +318,7 @@ enum ProviderStateResolver {
             case .live: status = claudeStatus(snapshot: result.snapshot, now: Date())
             case .cached: status = .stale
             case .authenticationRequired: status = .authenticationRequired
+            case .credentialExpired: status = .credentialExpired
             case .accessDenied: status = .accessDenied
             case .unavailable: status = .unavailable
             }
@@ -324,8 +355,8 @@ enum ProviderStateResolver {
             return weekly.first { $0.id.hasPrefix("codex.") }
                 ?? windows.first { $0.id.hasPrefix("codex.") }
         }
-        if let kind = claudeSource.kind, let chosen = windows.first(where: { ClaudeWindowKind.of($0) == kind }) {
-            return chosen
+        if let kind = claudeSource.kind {
+            return windows.first { ClaudeWindowKind.of($0) == kind }
         }
         let scoped = weekly.filter { ($0.displayName ?? "").isEmpty == false }
         if let tightest = scoped.min(by: { $0.remainingPercentage < $1.remainingPercentage }) {

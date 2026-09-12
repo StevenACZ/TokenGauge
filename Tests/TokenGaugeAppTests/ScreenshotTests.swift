@@ -66,8 +66,35 @@ final class ScreenshotTests: XCTestCase {
             PopoverView(store: store, showSettings: {}, showAbout: {}), to: output.appendingPathComponent("unified.png")
         )
         try render(
-            SettingsView(store: store, launchAtLogin: LaunchAtLoginManager()).defaultAppStorage(defaults),
-            to: output.appendingPathComponent("settings.png"), maximumHeight: 900)
+            ScrollView {
+                SettingsView(store: store, launchAtLogin: LaunchAtLoginManager()).defaultAppStorage(defaults)
+            }.frame(width: 600, height: 750),
+            to: output.appendingPathComponent("settings.png"), maximumHeight: 750)
+        let historical = ProviderUsageSnapshot(
+            provider: .claude,
+            windows: [
+                QuotaWindow(
+                    id: "five_hour", usedPercentage: 2, resetsAt: now.addingTimeInterval(10_800), durationMinutes: 300,
+                    displayName: nil),
+                QuotaWindow(
+                    id: "seven_day", usedPercentage: 60, resetsAt: now.addingTimeInterval(172_800),
+                    durationMinutes: 10_080, displayName: nil),
+                QuotaWindow(
+                    id: "seven_day_fable", usedPercentage: 88, resetsAt: now.addingTimeInterval(172_800),
+                    durationMinutes: 10_080, displayName: "Fable"),
+            ], dailyUsage: [], summary: nil, availableResetCredits: nil, creditBalance: nil,
+            capturedAt: now.addingTimeInterval(-3600))
+        store.claudeAutomaticRecovery = true
+        store.applyRefreshResults(
+            claudeResult: ClaudeUsageResult(snapshot: historical, access: .credentialExpired, lastActivityAt: nil),
+            codexState: store.codex)
+        try render(
+            PopoverView(store: store, showSettings: {}, showAbout: {}),
+            to: output.appendingPathComponent("recovery.png"))
+        LocalizationManager.shared.language = .spanish
+        try render(
+            PopoverView(store: store, showSettings: {}, showAbout: {}),
+            to: output.appendingPathComponent("recovery-es.png"))
     }
 
     private func render(_ content: some View, to output: URL, maximumHeight: CGFloat = 500) throws {

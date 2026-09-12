@@ -49,6 +49,7 @@ final class ClaudeUsageClientFallbackTests: XCTestCase {
         let result = ClaudeUsageClient.fallback(cached: cached, capture: capture, modelBuckets: [], now: now)
 
         XCTAssertEqual(Set(result.windows.map(\.id)), ["five_hour", "seven_day_fable"])
+        XCTAssertEqual(result.capturedAt, cached.capturedAt)
     }
 
     func testEverythingExpiredYieldsAnEmptyReading() {

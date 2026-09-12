@@ -3,6 +3,7 @@ import TokenGaugeCore
 
 enum ClaudeAccountUsageError: Error, Equatable {
     case authenticationRequired
+    case credentialExpired
     case accessDenied
     case unavailable
 
@@ -32,9 +33,10 @@ struct ClaudeAccountUsageClient: Sendable {
     }()
 
     func fetch(now: Date = Date()) throws -> ClaudeAccountSnapshot {
-        guard let token = ClaudeOAuthTokenReader.read(), !token.isExpired else {
+        guard let token = ClaudeOAuthTokenReader.read() else {
             throw ClaudeAccountUsageError.authenticationRequired
         }
+        guard !token.isExpired else { throw ClaudeAccountUsageError.credentialExpired }
         var request = URLRequest(url: Self.endpoint)
         request.httpMethod = "GET"
         request.timeoutInterval = 10
