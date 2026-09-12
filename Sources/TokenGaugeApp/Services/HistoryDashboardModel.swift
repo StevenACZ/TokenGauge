@@ -10,7 +10,7 @@ enum HistoryMode: String, CaseIterable, Identifiable {
     var titleKey: String { "history.mode." + rawValue }
 }
 
-struct HistoryCalendarDay: Identifiable {
+struct HistoryCalendarDay: Identifiable, Equatable, Sendable {
     let id: String
     let date: Date
     let totals: [UsageProvider: Int]
@@ -34,6 +34,7 @@ final class HistoryDashboardModel: ObservableObject {
     @Published var selectedDayKey: String?
     @Published private(set) var days: [HistoryCalendarDay] = []
     @Published private(set) var isLoading = false
+    @Published private(set) var loadedMode: HistoryMode?
     @Published private(set) var loadFailed = false
     @Published private(set) var periodStart = Date()
     @Published private(set) var periodEnd = Date()
@@ -41,6 +42,9 @@ final class HistoryDashboardModel: ObservableObject {
     @Published private(set) var paces: [String: QuotaPace] = [:]
     private var generation = UUID()
     private let previewEfforts: [HistoryEffortRow]
+    private var cachedReads: [String: ReadResult] = [:]
+    private var cacheOrder: [String] = []
+    private var cacheRevision: Int?
 
     init(
         previewSnapshots: [ProviderUsageSnapshot]? = nil, mode: HistoryMode = .recent,
@@ -55,6 +59,7 @@ final class HistoryDashboardModel: ObservableObject {
                 }
             }
             days = Self.makeDays(interval: interval, tokens: rows, efforts: previewEfforts)
+            loadedMode = mode
             periodStart = interval.start
             periodEnd = interval.end
             firstRecordedDay = rows.map(\.day).min()
@@ -101,29 +106,46 @@ final class HistoryDashboardModel: ObservableObject {
         let interval = Self.interval(mode: mode, offset: offset, now: now)
         let first = Self.dayKey(interval.start)
         let last = Self.dayKey(interval.end.addingTimeInterval(-1))
+        if cacheRevision != revision {
+            cachedReads.removeAll(keepingCapacity: true)
+            cacheOrder.removeAll(keepingCapacity: true)
+            cacheRevision = revision
+        }
+        let cacheKey = first + ":" + last
         do {
             let result: ReadResult
-            if let snapshots = previewSnapshots {
+            if let cached = cachedReads[cacheKey] {
+                result = cached
+            } else if let snapshots = previewSnapshots {
                 let rows = snapshots.flatMap { snapshot in
                     snapshot.dailyUsage.map {
                         HistoryTokenRow(day: $0.day, provider: snapshot.provider, model: "all", tokens: $0.tokens)
                     }
                 }
-                result = ReadResult(tokens: rows, efforts: previewEfforts, quotas: [], first: rows.map(\.day).min())
+                result = ReadResult(
+                    days: Self.makeDays(interval: interval, tokens: rows, efforts: previewEfforts),
+                    quotas: [], first: rows.map(\.day).min())
             } else {
                 result = try await Task.detached(priority: .utility) {
-                    ReadResult(
-                        tokens: try UsageHistoryStore.tokenRows(since: first, through: last),
-                        efforts: try UsageHistoryStore.effortRows(since: first, through: last),
+                    let tokens = try UsageHistoryStore.tokenRows(since: first, through: last)
+                    let efforts = try UsageHistoryStore.effortRows(since: first, through: last)
+                    return ReadResult(
+                        days: Self.makeDays(interval: interval, tokens: tokens, efforts: efforts),
                         quotas: try UsageHistoryStore.quotaRows(since: now.addingTimeInterval(-7200), until: now),
                         first: try UsageHistoryStore.bounds().firstDay)
                 }.value
             }
             guard !Task.isCancelled, generation == request else { return }
+            if cachedReads[cacheKey] == nil {
+                cachedReads[cacheKey] = result
+                cacheOrder.append(cacheKey)
+                if cacheOrder.count > 4 { cachedReads.removeValue(forKey: cacheOrder.removeFirst()) }
+            }
             periodStart = interval.start
             periodEnd = interval.end
             firstRecordedDay = result.first
-            days = Self.makeDays(interval: interval, tokens: result.tokens, efforts: result.efforts)
+            days = result.days
+            loadedMode = mode
             var values: [String: QuotaPace] = [:]
             for row in result.quotas where row.durationMinutes == 10080 {
                 let key = row.provider.rawValue + ":" + row.windowID
@@ -144,7 +166,9 @@ final class HistoryDashboardModel: ObservableObject {
         }
     }
 
-    static func interval(mode: HistoryMode, offset: Int, now: Date, calendar: Calendar = .current) -> DateInterval {
+    nonisolated static func interval(mode: HistoryMode, offset: Int, now: Date, calendar: Calendar = .current)
+        -> DateInterval
+    {
         var calendar = calendar
         calendar.firstWeekday = 2
         calendar.minimumDaysInFirstWeek = 4
@@ -163,24 +187,29 @@ final class HistoryDashboardModel: ObservableObject {
         }
     }
 
-    static func dayKey(_ date: Date, calendar: Calendar = .current) -> String {
+    nonisolated static func dayKey(_ date: Date, calendar: Calendar = .current) -> String {
+        dayFormatter(calendar: calendar).string(from: date)
+    }
+
+    nonisolated private static func dayFormatter(calendar: Calendar) -> DateFormatter {
         let formatter = DateFormatter()
         formatter.calendar = calendar
         formatter.timeZone = calendar.timeZone
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+        return formatter
     }
 
-    static func makeDays(
+    nonisolated static func makeDays(
         interval: DateInterval, tokens: [HistoryTokenRow], efforts: [HistoryEffortRow], calendar: Calendar = .current
     ) -> [HistoryCalendarDay] {
         let tokenDays = Dictionary(grouping: tokens, by: \.day)
         let effortDays = Dictionary(grouping: efforts, by: \.day)
+        let formatter = dayFormatter(calendar: calendar)
         var date = interval.start
         var result: [HistoryCalendarDay] = []
         while date < interval.end {
-            let key = dayKey(date, calendar: calendar)
+            let key = formatter.string(from: date)
             var totals: [UsageProvider: Int] = [:]
             for provider in UsageProvider.allCases {
                 let rows = (tokenDays[key] ?? []).filter { $0.provider == provider && $0.tokens >= 0 }
@@ -197,7 +226,7 @@ final class HistoryDashboardModel: ObservableObject {
         return result
     }
 
-    private static func sum(_ values: [Int]) -> Int {
+    nonisolated private static func sum(_ values: [Int]) -> Int {
         values.reduce(0) { partial, value in
             let addition = partial.addingReportingOverflow(value)
             return addition.overflow ? Int.max : addition.partialValue
@@ -205,8 +234,7 @@ final class HistoryDashboardModel: ObservableObject {
     }
 
     private struct ReadResult: Sendable {
-        let tokens: [HistoryTokenRow]
-        let efforts: [HistoryEffortRow]
+        let days: [HistoryCalendarDay]
         let quotas: [HistoryQuotaRow]
         let first: String?
     }

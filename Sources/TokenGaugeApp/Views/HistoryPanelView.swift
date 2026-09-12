@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import TokenGaugeCore
 
@@ -6,14 +7,21 @@ struct HistoryPanelView: View {
     @Binding var mode: HistoryMode
     let providers: [UsageProvider]
     var compact = false
-    @State private var centeredPeriod: Date?
     @State private var calendarFocusRequest = 0
-    @State private var centeredRequest = -1
     @State private var showingDetails = false
+    @State private var lastPointerLocation = NSEvent.mouseLocation
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.quotaAnimationsEnabled) private var animateChanges
+    @Namespace private var modeSelection
+    @Namespace private var daySelection
 
     private var locale: Locale { Locale(identifier: LocalizationManager.shared.language.rawValue) }
     private var today: Date { Calendar.current.startOfDay(for: Date()) }
     private var accent: Color { providers == [.claude] ? Theme.claude : Theme.codex }
+
+    private var motion: Animation? {
+        animateChanges && !reduceMotion ? .easeInOut(duration: 0.18) : nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -36,6 +44,7 @@ struct HistoryPanelView: View {
                                 .background {
                                     if mode == item {
                                         RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.1))
+                                            .matchedGeometryEffect(id: "mode", in: modeSelection)
                                     }
                                 }
                         }
@@ -47,6 +56,7 @@ struct HistoryPanelView: View {
                 .background(RoundedRectangle(cornerRadius: 7).fill(Color.primary.opacity(0.035)))
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("history.view".localized)
+                .animation(motion, value: mode)
             }
             if model.loadFailed {
                 Text("history.load_failed".localized).font(.caption).foregroundStyle(.secondary)
@@ -54,19 +64,31 @@ struct HistoryPanelView: View {
                 Text("history.loading".localized).font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity).frame(height: Theme.Layout.activityChartHeight)
             } else {
-                if mode == .calendar {
-                    calendarGrid
-                } else {
-                    bars
+                Group {
+                    if model.loadedMode == .calendar {
+                        calendarGrid.transition(.opacity)
+                    } else {
+                        bars.transition(.opacity)
+                    }
                 }
+                .animation(motion, value: model.loadedMode)
+                .animation(motion, value: model.periodStart)
                 selectionSummary
             }
         }
         .onChange(of: mode) { _, newValue in
             model.offset = 0
             model.selectedDayKey = nil
-            centeredPeriod = nil
+            lastPointerLocation = NSEvent.mouseLocation
             if newValue == .calendar { model.selectedDayKey = HistoryDashboardModel.dayKey(today) }
+        }
+        .onChange(of: model.periodStart) { _, _ in
+            lastPointerLocation = NSEvent.mouseLocation
+            if mode == .calendar {
+                model.selectedDayKey =
+                    (model.days.first(where: { $0.date == today })
+                    ?? model.days.last(where: { $0.total(for: providers) != nil }) ?? model.days.last)?.id
+            }
         }
     }
 
@@ -159,6 +181,7 @@ struct HistoryPanelView: View {
                         .background {
                             if selectedID == day.id {
                                 RoundedRectangle(cornerRadius: 5).fill(accent.opacity(0.14))
+                                    .matchedGeometryEffect(id: "day", in: daySelection)
                             }
                         }
                         .overlay(alignment: .bottom) {
@@ -169,6 +192,13 @@ struct HistoryPanelView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(day.date > today)
+                .onContinuousHover { phase in
+                    guard case .active = phase else { return }
+                    let pointer = NSEvent.mouseLocation
+                    guard pointer != lastPointerLocation else { return }
+                    lastPointerLocation = pointer
+                    select(day)
+                }
                 .help(summary(day))
                 .accessibilityLabel(summary(day))
                 .accessibilityAddTraits(selectedID == day.id ? [.isSelected] : [])
@@ -177,101 +207,14 @@ struct HistoryPanelView: View {
     }
 
     private var calendarGrid: some View {
-        let padding = model.days.first.map { (Calendar.current.component(.weekday, from: $0.date) + 5) % 7 } ?? 0
-        let count = (padding + model.days.count + 6) / 7
-        let maximum = max(1, model.days.compactMap { $0.total(for: providers) }.max() ?? 0)
-        let selectedID = model.selectedDay?.id
-        return GeometryReader { geometry in
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal) {
-                    HStack(alignment: .top, spacing: 3) {
-                        ForEach(0..<count, id: \.self) { week in
-                            VStack(spacing: 3) {
-                                Text(monthLabel(week: week, padding: padding))
-                                    .font(.system(size: 8)).foregroundStyle(.secondary)
-                                    .fixedSize().frame(width: 9, height: 10, alignment: .leading)
-                                ForEach(0..<7, id: \.self) { weekday in
-                                    let index = week * 7 + weekday - padding
-                                    if model.days.indices.contains(index) {
-                                        calendarCell(
-                                            model.days[index], maximum: maximum,
-                                            selected: selectedID == model.days[index].id)
-                                    } else {
-                                        Color.clear.frame(width: 9, height: 9)
-                                    }
-                                }
-                            }
-                            .id(week)
-                        }
-                    }
-                    .padding(.vertical, 2)
-                    .padding(.horizontal, max(0, (geometry.size.width - 9) / 2))
-                }
-                .scrollIndicators(.never)
-                .task(id: "\(model.periodStart.timeIntervalSince1970):\(calendarFocusRequest)") {
-                    guard model.days.count > 7,
-                        centeredPeriod != model.periodStart || centeredRequest != calendarFocusRequest
-                    else { return }
-                    await Task.yield()
-                    guard !Task.isCancelled else { return }
-                    let target =
-                        model.days.first(where: { $0.date == today })
-                        ?? model.days.last(where: { $0.total(for: providers) != nil }) ?? model.days.last
-                    if let target, let index = model.days.firstIndex(where: { $0.id == target.id }) {
-                        model.selectedDayKey = target.id
-                        proxy.scrollTo((index + padding) / 7, anchor: .center)
-                    }
-                    centeredPeriod = model.periodStart
-                    centeredRequest = calendarFocusRequest
-                }
-            }
+        HistoryCalendarView(
+            days: model.days, providers: providers, selectedDayKey: model.selectedDay?.id,
+            focusID: "\(model.periodStart.timeIntervalSince1970):\(calendarFocusRequest)",
+            hoverEnabled: !showingDetails && !model.isLoading
+        ) { key in
+            if let day = model.days.first(where: { $0.id == key }) { select(day) }
         }
         .frame(height: 96)
-    }
-
-    private func monthLabel(week: Int, padding: Int) -> String {
-        let start = max(0, week * 7 - padding)
-        let end = min(model.days.count, (week + 1) * 7 - padding)
-        guard start < end,
-            let day = model.days[start..<end].first(where: { Calendar.current.component(.day, from: $0.date) == 1 })
-        else { return "" }
-        return day.date.formatted(.dateTime.month(.abbreviated).locale(locale))
-    }
-
-    private func calendarCell(_ day: HistoryCalendarDay, maximum: Int, selected: Bool) -> some View {
-        let total = day.total(for: providers)
-        let future = day.date > today
-        let isToday = day.date == today
-        let description = (isToday ? "history.today".localized + " · " : "") + summary(day)
-        return Button {
-            select(day)
-        } label: {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(
-                    total.map {
-                        $0 > 0
-                            ? accent.opacity(0.25 + 0.75 * Double($0) / Double(maximum)) : Color.primary.opacity(0.08)
-                    } ?? .clear
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 2)
-                        .strokeBorder(
-                            isToday
-                                ? accent
-                                : selected ? Color.primary : Color.secondary.opacity(total == nil && !future ? 0.4 : 0),
-                            lineWidth: isToday ? 2 : 1)
-                }
-                .overlay {
-                    if isToday { Circle().fill(Color.primary).frame(width: 3, height: 3) }
-                }
-                .frame(width: 9, height: 9)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(future)
-        .help(description)
-        .accessibilityLabel(description)
-        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
     @ViewBuilder private var selectionSummary: some View {
@@ -314,6 +257,7 @@ struct HistoryPanelView: View {
         return HStack(spacing: 7) {
             ProviderLogo(provider: provider, size: 14)
             Text(value).font(.system(size: 13, weight: .semibold)).monospacedDigit()
+                .contentTransition(.numericText())
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
@@ -372,8 +316,8 @@ struct HistoryPanelView: View {
     }
 
     private func select(_ day: HistoryCalendarDay) {
-        guard !showingDetails, day.date <= today, model.selectedDayKey != day.id else { return }
-        model.selectedDayKey = day.id
+        guard !showingDetails, !model.isLoading, day.date <= today, model.selectedDayKey != day.id else { return }
+        withAnimation(motion) { model.selectedDayKey = day.id }
     }
 
     private func summary(_ day: HistoryCalendarDay) -> String {

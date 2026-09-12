@@ -83,6 +83,28 @@ final class HistoryDashboardTests: XCTestCase {
             HistoryDashboardModel.usablePace(pace, for: window(21, reset: reset), now: now.addingTimeInterval(1201)))
     }
 
+    func testModeCacheInvalidatesWhenHistoryRevisionChanges() async {
+        let day = HistoryDashboardModel.dayKey(Date())
+        func snapshots(_ tokens: Int) -> [ProviderUsageSnapshot] {
+            [
+                ProviderUsageSnapshot(
+                    provider: .codex, windows: [],
+                    dailyUsage: [DailyTokenUsage(day: day, tokens: tokens)],
+                    summary: nil, availableResetCredits: nil, creditBalance: nil, capturedAt: Date())
+            ]
+        }
+        let model = HistoryDashboardModel()
+        await model.load(mode: .recent, revision: 1, previewSnapshots: snapshots(10))
+        XCTAssertEqual(model.loadedMode, .recent)
+        await model.load(mode: .calendar, revision: 1, previewSnapshots: snapshots(10))
+        XCTAssertEqual(model.loadedMode, .calendar)
+        XCTAssertGreaterThanOrEqual(model.days.count, 365)
+        await model.load(mode: .recent, revision: 1, previewSnapshots: snapshots(20))
+        XCTAssertEqual(model.days.last?.tokens(for: .codex), 10)
+        await model.load(mode: .recent, revision: 2, previewSnapshots: snapshots(20))
+        XCTAssertEqual(model.days.last?.tokens(for: .codex), 20)
+    }
+
     func testPreviewStoresDoNotReadOrCollectLiveHistory() {
         let name = "TokenGauge.history-preview.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!

@@ -83,7 +83,7 @@ struct PopoverView: View {
         }
         .padding(.horizontal, Theme.Layout.panelPadding)
         .padding(.top, 12)
-        .padding(.bottom, 8)
+        .padding(.bottom, Theme.Layout.panelBottomPadding)
         .frame(width: panelWidth)
         .environment(\.quotaAnimationsEnabled, store.animateChanges)
         .fixedSize(horizontal: false, vertical: true)
