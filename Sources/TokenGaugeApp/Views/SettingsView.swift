@@ -59,6 +59,37 @@ struct SettingsView: View {
                 }.padding(16).settingsSurface()
             }
 
+            section("settings.appearance".localized) {
+                VStack(spacing: 12) {
+                    preferenceRow("settings.panel_style".localized) {
+                        Picker("settings.panel_style".localized, selection: $store.panelStyle) {
+                            ForEach(QuotaPanelStyle.allCases) { style in
+                                Label(style.titleKey.localized, systemImage: style.symbol).tag(style)
+                            }
+                        }.labelsHidden().frame(width: 170)
+                    }
+                    Divider()
+                    preferenceRow("settings.indicator_style".localized) {
+                        Picker("settings.indicator_style".localized, selection: $store.menuBarStyle) {
+                            ForEach(QuotaMenuBarStyle.allCases) { style in
+                                Text(style.titleKey.localized).tag(style)
+                            }
+                        }.labelsHidden().frame(width: 170)
+                    }
+                    Text("settings.indicator_style_help".localized)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Divider()
+                    preferenceRow("settings.animate_changes".localized) {
+                        Toggle("settings.animate_changes".localized, isOn: $store.animateChanges)
+                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                    }
+                    Text("settings.animate_changes_help".localized)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }.padding(16).settingsSurface()
+            }
+
             section("settings.providers".localized) {
                 HStack(alignment: .top, spacing: 12) {
                     ForEach(UsageProvider.allCases, id: \.self) { provider in

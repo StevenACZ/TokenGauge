@@ -95,9 +95,31 @@ final class ScreenshotTests: XCTestCase {
         try render(
             PopoverView(store: store, showSettings: {}, showAbout: {}),
             to: output.appendingPathComponent("recovery-es.png"))
+        store.applyRefreshResults(
+            claudeResult: ClaudeUsageResult(snapshot: historical, access: .live, lastActivityAt: nil),
+            codexState: store.codex)
+        store.animateChanges = false
+        for language in [AppLanguage.english, .spanish] {
+            LocalizationManager.shared.language = language
+            for mode in UsageDisplayMode.allCases {
+                store.displayMode = mode
+                for style in QuotaPanelStyle.allCases {
+                    store.panelStyle = style
+                    let measured = try render(
+                        PopoverView(store: store, showSettings: {}, showAbout: {}),
+                        to: output.appendingPathComponent("\(language.rawValue)-\(mode.rawValue)-\(style.rawValue).png")
+                    )
+                    if mode == .unified && style != .standard {
+                        XCTAssertLessThan(measured.height, 420)
+                    }
+                }
+            }
+        }
+
     }
 
-    private func render(_ content: some View, to output: URL, maximumHeight: CGFloat = 500) throws {
+    @discardableResult
+    private func render(_ content: some View, to output: URL, maximumHeight: CGFloat = 500) throws -> NSSize {
         let application = NSApplication.shared
         let previousAppearance = application.appearance
         application.appearance = NSAppearance(named: .darkAqua)
@@ -120,5 +142,6 @@ final class ScreenshotTests: XCTestCase {
         let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
         try png.write(to: output)
         window.contentView = nil
+        return size
     }
 }

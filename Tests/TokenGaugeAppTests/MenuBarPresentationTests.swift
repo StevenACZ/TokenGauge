@@ -77,10 +77,112 @@ final class MenuBarPresentationTests: XCTestCase {
         }
     }
 
-    private func state(provider: UsageProvider, status: ProviderStatus) -> ProviderViewState {
+    @MainActor func testStylesInvalidateCacheAndKeepExactQuotaDescription() {
+        let state: (UsageProvider) -> ProviderViewState = { self.state(provider: $0, status: .ready) }
+        let appearance = NSAppearance(named: .aqua)!
+        let numbers = MenuBarPresentation(providers: [.codex, .claude], state: state, appearance: appearance)
+        for style in [QuotaMenuBarStyle.bars, .rings] {
+            let presentation = MenuBarPresentation(
+                providers: [.codex, .claude], state: state, appearance: appearance, style: style)
+            XCTAssertNotEqual(presentation, numbers)
+            XCTAssertEqual(presentation.accessibilityLabel, numbers.accessibilityLabel)
+            XCTAssertTrue(presentation.accessibilityLabel.contains("20%"))
+            XCTAssertTrue(presentation.accessibilityLabel.contains("60%"))
+            let title = presentation.attributedTitle()
+            XCTAssertFalse(title.string.contains("%"))
+            var attachmentCount = 0
+            title.enumerateAttribute(.attachment, in: NSRange(location: 0, length: title.length)) { value, _, _ in
+                if value is NSTextAttachment { attachmentCount += 1 }
+            }
+            XCTAssertEqual(attachmentCount, 3)
+        }
+    }
+
+    @MainActor func testGraphicDimensionsAndFillAreProportionalInEverySizeAndAppearance() throws {
+        for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
+            for size in MenuBarSize.allCases {
+                for style in [QuotaMenuBarStyle.bars, .rings] {
+                    var images = [NSImage]()
+                    for used in [100.0, 50.0, 0.0] {
+                        let presentation = MenuBarPresentation(
+                            providers: [.codex],
+                            state: { self.state(provider: $0, status: .ready, usedPercentage: used) },
+                            appearance: NSAppearance(named: appearanceName)!, size: size, style: style)
+                        images.append(try XCTUnwrap(presentation.quotaImage(for: presentation.segments[0])))
+                    }
+                    let expected = NSSize(
+                        width: style == .bars ? size.iconSize * 1.8 : size.iconSize, height: size.iconSize)
+                    XCTAssertTrue(images.allSatisfy { $0.size == expected && !$0.isTemplate })
+                    let ink = try images.map { try blueInk($0) }
+                    XCTAssertLessThan(ink[0], ink[2] * 0.05)
+                    XCTAssertGreaterThan(ink[2], 0)
+                    XCTAssertEqual(ink[1] / ink[2], 0.5, accuracy: 0.12)
+                }
+            }
+        }
+    }
+
+    @MainActor func testGraphicsNeverRepresentUnavailableOrStaleBalances() {
+        for style in [QuotaMenuBarStyle.bars, .rings] {
+            for status in [ProviderStatus.unavailable, .stale, .authenticationRequired, .credentialExpired, .cancelled]
+            {
+                let presentation = MenuBarPresentation(
+                    providers: [.claude], state: { self.state(provider: $0, status: status) },
+                    appearance: NSAppearance(named: .aqua)!, style: style)
+                XCTAssertEqual(presentation.attributedTitle().string, " --")
+                XCTAssertNil(presentation.segments[0].remainingPercentage)
+                XCTAssertNil(presentation.quotaImage(for: presentation.segments[0]))
+                XCTAssertFalse(presentation.accessibilityLabel.contains("%"))
+            }
+        }
+    }
+
+    @MainActor func testFractionalQuotaChangeInvalidatesGraphicCacheEvenWhenRoundedTextMatches() {
+        let appearance = NSAppearance(named: .aqua)!
+        let first = MenuBarPresentation(
+            providers: [.codex], state: { self.state(provider: $0, status: .ready, usedPercentage: 40.1) },
+            appearance: appearance, style: .bars)
+        let second = MenuBarPresentation(
+            providers: [.codex], state: { self.state(provider: $0, status: .ready, usedPercentage: 40.2) },
+            appearance: appearance, style: .bars)
+        XCTAssertEqual(first.segments[0].text, second.segments[0].text)
+        XCTAssertNotEqual(first, second)
+    }
+
+    @MainActor func testEveryStyleRespectsSelectedClaudeWindowWithoutSubstitutingMissingModel() {
+        let state: (UsageProvider) -> ProviderViewState = { self.state(provider: $0, status: .ready) }
+        for style in QuotaMenuBarStyle.allCases {
+            let weekly = MenuBarPresentation(
+                providers: [.claude], state: state, appearance: NSAppearance(named: .aqua)!,
+                style: style, claudeSource: .weekly)
+            let missingModel = MenuBarPresentation(
+                providers: [.claude], state: state, appearance: NSAppearance(named: .aqua)!,
+                style: style, claudeSource: .modelWeekly)
+            XCTAssertEqual(weekly.segments[0].remainingPercentage, 60)
+            XCTAssertNil(missingModel.segments[0].remainingPercentage)
+            XCTAssertEqual(missingModel.attributedTitle().string, " --")
+        }
+    }
+
+    @MainActor private func blueInk(_ image: NSImage) throws -> Double {
+        let data = try XCTUnwrap(image.tiffRepresentation)
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: data))
+        var total = 0.0
+        for y in 0..<bitmap.pixelsHigh {
+            for x in 0..<bitmap.pixelsWide {
+                let color = try XCTUnwrap(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
+                total += max(0, color.blueComponent - color.redComponent) * color.alphaComponent
+            }
+        }
+        return total
+    }
+
+    private func state(provider: UsageProvider, status: ProviderStatus, usedPercentage: Double? = nil)
+        -> ProviderViewState
+    {
         let window = QuotaWindow(
             id: provider == .codex ? "codex.primary" : "seven_day",
-            usedPercentage: provider == .codex ? 80 : 40,
+            usedPercentage: usedPercentage ?? (provider == .codex ? 80 : 40),
             resetsAt: Date().addingTimeInterval(86_400), durationMinutes: 10_080, displayName: nil)
         let snapshot = ProviderUsageSnapshot(
             provider: provider, windows: [window], dailyUsage: [], summary: nil,

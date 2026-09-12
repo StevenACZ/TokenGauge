@@ -28,7 +28,9 @@ TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Code
 ## At a glance
 
 - **Three views:** Codex, Claude, or Unified. Individual views show only that provider; Unified puts both quota cards side by side.
-- **A readable menu bar:** one provider’s logo and balance, or both independent balances in Unified. Choose Large, Medium, or Small in Settings.
+- **Flexible layouts:** keep the classic panel, choose compact rows, or use separate quota rings. Switch from the panel header or Settings → Appearance.
+- **A readable menu bar:** independently choose percentages, mini bars, or mini rings, with Large, Medium, or Small sizing. Exact percentages remain available on hover and in the panel.
+- **Quiet by design:** optional brief transitions respect Reduce Motion; menu indicators redraw only when their data or appearance changes.
 - **Separate limits:** general weekly quota and additional provider windows stay separate. Hide Luna weekly reserve in Settings if you do not use it.
 - **Seven days of activity:** daily Claude and Codex token totals, with hover or click details. Today stays highlighted; days with one active provider show a centered bar.
 - **Local history:** aggregated usage survives trimmed provider logs.

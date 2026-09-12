@@ -121,3 +121,16 @@
 "setup.claude_recovery_allow" = "Permitir";
 "setup.claude_recovery_decline" = "Ahora no";
 "message.claude_recovery_retry" = "Se reintentará automáticamente.";
+
+"settings.appearance" = "Apariencia";
+"settings.panel_style" = "Vista del panel";
+"settings.panel_style.standard" = "Clásica";
+"settings.panel_style.compact" = "Compacta";
+"settings.panel_style.rings" = "Anillos";
+"settings.indicator_style" = "Barra de menús";
+"settings.indicator_style.numbers" = "Porcentajes";
+"settings.indicator_style.bars" = "Mini barras";
+"settings.indicator_style.rings" = "Mini anillos";
+"settings.indicator_style_help" = "El porcentaje exacto aparece al pasar el cursor y al abrir el panel. Cada indicador respeta el límite seleccionado.";
+"settings.animate_changes" = "Animar cambios";
+"settings.animate_changes_help" = "Transiciones breves al actualizar datos o cambiar de vista. Sin animación continua; respeta Reducir movimiento.";

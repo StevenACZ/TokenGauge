@@ -6,11 +6,23 @@ struct PopoverView: View {
     @ObservedObject var store: UsageStore
     let showSettings: () -> Void
     let showAbout: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var updates = UpdateManager.shared
     @ObservedObject private var localization = LocalizationManager.shared
 
     private var providerMaxHeight: CGFloat {
-        Theme.Layout.providerMaxHeight - (updates.phase == .idle ? 0 : 44)
+        let height: CGFloat =
+            store.panelStyle == .rings ? 315 : store.panelStyle == .compact ? 230 : Theme.Layout.providerMaxHeight
+        return height - (updates.phase == .idle ? 0 : 44)
+    }
+
+    private var panelWidth: CGFloat {
+        let unified = store.displayMode == .unified
+        switch store.panelStyle {
+        case .standard: return unified ? Theme.Layout.unifiedPanelWidth : Theme.Layout.panelWidth
+        case .compact: return unified ? Theme.Layout.compactUnifiedWidth : Theme.Layout.compactPanelWidth
+        case .rings: return unified ? Theme.Layout.ringUnifiedWidth : Theme.Layout.ringPanelWidth
+        }
     }
 
     var body: some View {
@@ -27,15 +39,23 @@ struct PopoverView: View {
                 .frame(height: providerMaxHeight)
             }
             .frame(maxHeight: providerMaxHeight)
+            .animation(store.animateChanges && !reduceMotion ? Theme.Motion.content : nil, value: store.panelStyle)
             ActivityChartView(
-                claude: store.claude.snapshot, codex: store.codex.snapshot, providers: store.displayMode.providers)
-            Divider().padding(.top, 1)
-            footer
+                claude: store.claude.snapshot, codex: store.codex.snapshot, providers: store.displayMode.providers,
+                compact: store.panelStyle != .standard)
+            if store.panelStyle == .standard {
+                Divider().padding(.top, 1)
+                footer
+            } else if updates.phase != .idle {
+                Divider()
+                UpdateActionView().padding(5)
+            }
         }
         .padding(.horizontal, Theme.Layout.panelPadding)
         .padding(.top, 12)
         .padding(.bottom, 8)
-        .frame(width: store.displayMode == .unified ? Theme.Layout.unifiedPanelWidth : Theme.Layout.panelWidth)
+        .frame(width: panelWidth)
+        .environment(\.quotaAnimationsEnabled, store.animateChanges)
         .fixedSize(horizontal: false, vertical: true)
         .id(localization.language)
     }
@@ -83,17 +103,54 @@ struct PopoverView: View {
     }
 
     private var providerContent: some View {
-        HStack(alignment: .top, spacing: 10) {
+        let layout =
+            store.panelStyle == .compact
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
+        return layout {
             ForEach(store.displayMode.providers, id: \.self) { provider in
                 ProviderCard(
-                    provider: provider, state: store.state(for: provider),
+                    provider: provider, state: store.state(for: provider), panelStyle: store.panelStyle,
                     showProviderTitle: store.displayMode == .unified,
                     showLunaReserve: store.showLunaReserve,
                     hiddenClaudeWindows: store.hiddenClaudeWindows,
                     claudeMenuBarSource: store.claudeMenuBarSource,
-                    claudeAutomaticRecovery: store.claudeAutomaticRecovery)
+                    claudeAutomaticRecovery: store.claudeAutomaticRecovery
+                )
+                .frame(width: ringCardWidth(for: provider))
             }
         }.fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func ringCardWidth(for provider: UsageProvider) -> CGFloat? {
+        guard store.panelStyle == .rings, store.displayMode == .unified else { return nil }
+        func count(_ provider: UsageProvider) -> CGFloat {
+            let windows = store.state(for: provider).snapshot?.windows ?? []
+            return CGFloat(
+                max(
+                    1,
+                    WindowVisibility.visible(
+                        windows, provider: provider, showLunaReserve: store.showLunaReserve,
+                        hiddenClaudeWindows: store.hiddenClaudeWindows
+                    ).count))
+        }
+        let available = Theme.Layout.ringUnifiedWidth - Theme.Layout.panelPadding * 2 - 10
+        let codexCount = count(.codex)
+        let claudeCount = count(.claude)
+        func minimumWidth(_ count: CGFloat) -> CGFloat {
+            let cells = min(count, 3)
+            return max(
+                Theme.Layout.minimumRingCardWidth,
+                cells * Theme.Layout.quotaRingCellWidth + (cells - 1) * Theme.Layout.quotaRingSpacing
+                    + Theme.Layout.cardPadding * 2)
+        }
+        let minimumCodex = minimumWidth(codexCount)
+        let minimumClaude = minimumWidth(claudeCount)
+        let fitsOneRow = minimumCodex + minimumClaude <= available
+        let lower = fitsOneRow ? minimumCodex : Theme.Layout.minimumRingCardWidth
+        let upper = fitsOneRow ? available - minimumClaude : available - Theme.Layout.minimumRingCardWidth
+        let codex = min(max(available * codexCount / (codexCount + claudeCount), lower), upper)
+        return provider == .codex ? codex : available - codex
     }
 
     private var header: some View {
@@ -108,6 +165,34 @@ struct PopoverView: View {
                 .font(.system(size: 14, weight: .semibold))
 
             Spacer(minLength: 0)
+
+            Menu {
+                Picker("settings.panel_style".localized, selection: $store.panelStyle) {
+                    ForEach(QuotaPanelStyle.allCases) { style in
+                        Label(style.titleKey.localized, systemImage: style.symbol).tag(style)
+                    }
+                }
+            } label: {
+                Image(systemName: store.panelStyle.symbol)
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+            }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .help("settings.panel_style".localized)
+            .accessibilityLabel("settings.panel_style".localized)
+            .accessibilityIdentifier("TokenGauge.panelStyle")
+
+            if store.panelStyle != .standard {
+                Menu {
+                    Button("settings.title".localized, action: showSettings)
+                    Button("about.title".localized, action: showAbout)
+                    Divider()
+                    Button("action.quit".localized) { NSApp.terminate(nil) }
+                } label: {
+                    Image(systemName: "gearshape").font(.system(size: 12)).foregroundStyle(.secondary)
+                }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .accessibilityLabel("settings.title".localized)
+            }
 
             Button {
                 store.refresh(force: true)

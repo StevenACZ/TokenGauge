@@ -44,6 +44,15 @@ final class UsageStore: ObservableObject {
     @Published var menuBarSize: MenuBarSize {
         didSet { defaults.set(menuBarSize.rawValue, forKey: "menuBarSize") }
     }
+    @Published var panelStyle: QuotaPanelStyle {
+        didSet { defaults.set(panelStyle.rawValue, forKey: "quotaPanelStyle") }
+    }
+    @Published var menuBarStyle: QuotaMenuBarStyle {
+        didSet { defaults.set(menuBarStyle.rawValue, forKey: "quotaMenuBarStyle") }
+    }
+    @Published var animateChanges: Bool {
+        didSet { defaults.set(animateChanges, forKey: "quotaAnimateChanges") }
+    }
     @Published var showLunaReserve: Bool {
         didSet { defaults.set(showLunaReserve, forKey: "showLunaReserve") }
     }
@@ -89,6 +98,10 @@ final class UsageStore: ObservableObject {
         primaryProvider = mode.singleProvider ?? savedProvider
         displayMode = mode
         menuBarSize = MenuBarSize(rawValue: defaults.string(forKey: "menuBarSize") ?? "") ?? .large
+        panelStyle = QuotaPanelStyle(rawValue: defaults.string(forKey: "quotaPanelStyle") ?? "") ?? .standard
+        menuBarStyle = QuotaMenuBarStyle(rawValue: defaults.string(forKey: "quotaMenuBarStyle") ?? "") ?? .numbers
+        animateChanges =
+            defaults.object(forKey: "quotaAnimateChanges") == nil || defaults.bool(forKey: "quotaAnimateChanges")
         showLunaReserve = defaults.object(forKey: "showLunaReserve") == nil || defaults.bool(forKey: "showLunaReserve")
         hiddenClaudeWindows = ClaudeWindowKind.decode(defaults.stringArray(forKey: "hiddenClaudeWindows"))
         claudeMenuBarSource =

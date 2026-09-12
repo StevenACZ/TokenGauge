@@ -10,6 +10,17 @@ enum Theme {
         static let panelWidth: CGFloat = 340
         static let unifiedPanelWidth: CGFloat = 560
         static let providerMaxHeight: CGFloat = 206
+        static let compactPanelWidth: CGFloat = 360
+        static let compactUnifiedWidth: CGFloat = 440
+        static let ringPanelWidth: CGFloat = 360
+        static let ringUnifiedWidth: CGFloat = 520
+        static let compactChartHeight: CGFloat = 28
+        static let quotaRingCellWidth: CGFloat = 80
+        static let quotaRingSpacing: CGFloat = 10
+        static let minimumRingCardWidth: CGFloat = 155
+        static let cardPadding: CGFloat = 12
+        static let quotaRingDiameter: CGFloat = 68
+        static let quotaRingLineWidth: CGFloat = 5
         static let panelPadding: CGFloat = 13
         static let cardRadius: CGFloat = 11
         static let rowRadius: CGFloat = 7
@@ -51,6 +62,8 @@ extension View {
 }
 
 struct GaugeBar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.quotaAnimationsEnabled) private var animateChanges
     let fraction: Double
     let tint: Color
 
@@ -71,7 +84,7 @@ struct GaugeBar: View {
             }
         }
         .frame(height: Theme.Layout.barHeight)
-        .animation(Theme.Motion.value, value: fraction)
+        .animation(animateChanges && !reduceMotion ? Theme.Motion.value : nil, value: fraction)
     }
 
     private func filledWidth(in total: CGFloat) -> CGFloat {

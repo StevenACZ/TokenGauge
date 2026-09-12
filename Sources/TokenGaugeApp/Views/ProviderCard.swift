@@ -5,6 +5,7 @@ struct ProviderCard: View {
     let provider: UsageProvider
     let state: ProviderViewState
     var compact = false
+    var panelStyle: QuotaPanelStyle = .standard
     var showProviderTitle = false
     var showLunaReserve = true
     var hiddenClaudeWindows: Set<ClaudeWindowKind> = []
@@ -29,7 +30,7 @@ struct ProviderCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: panelStyle == .compact ? 6 : 10) {
             if compact {
                 compactHeader
             } else {
@@ -49,22 +50,50 @@ struct ProviderCard: View {
                                 .font(.system(size: 10)).foregroundStyle(.secondary)
                         }
                     }
-                    ForEach(Array(visibleWindows.enumerated()), id: \.element.id) { index, window in
-                        if index > 0 { Divider() }
-                        QuotaWindowRow(
-                            window: window,
-                            tint: tint,
-                            chips: chips(for: window),
-                            prominent: index == 0 && !showsLastKnown,
-                            historical: showsLastKnown
-                        )
-                    }
+                    quotaContent
                 }
             }
         }
-        .padding(compact ? 9 : 12)
+        .padding(compact ? 9 : (panelStyle == .compact ? 8 : 12))
         .frame(maxWidth: .infinity, alignment: .leading)
         .providerCard()
+    }
+
+    @ViewBuilder
+    private var quotaContent: some View {
+        if panelStyle == .rings {
+            if visibleWindows.count == 1, let window = visibleWindows.first {
+                QuotaRingWindow(window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown)
+            } else {
+                LazyVGrid(
+                    columns: [
+                        GridItem(
+                            .adaptive(minimum: Theme.Layout.quotaRingCellWidth), spacing: Theme.Layout.quotaRingSpacing)
+                    ], alignment: .center, spacing: 14
+                ) {
+                    ForEach(visibleWindows) { window in
+                        QuotaRingWindow(
+                            window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown)
+                    }
+                }
+            }
+        } else {
+            ForEach(Array(visibleWindows.enumerated()), id: \.element.id) { index, window in
+                if index > 0 { Divider() }
+                if panelStyle == .compact {
+                    CompactQuotaWindowRow(
+                        window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown)
+                } else {
+                    QuotaWindowRow(
+                        window: window,
+                        tint: tint,
+                        chips: chips(for: window),
+                        prominent: index == 0 && !showsLastKnown,
+                        historical: showsLastKnown
+                    )
+                }
+            }
+        }
     }
 
     private var compactHeader: some View {
@@ -217,65 +246,6 @@ struct ProviderCard: View {
             return "message.cancelled".localized
         case .ready:
             return "message.ready".localized
-        }
-    }
-}
-
-private struct QuotaWindowRow: View {
-    let window: QuotaWindow
-    let tint: Color
-    let chips: [ModelUsageChip]
-    let prominent: Bool
-    var historical = false
-
-    private var valueColor: Color {
-        Theme.severity(remaining: window.remainingPercentage) ?? .primary
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(UsageFormatters.windowName(window))
-                    .font(.caption.weight(.medium))
-                    .lineLimit(1)
-                    .help(UsageFormatters.windowHelp(window))
-                if window.id.hasPrefix("base_model_inference.") || window.displayName?.lowercased() == "gpt-reserve" {
-                    Image(systemName: "info.circle")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
-                        .help(UsageFormatters.windowHelp(window))
-                        .accessibilityLabel(UsageFormatters.windowHelp(window))
-                }
-                Spacer(minLength: 4)
-                Text(UsageFormatters.percentage(window.remainingPercentage))
-                    .font(.system(size: prominent ? 25 : 14, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(valueColor)
-                Text((historical ? "quota.last_remaining" : "quota.remaining").localized)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-            }
-
-            GaugeBar(
-                fraction: window.remainingPercentage / 100,
-                tint: prominent ? (Theme.severity(remaining: window.remainingPercentage) ?? tint) : tint.opacity(0.65))
-
-            HStack(spacing: 6) {
-                Text(UsageFormatters.reset(window.resetsAt))
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                Spacer(minLength: 4)
-                if let summary = UsageFormatters.modelChips(chips) {
-                    Text(summary)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .monospacedDigit()
-                        .layoutPriority(-1)
-                }
-            }
         }
     }
 }

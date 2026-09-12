@@ -68,9 +68,10 @@ final class StatusItemController: NSObject {
         )
         .receive(on: RunLoop.main)
         .combineLatest(
-            store.$menuBarSize.receive(on: RunLoop.main), store.$claudeMenuBarSource.receive(on: RunLoop.main)
+            store.$menuBarSize.receive(on: RunLoop.main), store.$claudeMenuBarSource.receive(on: RunLoop.main),
+            store.$menuBarStyle.receive(on: RunLoop.main)
         )
-        .sink { [weak self] _, _, _ in
+        .sink { [weak self] _, _, _, _ in
             self?.updateStatusItem()
         }
         .store(in: &cancellables)
@@ -175,7 +176,7 @@ final class StatusItemController: NSObject {
         let presentation = MenuBarPresentation(
             providers: store.displayMode.providers,
             state: { store.state(for: $0) },
-            appearance: button.effectiveAppearance, size: store.menuBarSize,
+            appearance: button.effectiveAppearance, size: store.menuBarSize, style: store.menuBarStyle,
             claudeSource: store.claudeMenuBarSource)
         guard presentation != displayedPresentation else { return }
         if displayedPresentation?.segments.first?.provider != presentation.segments.first?.provider
