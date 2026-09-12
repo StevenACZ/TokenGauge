@@ -55,7 +55,7 @@ final class ScreenshotTests: XCTestCase {
                 },
                 summary: nil, availableResetCredits: nil, creditBalance: nil, capturedAt: now)
         }
-        let store = UsageStore(defaults: defaults, initialSnapshots: snapshots)
+        let store = UsageStore(defaults: defaults, initialSnapshots: snapshots, historyReadsEnabled: false)
         try render(
             PopoverView(store: store, showSettings: {}, showAbout: {}), to: output.appendingPathComponent("panel.png"))
         store.displayMode = .claude
@@ -95,9 +95,54 @@ final class ScreenshotTests: XCTestCase {
         try render(
             PopoverView(store: store, showSettings: {}, showAbout: {}),
             to: output.appendingPathComponent("recovery-es.png"))
+        store.applyRefreshResults(
+            claudeResult: ClaudeUsageResult(snapshot: historical, access: .live, lastActivityAt: nil),
+            codexState: store.codex)
+        store.animateChanges = false
+        for language in [AppLanguage.english, .spanish] {
+            LocalizationManager.shared.language = language
+            for mode in UsageDisplayMode.allCases {
+                store.displayMode = mode
+                for style in QuotaPanelStyle.allCases {
+                    store.panelStyle = style
+                    try render(
+                        PopoverView(store: store, showSettings: {}, showAbout: {}),
+                        to: output.appendingPathComponent("\(language.rawValue)-\(mode.rawValue)-\(style.rawValue).png")
+                    )
+                }
+            }
+        }
+
+        for historyMode in [HistoryMode.week, .calendar] {
+            store.historyMode = historyMode
+            let efforts = ["medium", "high", "xhigh"].enumerated().map { index, effort in
+                HistoryEffortRow(
+                    day: formatter.string(from: now), provider: .codex,
+                    model: "gpt-6-astra", effort: effort, tokens: (index + 1) * 1_000_000)
+            }
+            for style in QuotaPanelStyle.allCases {
+                store.panelStyle = style
+                let history = HistoryDashboardModel(
+                    previewSnapshots: snapshots, mode: historyMode,
+                    previewEfforts: efforts, now: now)
+                try render(
+                    PopoverView(store: store, showSettings: {}, showAbout: {}, history: history),
+                    to: output.appendingPathComponent("history-\(historyMode.rawValue)-\(style.rawValue).png"))
+            }
+        }
+        store.historyMode = .recent
+        store.panelStyle = .rings
+        store.showLunaReserve = false
+        store.setClaudeWindow(.weekly, visible: false)
+        let fitted = try render(
+            PopoverView(store: store, showSettings: {}, showAbout: {}),
+            to: output.appendingPathComponent("rings-current.png"))
+        XCTAssertEqual(fitted.width, Theme.Layout.minimumRingUnifiedWidth)
+
     }
 
-    private func render(_ content: some View, to output: URL, maximumHeight: CGFloat = 500) throws {
+    @discardableResult
+    private func render(_ content: some View, to output: URL, maximumHeight: CGFloat = 500) throws -> NSSize {
         let application = NSApplication.shared
         let previousAppearance = application.appearance
         application.appearance = NSAppearance(named: .darkAqua)
@@ -120,5 +165,6 @@ final class ScreenshotTests: XCTestCase {
         let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
         try png.write(to: output)
         window.contentView = nil
+        return size
     }
 }

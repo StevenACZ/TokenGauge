@@ -44,6 +44,23 @@ final class UsageStore: ObservableObject {
     @Published var menuBarSize: MenuBarSize {
         didSet { defaults.set(menuBarSize.rawValue, forKey: "menuBarSize") }
     }
+    @Published var panelStyle: QuotaPanelStyle {
+        didSet { defaults.set(panelStyle.rawValue, forKey: "quotaPanelStyle") }
+    }
+    @Published var menuBarStyle: QuotaMenuBarStyle {
+        didSet { defaults.set(menuBarStyle.rawValue, forKey: "quotaMenuBarStyle") }
+    }
+    @Published var animateChanges: Bool {
+        didSet { defaults.set(animateChanges, forKey: "quotaAnimateChanges") }
+    }
+    @Published var historyMode: HistoryMode {
+        didSet { defaults.set(historyMode.rawValue, forKey: "historyMode") }
+    }
+    @Published var showHourlyPace: Bool {
+        didSet { defaults.set(showHourlyPace, forKey: "showHourlyPace") }
+    }
+    @Published private(set) var historyRevision = 0
+    let historyReadsEnabled: Bool
     @Published var showLunaReserve: Bool {
         didSet { defaults.set(showLunaReserve, forKey: "showLunaReserve") }
     }
@@ -74,11 +91,14 @@ final class UsageStore: ObservableObject {
         claudeClient: ClaudeUsageClient = ClaudeUsageClient(),
         codexClient: CodexAppServerClient = CodexAppServerClient(),
         defaults: UserDefaults = .standard,
-        initialSnapshots: [ProviderUsageSnapshot] = []
+        initialSnapshots: [ProviderUsageSnapshot] = [],
+        historyReadsEnabled: Bool? = nil
     ) {
         self.claudeClient = claudeClient
         self.codexClient = codexClient
         self.defaults = defaults
+        self.historyReadsEnabled =
+            historyReadsEnabled ?? (defaults === UserDefaults.standard && initialSnapshots.isEmpty)
         recoveryAuthorization = ClaudeRecoveryAuthorization(
             allowed: defaults.bool(forKey: "claudeAutomaticRecovery")
                 && defaults.object(forKey: "claudeCancelledAt") == nil)
@@ -89,6 +109,12 @@ final class UsageStore: ObservableObject {
         primaryProvider = mode.singleProvider ?? savedProvider
         displayMode = mode
         menuBarSize = MenuBarSize(rawValue: defaults.string(forKey: "menuBarSize") ?? "") ?? .large
+        historyMode = HistoryMode(rawValue: defaults.string(forKey: "historyMode") ?? "") ?? .recent
+        showHourlyPace = defaults.object(forKey: "showHourlyPace") == nil || defaults.bool(forKey: "showHourlyPace")
+        panelStyle = QuotaPanelStyle(rawValue: defaults.string(forKey: "quotaPanelStyle") ?? "") ?? .standard
+        menuBarStyle = QuotaMenuBarStyle(rawValue: defaults.string(forKey: "quotaMenuBarStyle") ?? "") ?? .numbers
+        animateChanges =
+            defaults.object(forKey: "quotaAnimateChanges") == nil || defaults.bool(forKey: "quotaAnimateChanges")
         showLunaReserve = defaults.object(forKey: "showLunaReserve") == nil || defaults.bool(forKey: "showLunaReserve")
         hiddenClaudeWindows = ClaudeWindowKind.decode(defaults.stringArray(forKey: "hiddenClaudeWindows"))
         claudeMenuBarSource =
@@ -146,8 +172,13 @@ final class UsageStore: ObservableObject {
             lastRefresh = Date()
             isRefreshing = false
             scheduleResetRefresh()
-            let snapshots = [claude.snapshot, codex.snapshot].compactMap { $0 }
-            Task.detached(priority: .background) { Self.archive(snapshots) }
+            if historyReadsEnabled {
+                await Task.detached(priority: .background) {
+                    Self.archive(claudeResult: claudeResult, codexState: codexState)
+                    try? EffortHistoryClient.collect()
+                }.value
+                historyRevision &+= 1
+            }
         }
     }
 
@@ -169,9 +200,17 @@ final class UsageStore: ObservableObject {
         }
     }
 
-    private nonisolated static func archive(_ snapshots: [ProviderUsageSnapshot]) {
-        for snapshot in snapshots {
-            try? UsageHistoryStore.record(snapshot)
+    nonisolated static func archive(
+        claudeResult: ClaudeUsageResult?, codexState: ProviderViewState,
+        at url: URL = UsagePaths.history()
+    ) {
+        if let result = claudeResult {
+            try? UsageHistoryStore.record(result.snapshot, at: url, recordQuota: result.access == .live)
+        }
+        if let snapshot = codexState.snapshot {
+            try? UsageHistoryStore.record(
+                snapshot, at: url, recordQuota: codexState.status == .ready,
+                recordTokens: codexState.status == .ready || codexState.status == .waiting)
         }
     }
 

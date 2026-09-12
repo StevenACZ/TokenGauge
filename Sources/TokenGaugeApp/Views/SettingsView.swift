@@ -59,6 +59,51 @@ struct SettingsView: View {
                 }.padding(16).settingsSurface()
             }
 
+            section("settings.appearance".localized) {
+                VStack(spacing: 12) {
+                    preferenceRow("settings.panel_style".localized) {
+                        Picker("settings.panel_style".localized, selection: $store.panelStyle) {
+                            ForEach(QuotaPanelStyle.allCases) { style in
+                                Label(style.titleKey.localized, systemImage: style.symbol).tag(style)
+                            }
+                        }.labelsHidden().frame(width: 170, alignment: .trailing)
+                    }
+                    Divider()
+                    preferenceRow("settings.indicator_style".localized) {
+                        Picker("settings.indicator_style".localized, selection: $store.menuBarStyle) {
+                            ForEach(QuotaMenuBarStyle.allCases) { style in
+                                Text(style.titleKey.localized).tag(style)
+                            }
+                        }.labelsHidden().frame(width: 170, alignment: .trailing)
+                    }
+                    Text("settings.indicator_style_help".localized)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Divider()
+                    preferenceRow("settings.animate_changes".localized) {
+                        Toggle("settings.animate_changes".localized, isOn: $store.animateChanges)
+                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                    }
+                    Text("settings.animate_changes_help".localized)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Divider()
+                    preferenceRow("history.view".localized) {
+                        Picker("history.view".localized, selection: $store.historyMode) {
+                            ForEach(HistoryMode.allCases) { mode in
+                                Text(mode.titleKey.localized).tag(mode)
+                            }
+                        }.labelsHidden().frame(width: 170, alignment: .trailing)
+                    }
+                    Divider()
+                    preferenceRow("pace.setting".localized) {
+                        Toggle("pace.setting".localized, isOn: $store.showHourlyPace)
+                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                    }
+
+                }.padding(16).settingsSurface()
+            }
+
             section("settings.providers".localized) {
                 HStack(alignment: .top, spacing: 12) {
                     ForEach(UsageProvider.allCases, id: \.self) { provider in
@@ -70,10 +115,13 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 2).padding(.top, 2)
                 DisclosureGroup("setup.privacy".localized) {
-                    Text("setup.permissions".localized)
-                        .font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 6)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("setup.permissions".localized)
+                        Text("setup.local_history".localized)
+                    }
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 6)
                 }.font(.caption).padding(.top, 2)
             }
 

@@ -7,10 +7,28 @@ enum Theme {
     enum Layout {
         static let menuBarIconSize: CGFloat = 17
         static let menuBarFontSize: CGFloat = 13.5
+        static let menuRingGap: CGFloat = 8
         static let panelWidth: CGFloat = 340
         static let unifiedPanelWidth: CGFloat = 560
-        static let providerMaxHeight: CGFloat = 206
+        static let providerMaxHeight: CGFloat = 182
+        static let compactProviderMaxHeight: CGFloat = 230
+        static let ringProviderMaxHeight: CGFloat = 250
+        static let compactPanelWidth: CGFloat = 320
+        static let compactUnifiedWidth: CGFloat = 360
+        static let ringPanelWidth: CGFloat = 360
+        static let ringUnifiedWidth: CGFloat = 520
+        static let activityChartHeight: CGFloat = 64
+        static let minimumRingUnifiedWidth: CGFloat = 440
+        static let quotaRingCellWidth: CGFloat = 80
+        static let quotaRingSpacing: CGFloat = 10
+        static let minimumRingCardWidth: CGFloat = 155
+        static let cardPadding: CGFloat = 12
+        static let quotaRingDiameter: CGFloat = 68
+        static let quotaRingLineWidth: CGFloat = 5
         static let panelPadding: CGFloat = 13
+        static let panelBottomPadding: CGFloat = 14
+        static let historyModeSegmentWidth: CGFloat = 48
+        static let historyModeSegmentHeight: CGFloat = 22
         static let cardRadius: CGFloat = 11
         static let rowRadius: CGFloat = 7
         static let barHeight: CGFloat = 5
@@ -51,6 +69,8 @@ extension View {
 }
 
 struct GaugeBar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.quotaAnimationsEnabled) private var animateChanges
     let fraction: Double
     let tint: Color
 
@@ -71,7 +91,7 @@ struct GaugeBar: View {
             }
         }
         .frame(height: Theme.Layout.barHeight)
-        .animation(Theme.Motion.value, value: fraction)
+        .animation(animateChanges && !reduceMotion ? Theme.Motion.value : nil, value: fraction)
     }
 
     private func filledWidth(in total: CGFloat) -> CGFloat {

@@ -24,30 +24,32 @@ final class PopoverLayoutTests: XCTestCase {
                     resetsAt: Date().addingTimeInterval(86400 * 3), durationMinutes: 10080,
                     displayName: index == 0 ? nil : "Model \(index)")
             }, dailyUsage: [], summary: nil, availableResetCredits: nil, creditBalance: nil, capturedAt: Date())
-        let store = UsageStore(defaults: defaults, initialSnapshots: [snapshot])
+        let store = UsageStore(defaults: defaults, initialSnapshots: [snapshot], historyReadsEnabled: false)
         for language in AppLanguage.allCases {
             LocalizationManager.shared.language = language
             for mode in UsageDisplayMode.allCases {
                 store.displayMode = mode
-                UpdateManager.shared.handleNotFound()
-                assertHeight(store)
-                _ = UpdateManager.shared.handleUpdateFound(version: "1.0.1", releasePage: nil, informationOnly: false)
-                assertHeight(store)
-                UpdateManager.shared.handleDownloadInitiated()
-                assertHeight(store)
+                for style in QuotaPanelStyle.allCases {
+                    store.panelStyle = style
+                    UpdateManager.shared.handleNotFound()
+                    assertHeight(store)
+                    _ = UpdateManager.shared.handleUpdateFound(
+                        version: "1.0.1", releasePage: nil, informationOnly: false)
+                    assertHeight(store)
+                    UpdateManager.shared.handleDownloadInitiated()
+                    assertHeight(store)
+                }
             }
         }
     }
 
     private func assertHeight(_ store: UsageStore, file: StaticString = #filePath, line: UInt = #line) {
         let view = NSHostingView(rootView: PopoverView(store: store, showSettings: {}, showAbout: {}))
-        XCTAssertEqual(
-            view.fittingSize.width,
-            store.displayMode == .unified ? Theme.Layout.unifiedPanelWidth : Theme.Layout.panelWidth, accuracy: 1,
-            file: file, line: line)
+        XCTAssertGreaterThanOrEqual(view.fittingSize.width, Theme.Layout.compactPanelWidth, file: file, line: line)
+        XCTAssertLessThanOrEqual(view.fittingSize.width, Theme.Layout.unifiedPanelWidth, file: file, line: line)
         XCTAssertLessThanOrEqual(
             view.fittingSize.height, 500,
-            "\(LocalizationManager.shared.language.rawValue) / \(store.displayMode.rawValue) / \(UpdateManager.shared.phase)",
+            "\(LocalizationManager.shared.language.rawValue) / \(store.displayMode.rawValue) / \(store.panelStyle.rawValue) / \(UpdateManager.shared.phase)",
             file: file, line: line)
     }
 }

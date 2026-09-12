@@ -121,3 +121,44 @@
 "setup.claude_recovery_allow" = "Allow";
 "setup.claude_recovery_decline" = "Not now";
 "message.claude_recovery_retry" = "Reconnection will retry automatically.";
+
+"settings.appearance" = "Appearance";
+"settings.panel_style" = "Panel view";
+"settings.panel_style.standard" = "Classic";
+"settings.panel_style.compact" = "Compact";
+"settings.panel_style.rings" = "Rings";
+"settings.indicator_style" = "Menu bar";
+"settings.indicator_style.numbers" = "Percentages";
+"settings.indicator_style.bars" = "Mini bars";
+"settings.indicator_style.rings" = "Mini rings";
+"settings.indicator_style_help" = "Exact percentages are available on hover and in the panel. Each indicator uses the selected quota window.";
+"settings.animate_changes" = "Animate changes";
+"settings.animate_changes_help" = "Brief transitions when data or views change. No continuous animation; respects Reduce Motion.";
+
+"setup.local_history" = "History stays on this Mac: daily tokens by provider, with model and reasoning effort detail when available, have no expiry; quota and reset readings are kept for two years. Conversations are not stored and history is never uploaded.";
+
+"history.title" = "Token history";
+"history.view" = "History view";
+"history.mode.recent" = "7 days";
+"history.mode.week" = "Week";
+"history.mode.calendar" = "Year";
+"history.previous" = "Previous period";
+"history.next" = "Next period";
+"history.loading" = "Loading history…";
+"history.load_failed" = "History unavailable";
+"history.unknown" = "No record";
+"history.local_tokens" = "Local tokens · model / effort";
+"history.effort_unknown" = "Unspecified";
+"pace.value" = "≈ %@ pp/h";
+"pace.details" = "Estimated percentage points of weekly allowance per hour, over %@ observed minutes in the last hour. This account-wide rate is not attributed to a reasoning effort.";
+"pace.collecting" = "Pace: —";
+"pace.insufficient" = "Requires at least three verified readings covering 30 minutes. Resets and long gaps are excluded.";
+"pace.setting" = "Show weekly use per hour";
+"history.all_efforts" = "All efforts";
+"history.heading" = "Tokens";
+"history.details" = "Model & effort";
+"history.details_title" = "Usage by model and effort";
+"history.close_details" = "Close details";
+"history.details_note" = "Tokens observed on this Mac. Hover over a number to see its exact value.";
+"history.today" = "Today";
+"history.return_today" = "Return to today";

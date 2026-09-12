@@ -121,3 +121,44 @@
 "setup.claude_recovery_allow" = "Permitir";
 "setup.claude_recovery_decline" = "Ahora no";
 "message.claude_recovery_retry" = "Se reintentará automáticamente.";
+
+"settings.appearance" = "Apariencia";
+"settings.panel_style" = "Vista del panel";
+"settings.panel_style.standard" = "Clásica";
+"settings.panel_style.compact" = "Compacta";
+"settings.panel_style.rings" = "Anillos";
+"settings.indicator_style" = "Barra de menús";
+"settings.indicator_style.numbers" = "Porcentajes";
+"settings.indicator_style.bars" = "Mini barras";
+"settings.indicator_style.rings" = "Mini anillos";
+"settings.indicator_style_help" = "El porcentaje exacto aparece al pasar el cursor y al abrir el panel. Cada indicador respeta el límite seleccionado.";
+"settings.animate_changes" = "Animar cambios";
+"settings.animate_changes_help" = "Transiciones breves al actualizar datos o cambiar de vista. Sin animación continua; respeta Reducir movimiento.";
+
+"setup.local_history" = "El historial se guarda solo en este Mac: tokens diarios por proveedor, con detalle de modelo y nivel de esfuerzo cuando esté disponible, sin caducidad; cuotas y reinicios durante dos años. No se guardan conversaciones ni se envía el historial.";
+
+"history.title" = "Historial de tokens";
+"history.view" = "Vista del historial";
+"history.mode.recent" = "7 días";
+"history.mode.week" = "Semana";
+"history.mode.calendar" = "Año";
+"history.previous" = "Periodo anterior";
+"history.next" = "Periodo siguiente";
+"history.loading" = "Cargando historial…";
+"history.load_failed" = "Historial no disponible";
+"history.unknown" = "Sin registro";
+"history.local_tokens" = "Tokens locales · modelo / esfuerzo";
+"history.effort_unknown" = "Sin especificar";
+"pace.value" = "≈ %@ pp/h";
+"pace.details" = "Puntos porcentuales estimados de la cuota semanal por hora, con %@ minutos observados en la última hora. Este ritmo corresponde a la cuenta, no a un nivel de esfuerzo concreto.";
+"pace.collecting" = "Ritmo: —";
+"pace.insufficient" = "Requiere al menos tres lecturas verificadas que cubran 30 minutos. Se excluyen reinicios y huecos largos.";
+"pace.setting" = "Mostrar uso semanal por hora";
+"history.all_efforts" = "Todos los esfuerzos";
+"history.heading" = "Tokens";
+"history.details" = "Modelo y esfuerzo";
+"history.details_title" = "Uso por modelo y esfuerzo";
+"history.close_details" = "Cerrar detalle";
+"history.details_note" = "Tokens observados en este Mac. Pasa el cursor sobre una cifra para ver el valor exacto.";
+"history.today" = "Hoy";
+"history.return_today" = "Volver al día de hoy";
