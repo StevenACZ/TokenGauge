@@ -66,7 +66,7 @@ struct SettingsView: View {
                             ForEach(QuotaPanelStyle.allCases) { style in
                                 Label(style.titleKey.localized, systemImage: style.symbol).tag(style)
                             }
-                        }.labelsHidden().frame(width: 170)
+                        }.labelsHidden().frame(width: 170, alignment: .trailing)
                     }
                     Divider()
                     preferenceRow("settings.indicator_style".localized) {
@@ -74,7 +74,7 @@ struct SettingsView: View {
                             ForEach(QuotaMenuBarStyle.allCases) { style in
                                 Text(style.titleKey.localized).tag(style)
                             }
-                        }.labelsHidden().frame(width: 170)
+                        }.labelsHidden().frame(width: 170, alignment: .trailing)
                     }
                     Text("settings.indicator_style_help".localized)
                         .font(.caption).foregroundStyle(.secondary)
