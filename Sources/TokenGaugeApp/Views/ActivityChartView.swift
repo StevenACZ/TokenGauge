@@ -58,7 +58,7 @@ struct ActivityChartView: View {
     private let data: ActivityChartData
     @State private var selectedKey: String
     private let compact: Bool
-    private var barHeight: CGFloat { compact ? Theme.Layout.compactChartHeight : 44 }
+    private var barHeight: CGFloat { Theme.Layout.activityChartHeight }
 
     init(
         claude: ProviderUsageSnapshot?, codex: ProviderUsageSnapshot?,

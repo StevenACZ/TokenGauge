@@ -12,7 +12,9 @@ struct PopoverView: View {
 
     private var providerMaxHeight: CGFloat {
         let height: CGFloat =
-            store.panelStyle == .rings ? 315 : store.panelStyle == .compact ? 230 : Theme.Layout.providerMaxHeight
+            store.panelStyle == .rings
+            ? Theme.Layout.ringProviderMaxHeight
+            : store.panelStyle == .compact ? Theme.Layout.compactProviderMaxHeight : Theme.Layout.providerMaxHeight
         return height - (updates.phase == .idle ? 0 : 44)
     }
 
@@ -145,7 +147,7 @@ struct PopoverView: View {
         let content =
             minimumRingWidth(ringWindowCount(.codex)) + minimumRingWidth(ringWindowCount(.claude))
             + Theme.Layout.panelPadding * 2 + Theme.Layout.quotaRingSpacing
-        return min(max(content, Theme.Layout.compactUnifiedWidth), Theme.Layout.ringUnifiedWidth)
+        return min(max(content, Theme.Layout.minimumRingUnifiedWidth), Theme.Layout.ringUnifiedWidth)
     }
 
     private func ringCardWidth(for provider: UsageProvider) -> CGFloat? {

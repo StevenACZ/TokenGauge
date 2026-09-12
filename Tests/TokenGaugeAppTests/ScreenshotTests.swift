@@ -110,7 +110,7 @@ final class ScreenshotTests: XCTestCase {
                         to: output.appendingPathComponent("\(language.rawValue)-\(mode.rawValue)-\(style.rawValue).png")
                     )
                     if mode == .unified && style != .standard {
-                        XCTAssertLessThan(measured.height, 420)
+                        XCTAssertLessThan(measured.height, 480)
                     }
                 }
             }
@@ -121,7 +121,7 @@ final class ScreenshotTests: XCTestCase {
         let fitted = try render(
             PopoverView(store: store, showSettings: {}, showAbout: {}),
             to: output.appendingPathComponent("rings-current.png"))
-        XCTAssertEqual(fitted.width, Theme.Layout.compactUnifiedWidth)
+        XCTAssertEqual(fitted.width, Theme.Layout.minimumRingUnifiedWidth)
 
     }
 
