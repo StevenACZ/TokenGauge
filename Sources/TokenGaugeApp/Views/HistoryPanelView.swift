@@ -12,7 +12,6 @@ struct HistoryPanelView: View {
     @State private var lastPointerLocation = NSEvent.mouseLocation
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.quotaAnimationsEnabled) private var animateChanges
-    @Namespace private var modeSelection
     @Namespace private var daySelection
 
     private var locale: Locale { Locale(identifier: LocalizationManager.shared.language.rawValue) }
@@ -32,31 +31,7 @@ struct HistoryPanelView: View {
                     navigation
                 }
                 Spacer(minLength: 0)
-                HStack(spacing: 2) {
-                    ForEach(HistoryMode.allCases) { item in
-                        Button {
-                            mode = item
-                        } label: {
-                            Text(item.titleKey.localized)
-                                .font(.system(size: 10, weight: mode == item ? .semibold : .regular))
-                                .foregroundStyle(mode == item ? .primary : .secondary)
-                                .padding(.horizontal, 8).padding(.vertical, 4)
-                                .background {
-                                    if mode == item {
-                                        RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.1))
-                                            .matchedGeometryEffect(id: "mode", in: modeSelection)
-                                    }
-                                }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(mode == item ? [.isSelected] : [])
-                    }
-                }
-                .padding(2)
-                .background(RoundedRectangle(cornerRadius: 7).fill(Color.primary.opacity(0.035)))
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel("history.view".localized)
-                .animation(motion, value: mode)
+                modePicker
             }
             if model.loadFailed {
                 Text("history.load_failed".localized).font(.caption).foregroundStyle(.secondary)
@@ -90,6 +65,41 @@ struct HistoryPanelView: View {
                     ?? model.days.last(where: { $0.total(for: providers) != nil }) ?? model.days.last)?.id
             }
         }
+    }
+
+    private var modePicker: some View {
+        let width = Theme.Layout.historyModeSegmentWidth
+        let height = Theme.Layout.historyModeSegmentHeight
+        let index = HistoryMode.allCases.firstIndex(of: mode) ?? 0
+        return ZStack(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 5)
+                .fill(Color.primary.opacity(0.1))
+                .frame(width: width, height: height)
+                .offset(x: CGFloat(index) * width)
+                .animation(motion, value: mode)
+            HStack(spacing: 0) {
+                ForEach(HistoryMode.allCases) { item in
+                    Button {
+                        mode = item
+                    } label: {
+                        Text(item.titleKey.localized)
+                            .font(.system(size: 10, weight: mode == item ? .semibold : .regular))
+                            .foregroundStyle(mode == item ? .primary : .secondary)
+                            .lineLimit(1)
+                            .frame(width: width, height: height)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("TokenGauge.historyMode." + item.rawValue)
+                    .accessibilityAddTraits(mode == item ? [.isSelected] : [])
+                }
+            }
+        }
+        .padding(2)
+        .background(RoundedRectangle(cornerRadius: 7).fill(Color.primary.opacity(0.035)))
+        .fixedSize()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("history.view".localized)
     }
 
     private var todayButton: some View {

@@ -27,6 +27,8 @@ enum Theme {
         static let quotaRingLineWidth: CGFloat = 5
         static let panelPadding: CGFloat = 13
         static let panelBottomPadding: CGFloat = 14
+        static let historyModeSegmentWidth: CGFloat = 48
+        static let historyModeSegmentHeight: CGFloat = 22
         static let cardRadius: CGFloat = 11
         static let rowRadius: CGFloat = 7
         static let barHeight: CGFloat = 5
