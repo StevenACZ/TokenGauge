@@ -271,13 +271,13 @@ struct HistoryPanelView: View {
         let tokens = day.tokens(for: provider)
         let full = name(provider) + ": " + (tokens.map { exact($0) } ?? "history.unknown".localized)
         let value = tokens.map { UsageFormatters.tokens($0) } ?? "—"
-        return HStack(spacing: 5) {
-            Circle().fill(color(provider)).frame(width: 5, height: 5)
-            Text(name(provider)).font(.system(size: 10)).foregroundStyle(.secondary)
-            Spacer(minLength: 3)
+        return HStack(spacing: 7) {
+            ProviderLogo(provider: provider, size: 14)
             Text(value).font(.system(size: 13, weight: .semibold)).monospacedDigit()
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 6).fill(color(provider).opacity(0.075)))
         .help(full).accessibilityElement(children: .ignore).accessibilityLabel(full)
     }
 
