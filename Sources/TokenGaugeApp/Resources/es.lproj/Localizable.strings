@@ -135,7 +135,7 @@
 "settings.animate_changes" = "Animar cambios";
 "settings.animate_changes_help" = "Transiciones breves al actualizar datos o cambiar de vista. Sin animación continua; respeta Reducir movimiento.";
 
-"setup.local_history" = "El historial se guarda solo en este Mac: tokens diarios por proveedor, con detalle de modelo y nivel de esfuerzo cuando esté disponible, sin caducidad; cuotas y reinicios durante dos años. No se guardan conversaciones ni se envía el historial.";
+"setup.local_history" = "El historial se guarda solo en este Mac: tokens diarios por proveedor, detalle de modelo y esfuerzo cuando esté disponible, y mediciones del ritmo por hora sin caducidad; cuotas y reinicios durante dos años. No se guardan conversaciones ni se envía el historial.";
 
 "history.title" = "Historial de tokens";
 "history.view" = "Vista del historial";
@@ -166,3 +166,12 @@
 "history.equal_use" = "Mismo uso registrado en ambos proveedores";
 "history.weekends" = "Sábados y domingos";
 "history.period" = "Periodo del historial";
+"pace.last_value" = "Último ≈ %@ pp/h";
+"pace.info_title" = "Ritmo de uso semanal";
+"pace.info_explanation" = "Estima qué tan rápido consumes esta cuota. Por ejemplo, 5 pp/h equivale a pasar de 80% a 75% libre en una hora.";
+"pace.current" = "Lectura reciente";
+"pace.previous" = "Último ritmo con consumo";
+"pace.info_waiting" = "Aún no hay suficientes lecturas recientes.";
+"pace.info_method" = "Se calcula con al menos 30 minutos observados dentro de la última hora. Los reinicios y los huecos largos se excluyen.";
+"pace.info_retention" = "Si no se registra consumo nuevo, conservamos el último ritmo activo con su fecha. Las mediciones se guardan solo en este Mac.";
+"pace.info_saved" = "Mostramos la última medición con consumo mientras llegan datos nuevos.";

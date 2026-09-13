@@ -30,6 +30,11 @@ public struct QuotaPace: Equatable, Sendable {
 }
 
 public enum HistoryAnalytics {
+    public static func sameReset(_ left: Date?, _ right: Date?) -> Bool {
+        guard let left, let right else { return false }
+        return abs(left.timeIntervalSince(right)) <= 1
+    }
+
     public static func pace(
         rows: [HistoryQuotaRow],
         provider: UsageProvider,
@@ -53,7 +58,7 @@ public enum HistoryAnalytics {
                 continue
             }
             if let previous = suffix.last,
-                previous.resetsAt != row.resetsAt || previous.usedPercentage > row.usedPercentage
+                !sameReset(suffix.first?.resetsAt, row.resetsAt) || previous.usedPercentage > row.usedPercentage
                     || row.sampledAt.timeIntervalSince(previous.sampledAt) > 1800
             {
                 suffix.removeAll(keepingCapacity: true)

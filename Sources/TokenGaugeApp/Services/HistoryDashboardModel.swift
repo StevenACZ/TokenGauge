@@ -47,6 +47,8 @@ final class HistoryDashboardModel: ObservableObject {
     @Published private(set) var firstRecordedDay: String?
     @Published private(set) var paces: [String: QuotaPace] = [:]
     private var generation = UUID()
+    private var savedPaces: [String: [QuotaPace]] = [:]
+    private var paceActivity: [String: Bool] = [:]
     private let previewEfforts: [HistoryEffortRow]
     private var cachedReads: [String: ReadResult] = [:]
     private var cacheOrder: [String] = []
@@ -90,12 +92,26 @@ final class HistoryDashboardModel: ObservableObject {
         selectedDayKey = nil
     }
 
-    func pace(provider: UsageProvider, window: QuotaWindow) -> QuotaPace? {
-        Self.usablePace(paces[provider.rawValue + ":" + window.id], for: window)
+    func pace(provider: UsageProvider, window: QuotaWindow, capturedAt: Date?) -> QuotaPace? {
+        let key = provider.rawValue + ":" + window.id
+        guard let current = Self.usablePace(paces[key], for: window, capturedAt: capturedAt)
+        else { return nil }
+        if current.pointsPerHour > 0 && paceActivity[key] != true { return nil }
+        return current
     }
 
-    static func usablePace(_ pace: QuotaPace?, for window: QuotaWindow, now: Date = Date()) -> QuotaPace? {
-        guard let pace, let reset = pace.resetsAt, reset == window.resetsAt, reset > now,
+    func retainedPace(provider: UsageProvider, windowID: String, excluding current: QuotaPace?) -> QuotaPace? {
+        let saved = savedPaces[provider.rawValue + ":" + windowID] ?? []
+        guard let current, current.pointsPerHour > 0 else { return saved.first }
+        return saved.first { $0.sampledAt < current.sampledAt.addingTimeInterval(-0.001) }
+    }
+
+    static func usablePace(_ pace: QuotaPace?, for window: QuotaWindow, capturedAt: Date?, now: Date = Date())
+        -> QuotaPace?
+    {
+        guard let pace, pace.sampledAt.timeIntervalSince1970 == capturedAt?.timeIntervalSince1970,
+            let reset = pace.resetsAt,
+            HistoryAnalytics.sameReset(reset, window.resetsAt), reset > now,
             let used = pace.lastUsedPercentage, window.usedPercentage.isFinite, window.usedPercentage >= used,
             window.durationMinutes == 10080, now.timeIntervalSince(pace.sampledAt) >= 0,
             now.timeIntervalSince(pace.sampledAt) <= 1200
@@ -103,7 +119,10 @@ final class HistoryDashboardModel: ObservableObject {
         return pace
     }
 
-    func load(mode: HistoryMode, revision: Int, previewSnapshots: [ProviderUsageSnapshot]? = nil) async {
+    func load(
+        mode: HistoryMode, revision: Int, previewSnapshots: [ProviderUsageSnapshot]? = nil,
+        paceKeys: [HistoryPaceKey] = []
+    ) async {
         let request = UUID()
         generation = request
         isLoading = true
@@ -117,7 +136,7 @@ final class HistoryDashboardModel: ObservableObject {
             cacheOrder.removeAll(keepingCapacity: true)
             cacheRevision = revision
         }
-        let cacheKey = first + ":" + last
+        let cacheKey = first + ":" + last + ":" + paceKeys.map(\.id).sorted().joined(separator: "|")
         do {
             let result: ReadResult
             if let cached = cachedReads[cacheKey] {
@@ -130,14 +149,16 @@ final class HistoryDashboardModel: ObservableObject {
                 }
                 result = ReadResult(
                     days: Self.makeDays(interval: interval, tokens: rows, efforts: previewEfforts),
-                    quotas: [], first: rows.map(\.day).min())
+                    latest: [], retained: [], first: rows.map(\.day).min())
             } else {
                 result = try await Task.detached(priority: .utility) {
                     let tokens = try UsageHistoryStore.tokenRows(since: first, through: last)
                     let efforts = try UsageHistoryStore.effortRows(since: first, through: last)
                     return ReadResult(
                         days: Self.makeDays(interval: interval, tokens: tokens, efforts: efforts),
-                        quotas: try UsageHistoryStore.quotaRows(since: now.addingTimeInterval(-7200), until: now),
+                        latest: try UsageHistoryStore.recentPaces(
+                            for: paceKeys, limitPerWindow: 1, before: now, matchingLatestQuota: true),
+                        retained: try UsageHistoryStore.recentPaces(for: paceKeys, activeOnly: true, before: now),
                         first: try UsageHistoryStore.bounds().firstDay)
                 }.value
             }
@@ -152,15 +173,9 @@ final class HistoryDashboardModel: ObservableObject {
             firstRecordedDay = result.first
             days = result.days
             loadedMode = mode
-            var values: [String: QuotaPace] = [:]
-            for row in result.quotas where row.durationMinutes == 10080 {
-                let key = row.provider.rawValue + ":" + row.windowID
-                if values[key] == nil {
-                    values[key] = HistoryAnalytics.pace(
-                        rows: result.quotas, provider: row.provider, windowID: row.windowID, now: now)
-                }
-            }
-            paces = values
+            paces = Dictionary(uniqueKeysWithValues: result.latest.map { ($0.key.id, $0.pace) })
+            paceActivity = Dictionary(uniqueKeysWithValues: result.latest.map { ($0.key.id, $0.isActive) })
+            savedPaces = Dictionary(grouping: result.retained, by: { $0.key.id }).mapValues { $0.map(\.pace) }
             if !days.contains(where: { $0.id == selectedDayKey }) { selectedDayKey = nil }
             isLoading = false
         } catch {
@@ -241,7 +256,8 @@ final class HistoryDashboardModel: ObservableObject {
 
     private struct ReadResult: Sendable {
         let days: [HistoryCalendarDay]
-        let quotas: [HistoryQuotaRow]
+        let latest: [HistoryPaceRow]
+        let retained: [HistoryPaceRow]
         let first: String?
     }
 }

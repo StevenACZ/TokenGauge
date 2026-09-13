@@ -47,7 +47,13 @@ struct PopoverView: View {
             .task(id: "\(store.historyMode.rawValue):\(history.offset):\(store.historyRevision)") {
                 let preview =
                     store.historyReadsEnabled ? nil : [store.claude.snapshot, store.codex.snapshot].compactMap { $0 }
-                await history.load(mode: store.historyMode, revision: store.historyRevision, previewSnapshots: preview)
+                let keys = [store.codex.snapshot, store.claude.snapshot].compactMap { $0 }.flatMap { snapshot in
+                    snapshot.windows.filter { $0.durationMinutes == 10080 }.map {
+                        HistoryPaceKey(provider: snapshot.provider, windowID: $0.id)
+                    }
+                }
+                await history.load(
+                    mode: store.historyMode, revision: store.historyRevision, previewSnapshots: preview, paceKeys: keys)
             }
     }
 
@@ -143,7 +149,7 @@ struct PopoverView: View {
                     claudeMenuBarSource: store.claudeMenuBarSource,
                     claudeAutomaticRecovery: store.claudeAutomaticRecovery,
                     showHourlyPace: store.showHourlyPace,
-                    paces: paces(for: provider)
+                    paces: paces(for: provider), previousPaces: previousPaces(for: provider)
                 )
                 .frame(width: ringCardWidth(for: provider))
             }
@@ -151,9 +157,21 @@ struct PopoverView: View {
     }
 
     private func paces(for provider: UsageProvider) -> [String: QuotaPace] {
+        guard store.state(for: provider).status == .ready else { return [:] }
         var result: [String: QuotaPace] = [:]
         for window in store.state(for: provider).snapshot?.windows ?? [] {
-            result[window.id] = history.pace(provider: provider, window: window)
+            result[window.id] = history.pace(
+                provider: provider, window: window, capturedAt: store.state(for: provider).snapshot?.capturedAt)
+        }
+        return result
+    }
+
+    private func previousPaces(for provider: UsageProvider) -> [String: QuotaPace] {
+        let current = paces(for: provider)
+        var result: [String: QuotaPace] = [:]
+        for window in store.state(for: provider).snapshot?.windows ?? [] {
+            result[window.id] = history.retainedPace(
+                provider: provider, windowID: window.id, excluding: current[window.id])
         }
         return result
     }

@@ -26,6 +26,9 @@ enum Theme {
         static let minimumRingUnifiedWidth: CGFloat = 440
         static let quotaRingCellWidth: CGFloat = 80
         static let quotaRingSpacing: CGFloat = 10
+        static let ringSectionSpacing: CGFloat = 10
+        static let ringHeaderSpacing: CGFloat = 14
+        static let ringTitleHeight: CGFloat = 26
         static let minimumRingCardWidth: CGFloat = 155
         static let cardPadding: CGFloat = 12
         static let quotaRingDiameter: CGFloat = 68

@@ -42,36 +42,40 @@ struct QuotaRingWindow: View {
     var historical = false
     var showPace = false
     var pace: QuotaPace?
+    var previousPace: QuotaPace?
+    var alignsTitleRows = true
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: Theme.Layout.ringSectionSpacing) {
             Text(UsageFormatters.windowName(window))
                 .font(.system(size: 10, weight: .medium))
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
-                .frame(height: 26, alignment: .bottom)
+                .frame(height: alignsTitleRows ? Theme.Layout.ringTitleHeight : nil, alignment: .bottom)
                 .help(UsageFormatters.windowHelp(window))
             QuotaRing(
                 remainingPercentage: window.remainingPercentage,
                 tint: Theme.severity(remaining: window.remainingPercentage) ?? tint,
                 historical: historical)
-            Text(UsageFormatters.reset(window.resetsAt))
-                .font(.system(size: 9))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-            if showPace { QuotaPaceLabel(pace: pace) }
-            if let summary = UsageFormatters.modelChips(chips) {
-                Text(summary)
+            VStack(spacing: 4) {
+                Text(UsageFormatters.reset(window.resetsAt))
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(summary)
-                    .monospacedDigit()
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                if showPace { QuotaPaceLabel(pace: pace, previousPace: previousPace) }
+                if let summary = UsageFormatters.modelChips(chips) {
+                    Text(summary)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(summary)
+                        .monospacedDigit()
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: showPace ? .contain : .combine)
     }
 }

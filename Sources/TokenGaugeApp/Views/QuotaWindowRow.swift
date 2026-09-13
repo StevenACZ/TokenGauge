@@ -9,6 +9,7 @@ struct QuotaWindowRow: View {
     var historical = false
     var showPace = false
     var pace: QuotaPace?
+    var previousPace: QuotaPace?
 
     private var valueColor: Color {
         Theme.severity(remaining: window.remainingPercentage) ?? .primary
@@ -58,7 +59,7 @@ struct QuotaWindowRow: View {
                         .layoutPriority(-1)
                 }
             }
-            if showPace { QuotaPaceLabel(pace: pace) }
+            if showPace { QuotaPaceLabel(pace: pace, previousPace: previousPace) }
         }
     }
 }

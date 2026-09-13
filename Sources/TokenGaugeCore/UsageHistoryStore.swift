@@ -30,6 +30,7 @@ public struct HistoryQuotaRow: Equatable, Sendable {
     public let resetsAt: Date?
     public let durationMinutes: Int?
     public let isVerified: Bool
+    public let continuityResetAt: Date?
     public let continuityStartedAt: Date?
 
     public init(
@@ -41,7 +42,8 @@ public struct HistoryQuotaRow: Equatable, Sendable {
         resetsAt: Date?,
         durationMinutes: Int? = nil,
         isVerified: Bool = false,
-        continuityStartedAt: Date? = nil
+        continuityStartedAt: Date? = nil,
+        continuityResetAt: Date? = nil
     ) {
         self.sampledAt = sampledAt
         self.provider = provider
@@ -52,6 +54,7 @@ public struct HistoryQuotaRow: Equatable, Sendable {
         self.durationMinutes = durationMinutes
         self.isVerified = isVerified
         self.continuityStartedAt = continuityStartedAt
+        self.continuityResetAt = continuityResetAt
     }
 }
 
@@ -166,9 +169,15 @@ public enum UsageHistoryStore {
         let handle = try open(url)
         defer { sqlite3_close(handle) }
         try prepareSchema(handle)
+        return try readQuotaRows(handle, provider: provider, since: since, until: until)
+    }
+
+    private static func readQuotaRows(
+        _ handle: OpaquePointer, provider: UsageProvider? = nil, since: Date? = nil, until: Date? = nil
+    ) throws -> [HistoryQuotaRow] {
         let sql = """
             SELECT COALESCE(observed_at, sampled_at), provider, window_id, display_name, used_percentage, resets_at,
-                duration_minutes, verified, continuity_started_at
+                duration_minutes, verified, continuity_started_at, continuity_reset_at
             FROM quota_samples
             WHERE sampled_at >= ?2 AND sampled_at <= ?3 AND (?1 IS NULL OR provider = ?1)
                 AND COALESCE(observed_at, sampled_at) >= ?4 AND COALESCE(observed_at, sampled_at) <= ?5
@@ -194,11 +203,143 @@ public enum UsageHistoryStore {
                     durationMinutes: sqlite3_column_type(statement, 6) == SQLITE_NULL
                         ? nil : Int(sqlite3_column_int64(statement, 6)),
                     isVerified: sqlite3_column_int(statement, 7) == 1,
-                    continuityStartedAt: date(statement, 8)
+                    continuityStartedAt: date(statement, 8), continuityResetAt: date(statement, 9)
                 )
             )
         }
         return rows
+    }
+
+    public static func paceRows(
+        provider: UsageProvider? = nil, windowID: String? = nil, since: Date? = nil, until: Date? = nil,
+        at url: URL = UsagePaths.history()
+    ) throws -> [HistoryPaceRow] {
+        let handle = try open(url)
+        defer { sqlite3_close(handle) }
+        try prepareSchema(handle)
+        return try readPaces(
+            handle,
+            suffix: """
+                WHERE sampled_at >= ?1 AND sampled_at <= ?2
+                    AND (?3 IS NULL OR provider = ?3) AND (?4 IS NULL OR window_id = ?4)
+                ORDER BY sampled_at, provider, window_id
+                """
+        ) { statement in
+            sqlite3_bind_double(statement, 1, since?.timeIntervalSince1970 ?? -Double.greatestFiniteMagnitude)
+            sqlite3_bind_double(statement, 2, until?.timeIntervalSince1970 ?? Double.greatestFiniteMagnitude)
+            bind(statement, 3, provider?.rawValue)
+            bind(statement, 4, windowID)
+        }
+    }
+
+    public static func recentPaces(
+        for keys: [HistoryPaceKey], activeOnly: Bool = false, limitPerWindow: Int = 2,
+        before: Date? = nil, matchingLatestQuota: Bool = false, at url: URL = UsagePaths.history()
+    ) throws -> [HistoryPaceRow] {
+        guard !keys.isEmpty, limitPerWindow > 0 else { return [] }
+        let handle = try open(url)
+        defer { sqlite3_close(handle) }
+        try prepareSchema(handle)
+        var rows: [HistoryPaceRow] = []
+        for key in Set(keys).sorted(by: { $0.id < $1.id }) {
+            let candidates = try readRecentPaces(
+                handle, key: key, activeOnly: activeOnly, limit: limitPerWindow, before: before)
+            if matchingLatestQuota {
+                let quota = try latestQuota(handle, provider: key.provider, windowID: key.windowID)
+                rows += candidates.filter { quota?.isVerified == true && $0.pace.sampledAt == quota?.sampledAt }
+            } else {
+                rows += candidates
+            }
+        }
+        return rows
+    }
+
+    private static func readRecentPaces(
+        _ handle: OpaquePointer, key: HistoryPaceKey, activeOnly: Bool, limit: Int, before: Date?
+    ) throws -> [HistoryPaceRow] {
+        let active = activeOnly ? "AND is_active = 1" : ""
+        return try readPaces(
+            handle,
+            suffix: """
+                WHERE provider = ?1 AND window_id = ?2 AND sampled_at < ?3 \(active)
+                ORDER BY sampled_at DESC LIMIT ?4
+                """
+        ) { statement in
+            bind(statement, 1, key.provider.rawValue)
+            bind(statement, 2, key.windowID)
+            sqlite3_bind_double(statement, 3, before?.timeIntervalSince1970 ?? Double.greatestFiniteMagnitude)
+            sqlite3_bind_int64(statement, 4, Int64(limit))
+        }
+    }
+
+    private static func readPaces(
+        _ handle: OpaquePointer, suffix: String, bindings: (OpaquePointer) -> Void
+    ) throws -> [HistoryPaceRow] {
+        var rows: [HistoryPaceRow] = []
+        try query(
+            handle,
+            """
+            SELECT provider, window_id, sampled_at, display_name, points_per_hour, observed_minutes,
+                resets_at, last_used_percentage, is_active FROM pace_samples
+            \(suffix);
+            """, bindings: bindings
+        ) { statement in
+            guard let provider = UsageProvider(rawValue: text(statement, 0)) else { return }
+            rows.append(
+                HistoryPaceRow(
+                    key: HistoryPaceKey(provider: provider, windowID: text(statement, 1)),
+                    displayName: optionalText(statement, 3),
+                    pace: QuotaPace(
+                        pointsPerHour: sqlite3_column_double(statement, 4),
+                        observedMinutes: sqlite3_column_double(statement, 5),
+                        sampledAt: Date(timeIntervalSince1970: sqlite3_column_double(statement, 2)),
+                        resetsAt: date(statement, 6), lastUsedPercentage: sqlite3_column_double(statement, 7)),
+                    isActive: sqlite3_column_int(statement, 8) == 1))
+        }
+        return rows
+    }
+
+    private static func archivePace(
+        _ handle: OpaquePointer, snapshot: ProviderUsageSnapshot, window: QuotaWindow,
+        previous: HistoryQuotaRow?, now: Date
+    ) throws {
+        guard window.durationMinutes == 10_080 else { return }
+        let rows = try readQuotaRows(
+            handle, provider: snapshot.provider, since: now.addingTimeInterval(-3600), until: now)
+        guard let pace = HistoryAnalytics.pace(rows: rows, provider: snapshot.provider, windowID: window.id, now: now)
+        else { return }
+        let key = HistoryPaceKey(provider: snapshot.provider, windowID: window.id)
+        let increased =
+            previous.map {
+                $0.isVerified && $0.durationMinutes == window.durationMinutes
+                    && HistoryAnalytics.sameReset($0.resetsAt, window.resetsAt)
+                    && window.usedPercentage > $0.usedPercentage
+            } ?? false
+        let activeHistory = try readRecentPaces(handle, key: key, activeOnly: true, limit: 1, before: nil)
+        let seed = pace.pointsPerHour > 0 && activeHistory.isEmpty
+        try run(
+            handle,
+            """
+            INSERT OR IGNORE INTO pace_samples
+                (provider, window_id, sampled_at, display_name, points_per_hour, observed_minutes,
+                    resets_at, last_used_percentage, is_active)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9);
+            """
+        ) { statement in
+            bind(statement, 1, snapshot.provider.rawValue)
+            bind(statement, 2, window.id)
+            sqlite3_bind_double(statement, 3, pace.sampledAt.timeIntervalSince1970)
+            bind(statement, 4, window.displayName)
+            sqlite3_bind_double(statement, 5, pace.pointsPerHour)
+            sqlite3_bind_double(statement, 6, pace.observedMinutes)
+            if let reset = pace.resetsAt {
+                sqlite3_bind_double(statement, 7, reset.timeIntervalSince1970)
+            } else {
+                sqlite3_bind_null(statement, 7)
+            }
+            sqlite3_bind_double(statement, 8, window.usedPercentage)
+            sqlite3_bind_int(statement, 9, increased || seed ? 1 : 0)
+        }
     }
 
     public static func bounds(at url: URL = UsagePaths.history()) throws -> HistoryBounds {
@@ -246,6 +387,14 @@ extension UsageHistoryStore {
                 updated_at INTEGER NOT NULL,
                 PRIMARY KEY (day, provider, model)
             ) WITHOUT ROWID;
+            CREATE TABLE IF NOT EXISTS pace_samples (
+                provider TEXT NOT NULL, window_id TEXT NOT NULL, sampled_at REAL NOT NULL,
+                display_name TEXT, points_per_hour REAL NOT NULL, observed_minutes REAL NOT NULL,
+                resets_at REAL, last_used_percentage REAL, is_active INTEGER NOT NULL,
+                PRIMARY KEY(provider, window_id, sampled_at)
+            ) WITHOUT ROWID;
+            CREATE INDEX IF NOT EXISTS pace_samples_sampled_at ON pace_samples(sampled_at);
+            CREATE INDEX IF NOT EXISTS pace_samples_active ON pace_samples(provider, window_id, is_active, sampled_at);
             CREATE TABLE IF NOT EXISTS effort_events (
                 id TEXT NOT NULL PRIMARY KEY,
                 provider TEXT NOT NULL,
@@ -299,6 +448,9 @@ extension UsageHistoryStore {
             if !columns.contains("continuity_started_at") {
                 try exec(handle, "ALTER TABLE quota_samples ADD COLUMN continuity_started_at REAL;")
             }
+            if !columns.contains("continuity_reset_at") {
+                try exec(handle, "ALTER TABLE quota_samples ADD COLUMN continuity_reset_at REAL;")
+            }
             var version: Int32 = 0
             try query(handle, "PRAGMA user_version;", bindings: { _ in }) { statement in
                 version = sqlite3_column_int(statement, 0)
@@ -342,8 +494,8 @@ extension UsageHistoryStore {
         let sampledAt = bucket(capturedAt)
         let sql = """
             INSERT INTO quota_samples
-                (provider, window_id, sampled_at, display_name, duration_minutes, used_percentage, resets_at, verified, observed_at, continuity_started_at)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?10, ?8, ?9)
+                (provider, window_id, sampled_at, display_name, duration_minutes, used_percentage, resets_at, verified, observed_at, continuity_started_at, continuity_reset_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?10, ?8, ?9, ?11)
             ON CONFLICT(provider, window_id, sampled_at) DO UPDATE SET
                 display_name = excluded.display_name,
                 duration_minutes = excluded.duration_minutes,
@@ -351,21 +503,25 @@ extension UsageHistoryStore {
                 resets_at = excluded.resets_at,
                 verified = excluded.verified,
                 observed_at = excluded.observed_at,
-                continuity_started_at = excluded.continuity_started_at
+                continuity_started_at = excluded.continuity_started_at,
+                continuity_reset_at = excluded.continuity_reset_at
             WHERE excluded.observed_at >= COALESCE(quota_samples.observed_at, quota_samples.sampled_at);
             """
         for window in snapshot.windows {
             let previous = try latestQuota(handle, provider: snapshot.provider, windowID: window.id)
-            guard previous.map({ capturedAt >= $0.sampledAt }) ?? true else { continue }
+            guard previous.map({ capturedAt > $0.sampledAt }) ?? true else { continue }
             let valid = window.usedPercentage.isFinite && (0...100).contains(window.usedPercentage)
             var continuityStartedAt = capturedAt
+            var continuityResetAt = window.resetsAt
             if let previous, previous.isVerified, valid,
                 previous.usedPercentage <= window.usedPercentage,
-                previous.resetsAt == window.resetsAt, previous.durationMinutes == window.durationMinutes,
+                HistoryAnalytics.sameReset(previous.continuityResetAt ?? previous.resetsAt, window.resetsAt),
+                previous.durationMinutes == window.durationMinutes,
                 capturedAt.timeIntervalSince(previous.sampledAt) <= 1800,
                 let boundary = previous.continuityStartedAt
             {
                 continuityStartedAt = boundary
+                continuityResetAt = previous.continuityResetAt ?? previous.resetsAt
             }
             try run(handle, sql) { statement in
                 bind(statement, 1, snapshot.provider.rawValue)
@@ -382,7 +538,13 @@ extension UsageHistoryStore {
                 sqlite3_bind_double(statement, 8, capturedAt.timeIntervalSince1970)
                 sqlite3_bind_double(statement, 9, continuityStartedAt.timeIntervalSince1970)
                 sqlite3_bind_int(statement, 10, valid ? 1 : 0)
+                if let reset = continuityResetAt {
+                    sqlite3_bind_double(statement, 11, reset.timeIntervalSince1970)
+                } else {
+                    sqlite3_bind_null(statement, 11)
+                }
             }
+            try archivePace(handle, snapshot: snapshot, window: window, previous: previous, now: capturedAt)
         }
     }
 
@@ -391,7 +553,7 @@ extension UsageHistoryStore {
     ) throws -> HistoryQuotaRow? {
         let sql = """
             SELECT COALESCE(observed_at, sampled_at), used_percentage, resets_at, duration_minutes,
-                verified, continuity_started_at
+                verified, continuity_started_at, continuity_reset_at
             FROM quota_samples WHERE provider = ?1 AND window_id = ?2 ORDER BY sampled_at DESC LIMIT 1;
             """
         var row: HistoryQuotaRow?
@@ -405,7 +567,8 @@ extension UsageHistoryStore {
                 resetsAt: date(statement, 2),
                 durationMinutes: sqlite3_column_type(statement, 3) == SQLITE_NULL
                     ? nil : Int(sqlite3_column_int64(statement, 3)),
-                isVerified: sqlite3_column_int(statement, 4) == 1, continuityStartedAt: date(statement, 5))
+                isVerified: sqlite3_column_int(statement, 4) == 1, continuityStartedAt: date(statement, 5),
+                continuityResetAt: date(statement, 6))
         }
         return row
     }

@@ -13,6 +13,7 @@ struct ProviderCard: View {
     var claudeAutomaticRecovery = false
     var showHourlyPace = false
     var paces: [String: QuotaPace] = [:]
+    var previousPaces: [String: QuotaPace] = [:]
 
     private var tint: Color {
         provider == .claude ? Theme.claude : Theme.codex
@@ -32,7 +33,10 @@ struct ProviderCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: panelStyle == .compact ? 6 : 10) {
+        VStack(
+            alignment: .leading,
+            spacing: panelStyle == .rings ? Theme.Layout.ringHeaderSpacing : (panelStyle == .compact ? 6 : 10)
+        ) {
             if compact {
                 compactHeader
             } else {
@@ -67,13 +71,15 @@ struct ProviderCard: View {
             if visibleWindows.count == 1, let window = visibleWindows.first {
                 QuotaRingWindow(
                     window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown,
-                    showPace: canShowPace(window), pace: paces[window.id])
+                    showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id],
+                    alignsTitleRows: false)
             } else {
                 QuotaRingGrid {
                     ForEach(visibleWindows) { window in
                         QuotaRingWindow(
                             window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown,
-                            showPace: canShowPace(window), pace: paces[window.id])
+                            showPace: canShowPace(window), pace: paces[window.id],
+                            previousPace: previousPaces[window.id])
                     }
                 }
             }
@@ -83,7 +89,7 @@ struct ProviderCard: View {
                 if panelStyle == .compact {
                     CompactQuotaWindowRow(
                         window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown,
-                        showPace: canShowPace(window), pace: paces[window.id])
+                        showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id])
                 } else {
                     QuotaWindowRow(
                         window: window,
@@ -91,7 +97,7 @@ struct ProviderCard: View {
                         chips: chips(for: window),
                         prominent: index == 0 && !showsLastKnown,
                         historical: showsLastKnown,
-                        showPace: canShowPace(window), pace: paces[window.id]
+                        showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id]
                     )
                 }
             }
@@ -99,7 +105,7 @@ struct ProviderCard: View {
     }
 
     private func canShowPace(_ window: QuotaWindow) -> Bool {
-        showHourlyPace && state.status == .ready && window.durationMinutes == 10080
+        showHourlyPace && (state.status == .ready || showsLastKnown) && window.durationMinutes == 10080
     }
 
     private var compactHeader: some View {
@@ -127,8 +133,9 @@ struct ProviderCard: View {
     }
 
     private var header: some View {
-        HStack(spacing: 5) {
-            if showProviderTitle {
+        let showsTitle = showProviderTitle || panelStyle == .rings
+        return HStack(spacing: 5) {
+            if showsTitle {
                 ProviderLogo(provider: provider, size: 13)
                 Text("provider.\(provider.rawValue)".localized).font(.system(size: 11, weight: .semibold))
                 Spacer(minLength: 4)
@@ -137,7 +144,7 @@ struct ProviderCard: View {
             Text(statusSubtitle)
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
-            if !showProviderTitle { Spacer(minLength: 4) }
+            if !showsTitle { Spacer(minLength: 4) }
             if state.status == .ready, let credits = state.snapshot?.availableResetCredits, credits > 0 {
                 Text(UsageFormatters.resetCredits(credits))
                     .font(.system(size: 9, weight: .medium))

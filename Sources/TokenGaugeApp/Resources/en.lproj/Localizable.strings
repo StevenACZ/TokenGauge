@@ -135,7 +135,7 @@
 "settings.animate_changes" = "Animate changes";
 "settings.animate_changes_help" = "Brief transitions when data or views change. No continuous animation; respects Reduce Motion.";
 
-"setup.local_history" = "History stays on this Mac: daily tokens by provider, with model and reasoning effort detail when available, have no expiry; quota and reset readings are kept for two years. Conversations are not stored and history is never uploaded.";
+"setup.local_history" = "History stays on this Mac: daily tokens by provider, available model and effort detail, and hourly pace measurements have no expiry; quota and reset readings are kept for two years. Conversations are not stored and history is never uploaded.";
 
 "history.title" = "Token history";
 "history.view" = "History view";
@@ -166,3 +166,12 @@
 "history.equal_use" = "Equal recorded usage for both providers";
 "history.weekends" = "Saturdays and Sundays";
 "history.period" = "History period";
+"pace.last_value" = "Last ≈ %@ pp/h";
+"pace.info_title" = "Weekly usage pace";
+"pace.info_explanation" = "Estimates how quickly you use this allowance. For example, 5 pp/h means going from 80% to 75% remaining in one hour.";
+"pace.current" = "Recent reading";
+"pace.previous" = "Last pace with usage";
+"pace.info_waiting" = "There are not enough recent readings yet.";
+"pace.info_method" = "Calculated over at least 30 observed minutes within the last hour. Resets and long gaps are excluded.";
+"pace.info_retention" = "When no new usage is recorded, the last active pace stays available with its date. Measurements are stored only on this Mac.";
+"pace.info_saved" = "Showing the last measurement with usage while waiting for new data.";

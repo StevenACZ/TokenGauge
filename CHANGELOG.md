@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Navigable weekly history and a yearly activity calendar, with local model and reasoning effort token details.
 - Provider-colored calendar days, distinct month blocks, and highlighted Saturday/Sunday rows.
-- Optional weekly quota pace estimates based on verified readings, with reset and observation-gap handling.
+- Optional weekly quota pace estimates with a clickable explanation, dated recent and previous readings, and local persistence across idle periods and app restarts.
+- Consistent spacing between quota titles, rings, and reading details in individual and Unified cards.
 
 - Optional compact and ring quota panels that adapt to visible limits, plus independent mini-bar and mini-ring menu indicators with integrated provider logos.
 - Appearance settings and a panel view picker, with brief optional transitions that respect Reduce Motion.

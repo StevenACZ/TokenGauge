@@ -130,6 +130,21 @@ final class ScreenshotTests: XCTestCase {
                     to: output.appendingPathComponent("history-\(historyMode.rawValue)-\(style.rawValue).png"))
             }
         }
+        let previousPace = QuotaPace(
+            pointsPerHour: 4.9, observedMinutes: 45, sampledAt: now.addingTimeInterval(-86400),
+            resetsAt: now.addingTimeInterval(86400), lastUsedPercentage: 30)
+        let currentPace = QuotaPace(
+            pointsPerHour: 3.2, observedMinutes: 40, sampledAt: now,
+            resetsAt: now.addingTimeInterval(86400), lastUsedPercentage: 35)
+        for (name, display) in [
+            ("current", QuotaPaceDisplay(current: currentPace, previous: previousPace)),
+            ("saved", QuotaPaceDisplay(current: nil, previous: previousPace)),
+            ("waiting", QuotaPaceDisplay(current: nil, previous: nil)),
+        ] {
+            try render(
+                QuotaPaceDetailsView(display: display),
+                to: output.appendingPathComponent("pace-info-\(name).png"))
+        }
         let year = HistoryDashboardModel.interval(mode: .calendar, offset: 0, now: now)
         let colorfulDays = HistoryDashboardModel.makeDays(interval: year, tokens: [], efforts: []).enumerated().map {
             index, day in

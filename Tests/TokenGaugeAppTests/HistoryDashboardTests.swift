@@ -75,12 +75,77 @@ final class HistoryDashboardTests: XCTestCase {
                 id: "weekly", usedPercentage: used, resetsAt: reset,
                 durationMinutes: 10080, displayName: nil)
         }
-        XCTAssertNotNil(HistoryDashboardModel.usablePace(pace, for: window(21, reset: reset), now: now))
-        XCTAssertNil(HistoryDashboardModel.usablePace(pace, for: window(19, reset: reset), now: now))
+        XCTAssertNotNil(
+            HistoryDashboardModel.usablePace(pace, for: window(21, reset: reset), capturedAt: now, now: now))
+        XCTAssertNotNil(
+            HistoryDashboardModel.usablePace(
+                pace, for: window(21, reset: reset.addingTimeInterval(0.6)), capturedAt: now, now: now))
         XCTAssertNil(
-            HistoryDashboardModel.usablePace(pace, for: window(21, reset: reset.addingTimeInterval(86400)), now: now))
+            HistoryDashboardModel.usablePace(
+                pace, for: window(21, reset: reset.addingTimeInterval(2)), capturedAt: now, now: now))
+        XCTAssertNil(HistoryDashboardModel.usablePace(pace, for: window(19, reset: reset), capturedAt: now, now: now))
         XCTAssertNil(
-            HistoryDashboardModel.usablePace(pace, for: window(21, reset: reset), now: now.addingTimeInterval(1201)))
+            HistoryDashboardModel.usablePace(
+                pace, for: window(21, reset: reset.addingTimeInterval(86400)), capturedAt: now, now: now))
+        XCTAssertNil(
+            HistoryDashboardModel.usablePace(
+                pace, for: window(21, reset: reset), capturedAt: now, now: now.addingTimeInterval(1201)))
+        XCTAssertNil(
+            HistoryDashboardModel.usablePace(
+                pace, for: window(21, reset: reset), capturedAt: now.addingTimeInterval(1), now: now))
+        XCTAssertNil(
+            HistoryDashboardModel.usablePace(pace, for: window(21, reset: reset), capturedAt: nil, now: now))
+    }
+
+    func testCurrentCaptureMatchesItsSQLiteTimestampAfterEpochRounding() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let database = directory.appendingPathComponent("history.sqlite")
+        let now = Date(timeIntervalSinceReferenceDate: 800_000_000.0000001)
+        let reset = now.addingTimeInterval(86400)
+        var latest: QuotaWindow!
+        for index in 0...2 {
+            let capturedAt = now.addingTimeInterval(Double(index - 2) * 900)
+            let window = QuotaWindow(
+                id: "weekly", usedPercentage: Double(10 + index), resetsAt: reset,
+                durationMinutes: 10080, displayName: nil)
+            latest = window
+            let snapshot = ProviderUsageSnapshot(
+                provider: .codex, windows: [window], dailyUsage: [],
+                summary: nil, availableResetCredits: nil, creditBalance: nil, capturedAt: capturedAt)
+            try UsageHistoryStore.record(snapshot, at: database, now: capturedAt)
+        }
+        let persisted = try XCTUnwrap(
+            UsageHistoryStore.recentPaces(
+                for: [HistoryPaceKey(provider: .codex, windowID: "weekly")],
+                matchingLatestQuota: true, at: database
+            ).first?.pace)
+        XCTAssertNotEqual(persisted.sampledAt, now)
+        XCTAssertNotNil(HistoryDashboardModel.usablePace(persisted, for: latest, capturedAt: now, now: now))
+        XCTAssertNil(
+            HistoryDashboardModel.usablePace(persisted, for: latest, capturedAt: now.addingTimeInterval(1), now: now))
+    }
+
+    func testPacePreservesLastActiveValueDuringIdleAndResumesWithNewUsage() {
+        let now = Date()
+        func reading(_ rate: Double, at date: Date) -> QuotaPace {
+            QuotaPace(
+                pointsPerHour: rate, observedMinutes: 45, sampledAt: date,
+                resetsAt: now.addingTimeInterval(86400), lastUsedPercentage: 20)
+        }
+        let previous = reading(5, at: now.addingTimeInterval(-86400))
+        let waiting = QuotaPaceDisplay(current: nil, previous: previous)
+        XCTAssertTrue(waiting.isHistorical)
+        XCTAssertEqual(waiting.value?.sampledAt, previous.sampledAt)
+        let idle = QuotaPaceDisplay(current: reading(0, at: now), previous: previous)
+        XCTAssertTrue(idle.isHistorical)
+        XCTAssertEqual(idle.value?.pointsPerHour, 5)
+        let resumed = QuotaPaceDisplay(current: reading(3, at: now), previous: previous)
+        XCTAssertFalse(resumed.isHistorical)
+        XCTAssertEqual(resumed.value?.pointsPerHour, 3)
+        XCTAssertEqual(resumed.previous?.sampledAt, previous.sampledAt)
+        XCTAssertEqual(QuotaPaceDisplay(current: reading(0, at: now), previous: nil).value?.pointsPerHour, 0)
+        XCTAssertNil(QuotaPaceDisplay(current: nil, previous: nil).value)
     }
 
     func testModeCacheInvalidatesWhenHistoryRevisionChanges() async {

@@ -61,7 +61,7 @@ final class QuotaPanelRenderingTests: XCTestCase {
             for (count, width) in [(2, CGFloat(194)), (3, CGFloat(290))] {
                 let card = ProviderCard(
                     provider: .claude, state: state(count: count), panelStyle: .rings, showProviderTitle: true)
-                let bitmap = try render(card.frame(width: width), maximumHeight: 195)
+                let bitmap = try render(card.frame(width: width), maximumHeight: 220)
                 XCTAssertEqual(bitmap.size.width, width, accuracy: 1)
             }
         }
