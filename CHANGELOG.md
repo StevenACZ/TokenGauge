@@ -7,20 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-13
+
 ### Added
 
 - Navigable weekly history and a yearly activity calendar, with local model and reasoning effort token details.
 - Provider-colored calendar days, distinct month blocks, and highlighted Saturday/Sunday rows.
 - Optional weekly quota pace estimates with a clickable explanation, dated recent and previous readings, and local persistence across idle periods and app restarts.
-- Consistent spacing between quota titles, rings, and reading details in individual and Unified cards.
-- The history Today badge appears only on the current date, with a stable, animated summary when changing selection.
-
 - Optional compact and ring quota panels that adapt to visible limits, plus independent mini-bar and mini-ring menu indicators with integrated provider logos.
 - Appearance settings and a panel view picker, with brief optional transitions that respect Reduce Motion.
 - Optional automatic Claude reconnection after session expiry, with one-time consent, bounded retries, and no model requests.
 
+### Changed
+
+- Consistent spacing between quota titles, rings, and reading details in individual and Unified cards.
+
 ### Fixed
 
+- Show the history Today badge only on the current date, with a stable, animated summary when changing selection.
 - Keep local quota history tied to verified readings and preserve explicitly reported zero-token days without inventing missing observations.
 - Preserve clearly marked last-known Claude limits during temporary connection failures, including model weekly usage.
 - Keep Codex readings responsive while Claude reconnects, and never substitute a different quota for a selected model limit.

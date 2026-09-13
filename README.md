@@ -9,15 +9,17 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
 </p>
 
-TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Codex quota you have left. Check reset times, compare seven days of activity, and keep a private local history without opening a terminal.
+TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Codex quota you have left. Check reset times, browse weekly and yearly activity, and keep a private local history without opening a terminal.
 
 <p align="center">
-  <img src="docs/images/unified.png" width="560" alt="Unified TokenGauge view with separate Codex and Claude quotas and activity">
+  <img src="docs/images/rings-current.png" width="440" alt="Unified ring view with Codex weekly quota, Claude session and model weekly quota">
 </p>
 <p align="center"><sub>App views rendered with synthetic demonstration data.</sub></p>
 
 <details>
-<summary>Individual provider views and Settings</summary>
+<summary>Classic panels, yearly history, and Settings</summary>
+<p align="center"><img src="docs/images/history-calendar-rings.png" width="440" alt="Yearly local activity calendar beneath the ring quota panel"></p>
+<p align="center"><img src="docs/images/unified.png" width="560" alt="Classic Unified panel with separate provider quotas"></p>
 <p align="center">
   <img src="docs/images/panel.png" width="340" alt="Codex view showing only Codex quota and token activity">
   <img src="docs/images/claude.png" width="340" alt="Claude view showing only Claude quota and token activity">

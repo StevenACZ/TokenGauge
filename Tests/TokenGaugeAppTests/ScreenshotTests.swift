@@ -113,6 +113,7 @@ final class ScreenshotTests: XCTestCase {
             }
         }
 
+        LocalizationManager.shared.language = .english
         for historyMode in [HistoryMode.week, .calendar] {
             store.historyMode = historyMode
             let efforts = ["medium", "high", "xhigh"].enumerated().map { index, effort in
