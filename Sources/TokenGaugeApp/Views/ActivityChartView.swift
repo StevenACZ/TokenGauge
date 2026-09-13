@@ -57,11 +57,14 @@ struct ActivityChartData {
 struct ActivityChartView: View {
     private let data: ActivityChartData
     @State private var selectedKey: String
+    private let compact: Bool
+    private var barHeight: CGFloat { Theme.Layout.activityChartHeight }
 
     init(
         claude: ProviderUsageSnapshot?, codex: ProviderUsageSnapshot?,
-        providers: [UsageProvider] = [.claude, .codex]
+        providers: [UsageProvider] = [.claude, .codex], compact: Bool = false
     ) {
+        self.compact = compact
         let data = ActivityChartData(claude: claude, codex: codex, providers: providers)
         self.data = data
         _selectedKey = State(initialValue: data.days.last?.id ?? "")
@@ -91,7 +94,7 @@ struct ActivityChartView: View {
                                         tint: provider == .claude ? Theme.claude : Theme.codex)
                                 }
                             }
-                            .frame(height: 44, alignment: .bottom)
+                            .frame(height: barHeight, alignment: .bottom)
                             .frame(maxWidth: .infinity)
                             .overlay(alignment: .bottom) {
                                 Rectangle().fill(Color.primary.opacity(0.09)).frame(height: 1)
@@ -140,7 +143,7 @@ struct ActivityChartView: View {
     private func bar(tokens: Int, tint: Color) -> some View {
         RoundedRectangle(cornerRadius: 2)
             .fill(tint)
-            .frame(width: 9, height: 44 * Double(tokens) / Double(data.maximumTokens))
+            .frame(width: compact ? 7 : 9, height: barHeight * Double(tokens) / Double(data.maximumTokens))
             .accessibilityHidden(true)
     }
 

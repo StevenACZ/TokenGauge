@@ -9,15 +9,17 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
 </p>
 
-TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Codex quota you have left. Check reset times, compare seven days of activity, and keep a private local history without opening a terminal.
+TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Codex quota you have left. Check reset times, browse weekly and yearly activity, and keep a private local history without opening a terminal.
 
 <p align="center">
-  <img src="docs/images/unified.png" width="560" alt="Unified TokenGauge view with separate Codex and Claude quotas and activity">
+  <img src="docs/images/rings-current.png" width="440" alt="Unified ring view with Codex weekly quota, Claude session and model weekly quota">
 </p>
 <p align="center"><sub>App views rendered with synthetic demonstration data.</sub></p>
 
 <details>
-<summary>Individual provider views and Settings</summary>
+<summary>Classic panels, yearly history, and Settings</summary>
+<p align="center"><img src="docs/images/history-calendar-rings.png" width="440" alt="Yearly local activity calendar beneath the ring quota panel"></p>
+<p align="center"><img src="docs/images/unified.png" width="560" alt="Classic Unified panel with separate provider quotas"></p>
 <p align="center">
   <img src="docs/images/panel.png" width="340" alt="Codex view showing only Codex quota and token activity">
   <img src="docs/images/claude.png" width="340" alt="Claude view showing only Claude quota and token activity">
@@ -28,10 +30,13 @@ TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Code
 ## At a glance
 
 - **Three views:** Codex, Claude, or Unified. Individual views show only that provider; Unified puts both quota cards side by side.
-- **A readable menu bar:** one provider’s logo and balance, or both independent balances in Unified. Choose Large, Medium, or Small in Settings.
+- **Flexible layouts:** keep the classic panel, choose compact rows, or use separate quota rings. Switch from the panel header or Settings → Appearance.
+- **A readable menu bar:** independently choose percentages, mini bars, or mini rings, with Large, Medium, or Small sizing. Exact percentages remain available on hover and in the panel.
+- **Quiet by design:** optional brief transitions respect Reduce Motion; menu indicators redraw only when their data or appearance changes.
 - **Separate limits:** general weekly quota and additional provider windows stay separate. Hide Luna weekly reserve in Settings if you do not use it.
-- **Seven days of activity:** daily Claude and Codex token totals, with hover or click details. Today stays highlighted; days with one active provider show a centered bar.
-- **Local history:** aggregated usage survives trimmed provider logs.
+- **Browsable activity:** rolling seven days, Monday-based weeks with previous/next navigation, or a yearly contribution calendar. Hover or select a day to inspect totals and available model/effort detail. In Unified, calendar colors show the provider with more recorded tokens, and intensity shows combined daily usage; ties use both colors. Separate month blocks and highlighted weekend rows make the year easier to scan.
+- **Local history:** SQLite preserves daily totals and observed model/reasoning effort metadata after provider logs are trimmed. Missing days remain distinct from recorded zero usage.
+- **Hourly quota pace:** an optional estimate in percentage points per hour for each weekly limit, based on verified recent readings, with a short explanation and dated last-active measurement.
 - **English and Spanish:** follows your system language initially, with an explicit language choice in Settings.
 - **Native updates:** daily checks, an inline install action, and manual checks in About.
 - **No telemetry, ads, or model requests.**
@@ -61,13 +66,15 @@ Updates use [Sparkle](https://sparkle-project.org), a signed ZIP, and an EdDSA-s
 
 The menu bar shows the selected provider’s current balance. Codex uses its general quota; a separate Luna reserve is displayed independently and is never added to it. Claude uses its tightest scoped weekly limit, falling back to the general weekly limit. Token activity totals are not quota percentages. The current Codex account protocol supplies daily tokens, not daily turn counts; the chart labels its unit explicitly. Provider windows and account availability depend on your plan and may change upstream.
 
+Hourly pace uses at least three verified samples spanning 30 minutes in the last hour. It restarts after quota resets, decreases, or long observation gaps. The info button explains the estimate and shows dated recent and previous measurements. During inactivity or after reopening the app, the last active pace remains explicitly labeled as historical until a new valid measurement with consumption is available. Pace observations, including idle readings, are stored locally without expiry for future daily comparisons. For example, 5 pp/h means an estimated five percentage points of that weekly allowance per hour. Model/effort token totals describe locally observed activity; they do not allocate quota percentages to Medium, High, XHigh, or other efforts. Daily totals use the largest observed provider or local total, without adding overlapping sources. Local effort detail is collected from the last seven days and retained thereafter; unavailable older detail cannot be reconstructed.
+
 If a live read fails, historical balances are not presented as current quota. Authentication required, denied access, stale data, and a locally marked cancelled subscription remain distinct. Cancellation is not inferred from inactivity or a lost session. Each provider has an independent manual cancellation switch in Settings. It preserves local history and your selected view; it does not cancel billing. Tracking resumes only after live access and newly observed activity are confirmed.
 
 ## Privacy
 
 Codex metrics come from the local `codex app-server` account methods. Claude quota comes from its read-only usage endpoint, using the existing credential only in memory. This integration depends on provider behavior and is not an official provider product.
 
-Local activity scans decode timestamps, message IDs, model identifiers, and numeric counters. Prompt and response fields are not decoded, logged, or persisted. Only normalized metrics and aggregate history are saved under `~/Library/Application Support/TokenGauge`, with user-only permissions. No usage is sent to a TokenGauge server. Provider quota requests contact the provider, and update checks contact GitHub.
+Local activity scans decode timestamps, message IDs, model identifiers, reasoning effort, and numeric counters. Prompt and response fields are not decoded, logged, or persisted. Only normalized metrics and aggregate history are saved under `~/Library/Application Support/TokenGauge`, with user-only permissions. No usage is sent to a TokenGauge server. Provider quota requests contact the provider, and update checks contact GitHub.
 
 See [SECURITY.md](SECURITY.md) for reporting and update-channel details.
 
