@@ -147,12 +147,15 @@ final class HistoryCalendarCanvas: NSView {
                 x: sidePadding + section.originX - 3, y: Theme.Layout.historyCalendarGridTop - 3,
                 width: section.width + 6,
                 height: Theme.Layout.historyCalendarHeight - Theme.Layout.historyCalendarGridTop + 1)
-            let border = NSBezierPath(roundedRect: frame, xRadius: 4, yRadius: 4)
-            NSColor.labelColor.withAlphaComponent(0.018).setFill()
-            border.fill()
-            NSColor.labelColor.withAlphaComponent(0.12).setStroke()
-            border.lineWidth = 0.5
-            border.stroke()
+            if section.originX > 0 {
+                let x = sidePadding + section.originX - Theme.Layout.historyMonthGap / 2
+                let divider = NSBezierPath()
+                divider.move(to: NSPoint(x: x, y: frame.minY + 4))
+                divider.line(to: NSPoint(x: x, y: frame.maxY - 4))
+                divider.lineWidth = 0.5
+                NSColor.labelColor.withAlphaComponent(0.08).setStroke()
+                divider.stroke()
+            }
             NSColor.labelColor.withAlphaComponent(0.04).setFill()
             NSBezierPath(
                 roundedRect: NSRect(

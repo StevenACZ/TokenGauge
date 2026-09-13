@@ -161,7 +161,9 @@ final class ScreenshotTests: XCTestCase {
     }
 
     @discardableResult
-    private func render(_ content: some View, to output: URL, maximumHeight: CGFloat = 500) throws -> NSSize {
+    private func render(_ content: some View, to output: URL, maximumHeight: CGFloat = Theme.Layout.maximumPanelHeight)
+        throws -> NSSize
+    {
         let application = NSApplication.shared
         let previousAppearance = application.appearance
         application.appearance = NSAppearance(named: .darkAqua)

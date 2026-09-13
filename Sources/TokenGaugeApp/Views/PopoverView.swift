@@ -41,18 +41,14 @@ struct PopoverView: View {
     }
 
     var body: some View {
-        ViewThatFits(in: .vertical) {
-            content
-            ScrollView { content }.scrollIndicators(.never).frame(height: 500)
-        }
-        .frame(width: panelWidth)
-        .frame(maxHeight: 500)
-        .fixedSize(horizontal: false, vertical: true)
-        .task(id: "\(store.historyMode.rawValue):\(history.offset):\(store.historyRevision)") {
-            let preview =
-                store.historyReadsEnabled ? nil : [store.claude.snapshot, store.codex.snapshot].compactMap { $0 }
-            await history.load(mode: store.historyMode, revision: store.historyRevision, previewSnapshots: preview)
-        }
+        content
+            .frame(width: panelWidth)
+            .fixedSize(horizontal: false, vertical: true)
+            .task(id: "\(store.historyMode.rawValue):\(history.offset):\(store.historyRevision)") {
+                let preview =
+                    store.historyReadsEnabled ? nil : [store.claude.snapshot, store.codex.snapshot].compactMap { $0 }
+                await history.load(mode: store.historyMode, revision: store.historyRevision, previewSnapshots: preview)
+            }
     }
 
     private var content: some View {

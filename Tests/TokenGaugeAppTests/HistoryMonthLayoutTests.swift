@@ -46,7 +46,7 @@ final class HistoryMonthLayoutTests: XCTestCase {
         let firstFebruary = layout.cellRect(february.indices.lowerBound)
         XCTAssertEqual(february.leadingDays, 3)
         XCTAssertEqual(firstFebruary.minY, Theme.Layout.historyCalendarGridTop + 36)
-        XCTAssertEqual(firstFebruary.minX, february.originX + 6)
+        XCTAssertEqual(firstFebruary.minX, february.originX)
         XCTAssertEqual(february.originX - january.originX - january.width, Theme.Layout.historyMonthGap)
         XCTAssertGreaterThan(firstFebruary.minX, lastJanuary.maxX)
         XCTAssertNil(layout.index(at: CGPoint(x: february.originX + 4.5, y: Theme.Layout.historyCalendarGridTop + 4.5)))
@@ -70,8 +70,19 @@ final class HistoryMonthLayoutTests: XCTestCase {
         XCTAssertNil(layout.index(at: CGPoint(x: 4.5, y: 10)))
     }
 
+    func testEveryMonthUsesTheSameInnerHorizontalMargins() {
+        for year in [2021, 2024, 2026] {
+            let layout = HistoryMonthLayout(days: days(in: year), calendar: calendar)
+            for section in layout.sections {
+                let frames = section.indices.map { layout.cellRect($0) }
+                XCTAssertEqual(frames.map(\.minX).min(), section.originX)
+                XCTAssertEqual(frames.map(\.maxX).max(), section.originX + section.width)
+            }
+        }
+    }
+
     func testEveryActualDayRoundTripsWithinSevenRows() {
-        for year in [2023, 2024, 2026] {
+        for year in [2021, 2023, 2024, 2026] {
             let days = days(in: year)
             let layout = HistoryMonthLayout(days: days, calendar: calendar)
             for index in days.indices {

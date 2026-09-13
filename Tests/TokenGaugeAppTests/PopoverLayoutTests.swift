@@ -48,7 +48,7 @@ final class PopoverLayoutTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(view.fittingSize.width, Theme.Layout.compactPanelWidth, file: file, line: line)
         XCTAssertLessThanOrEqual(view.fittingSize.width, Theme.Layout.unifiedPanelWidth, file: file, line: line)
         XCTAssertLessThanOrEqual(
-            view.fittingSize.height, 500,
+            view.fittingSize.height, Theme.Layout.maximumPanelHeight,
             "\(LocalizationManager.shared.language.rawValue) / \(store.displayMode.rawValue) / \(store.panelStyle.rawValue) / \(UpdateManager.shared.phase)",
             file: file, line: line)
     }

@@ -9,6 +9,7 @@ enum Theme {
         static let menuBarFontSize: CGFloat = 13.5
         static let menuRingGap: CGFloat = 8
         static let panelWidth: CGFloat = 340
+        static let maximumPanelHeight: CGFloat = 640
         static let unifiedPanelWidth: CGFloat = 560
         static let providerMaxHeight: CGFloat = 182
         static let compactProviderMaxHeight: CGFloat = 230

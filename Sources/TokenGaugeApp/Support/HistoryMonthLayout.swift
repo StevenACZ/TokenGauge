@@ -22,15 +22,15 @@ struct HistoryMonthLayout {
             var end = start + 1
             while end < days.count, calendar.isDate(days[end].date, equalTo: date, toGranularity: .month) { end += 1 }
             let leading = (calendar.component(.weekday, from: date) + 5) % 7
-            let occupiedWidth = CGFloat((leading + end - start + 6) / 7) * 12 - 3
+            let columns = (leading + end - start + 6) / 7
             let width = Theme.Layout.historyMonthWidth
-            let inset = (width - occupiedWidth) / 2
+            let columnStep = columns > 1 ? (width - 9) / CGFloat(columns - 1) : 0
             sections.append(
                 Section(date: date, originX: origin, width: width, indices: start..<end, leadingDays: leading))
             cells += (start..<end).map { index in
                 let position = leading + index - start
                 return CGRect(
-                    x: origin + inset + CGFloat(position / 7) * 12,
+                    x: origin + CGFloat(position / 7) * columnStep,
                     y: Theme.Layout.historyCalendarGridTop + CGFloat(position % 7) * 12, width: 9, height: 9)
             }
             origin += width + Theme.Layout.historyMonthGap
