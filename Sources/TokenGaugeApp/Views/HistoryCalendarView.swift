@@ -49,7 +49,8 @@ final class HistoryCalendarScrollView: NSScrollView {
         guard width > 0 else { return }
         let oldPadding = calendar.sidePadding
         calendar.sidePadding = max(0, (width - 9) / 2)
-        calendar.setFrameSize(NSSize(width: calendar.gridWidth + 2 * calendar.sidePadding, height: 96))
+        calendar.setFrameSize(
+            NSSize(width: calendar.gridWidth + 2 * calendar.sidePadding, height: Theme.Layout.historyCalendarHeight))
         if needsCenter, let index = calendar.focusIndex {
             contentView.scroll(to: NSPoint(x: calendar.cellRect(index).midX - width / 2, y: 0))
             needsCenter = false
@@ -85,11 +86,12 @@ final class HistoryCalendarCanvas: NSView {
     private var lastMousePosition: NSPoint?
     private var elements: [HistoryCalendarAccessibilityDay] = []
     private var descriptions: [String] = []
-    private var months: [(Int, String)] = []
+    private var monthLayout = HistoryMonthLayout(days: [])
+    private var months: [(HistoryMonthLayout.Section, String)] = []
+    private var fills: [[NSColor]] = []
     var sidePadding: CGFloat = 0 { didSet { if sidePadding != oldValue { tooltipsDirty = true; needsDisplay = true } } }
     private var tooltipsDirty = true
-    private var leadingDays = 0
-    var gridWidth: CGFloat { max(9, CGFloat((leadingDays + days.count + 6) / 7) * 12 - 3) }
+    var gridWidth: CGFloat { max(9, monthLayout.gridWidth) }
     override var isFlipped: Bool { true }
     private var accent: NSColor { NSColor(providers == [.claude] ? Theme.claude : Theme.codex) }
     var focusIndex: Int? {
@@ -116,13 +118,16 @@ final class HistoryCalendarCanvas: NSView {
             locale = language
             today = newToday
             maximum = max(1, days.compactMap { $0.total(for: providers) }.max() ?? 0)
-            leadingDays = days.first.map { (Calendar.current.component(.weekday, from: $0.date) + 5) % 7 } ?? 0
+            monthLayout = HistoryMonthLayout(days: days)
             descriptions = days.map(description)
-            months = days.indices.compactMap { index in
-                guard Calendar.current.component(.day, from: days[index].date) == 1 else { return nil }
-                return (
-                    (index + leadingDays) / 7, days[index].date.formatted(.dateTime.month(.abbreviated).locale(locale))
-                )
+            months = monthLayout.sections.map {
+                ($0, $0.date.formatted(.dateTime.month(.wide).locale(locale)).capitalized(with: locale))
+            }
+            fills = days.map { day in
+                let opacity = 0.25 + 0.75 * Double(day.total(for: providers) ?? 0) / Double(maximum)
+                return day.dominantProviders(for: providers).map { provider in
+                    NSColor(provider == .codex ? Theme.codex : Theme.claude).withAlphaComponent(opacity)
+                }
             }
             elements = days.indices.map { HistoryCalendarAccessibilityDay(canvas: self, index: $0) }
             setAccessibilityElement(false)
@@ -133,20 +138,38 @@ final class HistoryCalendarCanvas: NSView {
     }
 
     func cellRect(_ index: Int) -> NSRect {
-        let position = index + leadingDays
-        return NSRect(
-            x: sidePadding + CGFloat(position / 7) * 12, y: 15 + CGFloat(position % 7) * 12, width: 9, height: 9)
+        monthLayout.cellRect(index).offsetBy(dx: sidePadding, dy: 0)
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        for (week, label) in months {
+        for (section, label) in months {
+            let frame = NSRect(
+                x: sidePadding + section.originX - 3, y: Theme.Layout.historyCalendarGridTop - 3,
+                width: section.width + 6,
+                height: Theme.Layout.historyCalendarHeight - Theme.Layout.historyCalendarGridTop + 1)
+            let border = NSBezierPath(roundedRect: frame, xRadius: 4, yRadius: 4)
+            NSColor.labelColor.withAlphaComponent(0.018).setFill()
+            border.fill()
+            NSColor.labelColor.withAlphaComponent(0.12).setStroke()
+            border.lineWidth = 0.5
+            border.stroke()
+            NSColor.labelColor.withAlphaComponent(0.04).setFill()
+            NSBezierPath(
+                roundedRect: NSRect(
+                    x: frame.minX + 1, y: Theme.Layout.historyCalendarGridTop + 58, width: frame.width - 2, height: 25),
+                xRadius: 3, yRadius: 3
+            ).fill()
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 8, weight: .medium),
+                .foregroundColor: NSColor.labelColor.withAlphaComponent(0.8),
+            ]
+            let labelWidth = (label as NSString).size(withAttributes: attributes).width
             (label as NSString).draw(
-                at: NSPoint(x: sidePadding + CGFloat(week) * 12, y: 2),
-                withAttributes: [
-                    .font: NSFont.systemFont(ofSize: 8), .foregroundColor: NSColor.secondaryLabelColor,
-                ])
+                at: NSPoint(x: sidePadding + section.originX + (section.width - labelWidth) / 2, y: 2),
+                withAttributes: attributes)
+
         }
-        for index in days.indices where cellRect(index).insetBy(dx: -1, dy: -1).intersects(dirtyRect) {
+        for index in days.indices where cellRect(index).insetBy(dx: -2, dy: -2).intersects(dirtyRect) {
             let day = days[index]
             let rect = cellRect(index)
             let total = day.total(for: providers)
@@ -154,10 +177,22 @@ final class HistoryCalendarCanvas: NSView {
             let isToday = Calendar.current.isDate(day.date, inSameDayAs: today)
             let path = NSBezierPath(roundedRect: rect, xRadius: 2, yRadius: 2)
             if let total, !future {
-                (total > 0
-                    ? accent.withAlphaComponent(0.25 + 0.75 * Double(total) / Double(maximum))
-                    : NSColor.labelColor.withAlphaComponent(0.08)).setFill()
-                path.fill()
+                if total > 0, !fills[index].isEmpty {
+                    NSGraphicsContext.saveGraphicsState()
+                    path.addClip()
+                    let colors = fills[index]
+                    for (part, color) in colors.enumerated() {
+                        color.setFill()
+                        NSRect(
+                            x: rect.minX + CGFloat(part) * rect.width / CGFloat(colors.count), y: rect.minY,
+                            width: rect.width / CGFloat(colors.count), height: rect.height
+                        ).fill()
+                    }
+                    NSGraphicsContext.restoreGraphicsState()
+                } else {
+                    NSColor.labelColor.withAlphaComponent(0.08).setFill()
+                    path.fill()
+                }
             }
             if total == nil && !future {
                 NSColor.secondaryLabelColor.withAlphaComponent(0.4).setStroke()
@@ -212,12 +247,7 @@ final class HistoryCalendarCanvas: NSView {
     }
 
     private func index(at point: NSPoint) -> Int? {
-        guard point.x >= sidePadding, point.y >= 15 else { return nil }
-        let column = Int((point.x - sidePadding) / 12)
-        let row = Int((point.y - 15) / 12)
-        let index = column * 7 + row - leadingDays
-        guard row < 7, days.indices.contains(index), cellRect(index).contains(point) else { return nil }
-        return index
+        monthLayout.index(at: NSPoint(x: point.x - sidePadding, y: point.y))
     }
 
     func select(_ index: Int) {
@@ -245,7 +275,19 @@ final class HistoryCalendarCanvas: NSView {
             (provider == .claude ? "provider.claude_short" : "provider.codex").localized + " "
                 + (day.tokens(for: provider).map { $0.formatted(.number.locale(locale)) } ?? "history.unknown".localized)
         }.joined(separator: " · ")
-        return prefix + date + ": " + totals
+        let leaders = day.dominantProviders(for: providers)
+        let usage: String
+        if providers.count > 1, leaders.count == 1, let leader = leaders.first {
+            usage =
+                "\n"
+                + "history.dominant".localized(
+                    (leader == .claude ? "provider.claude_short" : "provider.codex").localized)
+        } else if leaders.count > 1 {
+            usage = "\n" + "history.equal_use".localized
+        } else {
+            usage = ""
+        }
+        return prefix + date + ": " + totals + usage
     }
 
     func accessibilityLabel(at index: Int) -> String { descriptions.indices.contains(index) ? descriptions[index] : "" }

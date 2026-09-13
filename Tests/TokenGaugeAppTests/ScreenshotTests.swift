@@ -130,6 +130,25 @@ final class ScreenshotTests: XCTestCase {
                     to: output.appendingPathComponent("history-\(historyMode.rawValue)-\(style.rawValue).png"))
             }
         }
+        let year = HistoryDashboardModel.interval(mode: .calendar, offset: 0, now: now)
+        let colorfulDays = HistoryDashboardModel.makeDays(interval: year, tokens: [], efforts: []).enumerated().map {
+            index, day in
+            let values: [UsageProvider: Int] =
+                day.date > now || index % 13 == 0
+                ? [:]
+                : [
+                    .codex: index % 11 == 0 ? 0 : (index % 3 == 0 ? 90 : 20) * (index % 7 + 1) * 1000,
+                    .claude: index % 11 == 0 ? 0 : (index % 3 == 1 ? 90 : 20) * (index % 7 + 1) * 1000,
+                ]
+            return HistoryCalendarDay(id: day.id, date: day.date, totals: values, efforts: [])
+        }
+        try render(
+            HistoryCalendarView(
+                days: colorfulDays, providers: [.codex, .claude],
+                selectedDayKey: nil, focusID: "colorful"
+            ) { _ in }
+            .frame(width: 420, height: Theme.Layout.historyCalendarHeight),
+            to: output.appendingPathComponent("history-months-colors.png"))
         store.historyMode = .recent
         store.panelStyle = .rings
         store.showLunaReserve = false

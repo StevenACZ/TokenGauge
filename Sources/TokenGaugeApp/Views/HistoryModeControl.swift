@@ -10,12 +10,9 @@ struct HistoryModeControl: NSViewRepresentable {
         let control = NSSegmentedControl(
             labels: HistoryMode.allCases.map { $0.titleKey.localized },
             trackingMode: .selectOne, target: context.coordinator, action: #selector(Coordinator.select(_:)))
-        control.segmentStyle = .rounded
+        HistoryControlAppearance.apply(to: control)
         control.segmentDistribution = .fillEqually
-        control.controlSize = .small
-        control.font = .systemFont(ofSize: 10)
         control.selectedSegment = HistoryMode.allCases.firstIndex(of: mode) ?? 0
-        control.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         control.setAccessibilityIdentifier("TokenGauge.historyMode.control")
         control.setAccessibilityLabel("history.view".localized)
         return control

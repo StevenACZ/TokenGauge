@@ -32,7 +32,7 @@ TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Code
 - **A readable menu bar:** independently choose percentages, mini bars, or mini rings, with Large, Medium, or Small sizing. Exact percentages remain available on hover and in the panel.
 - **Quiet by design:** optional brief transitions respect Reduce Motion; menu indicators redraw only when their data or appearance changes.
 - **Separate limits:** general weekly quota and additional provider windows stay separate. Hide Luna weekly reserve in Settings if you do not use it.
-- **Browsable activity:** rolling seven days, Monday-based weeks with previous/next navigation, or a yearly contribution calendar. Select a day to inspect totals and available model/effort detail.
+- **Browsable activity:** rolling seven days, Monday-based weeks with previous/next navigation, or a yearly contribution calendar. Hover or select a day to inspect totals and available model/effort detail. In Unified, calendar colors show the provider with more recorded tokens, and intensity shows combined daily usage; ties use both colors. Separate month blocks and highlighted weekend rows make the year easier to scan.
 - **Local history:** SQLite preserves daily totals and observed model/reasoning effort metadata after provider logs are trimmed. Missing days remain distinct from recorded zero usage.
 - **Hourly quota pace:** an optional estimate in percentage points per hour for each weekly limit, based on verified recent readings.
 - **English and Spanish:** follows your system language initially, with an explicit language choice in Settings.

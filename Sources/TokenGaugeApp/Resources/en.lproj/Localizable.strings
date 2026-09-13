@@ -162,3 +162,7 @@
 "history.details_note" = "Tokens observed on this Mac. Hover over a number to see its exact value.";
 "history.today" = "Today";
 "history.return_today" = "Return to today";
+"history.dominant" = "Most recorded tokens: %@";
+"history.equal_use" = "Equal recorded usage for both providers";
+"history.weekends" = "Saturdays and Sundays";
+"history.period" = "History period";

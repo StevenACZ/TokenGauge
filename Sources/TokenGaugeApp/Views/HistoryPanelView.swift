@@ -76,9 +76,7 @@ struct HistoryPanelView: View {
 
     private var todayButton: some View {
         Button {
-            model.offset = 0
-            model.selectedDayKey = HistoryDashboardModel.dayKey(today)
-            calendarFocusRequest &+= 1
+            returnToToday()
         } label: {
             HStack(spacing: 3) {
                 Circle().fill(accent).frame(width: 3, height: 3)
@@ -93,30 +91,20 @@ struct HistoryPanelView: View {
     }
 
     private var navigation: some View {
-        HStack(spacing: 0) {
-            periodButton(-1, enabled: model.canGoBack)
-            Text(periodLabel)
-                .font(.system(size: 10, weight: .medium)).monospacedDigit().lineLimit(1)
-                .frame(width: mode == .calendar ? 52 : 90)
-            periodButton(1, enabled: model.canGoForward)
-        }
-        .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.045)))
+        let titleWidth: CGFloat = mode == .calendar ? 52 : 90
+        return HistoryPeriodControl(
+            title: periodLabel, titleWidth: titleWidth,
+            canGoBack: model.canGoBack && !model.isLoading,
+            canGoForward: model.canGoForward && !model.isLoading,
+            onPrevious: { model.move(-1) }, onToday: returnToToday, onNext: { model.move(1) }
+        )
+        .frame(width: titleWidth + 48, height: Theme.Layout.historyModeSegmentHeight + 4)
     }
 
-    private func periodButton(_ direction: Int, enabled: Bool) -> some View {
-        Button {
-            model.move(direction)
-        } label: {
-            Image(systemName: direction < 0 ? "chevron.left" : "chevron.right")
-                .font(.system(size: 9, weight: .semibold))
-                .frame(width: 22, height: 24)
-                .contentShape(Rectangle())
-                .opacity(enabled && !model.isLoading ? 1 : 0.25)
-        }
-        .buttonStyle(.plain)
-        .disabled(!enabled || model.isLoading)
-        .help((direction < 0 ? "history.previous" : "history.next").localized)
-        .accessibilityLabel((direction < 0 ? "history.previous" : "history.next").localized)
+    private func returnToToday() {
+        model.offset = 0
+        model.selectedDayKey = HistoryDashboardModel.dayKey(today)
+        calendarFocusRequest &+= 1
     }
 
     private var periodLabel: String {
@@ -189,14 +177,36 @@ struct HistoryPanelView: View {
     }
 
     private var calendarGrid: some View {
-        HistoryCalendarView(
-            days: model.days, providers: providers, selectedDayKey: model.selectedDay?.id,
-            focusID: "\(model.periodStart.timeIntervalSince1970):\(calendarFocusRequest)",
-            hoverEnabled: !showingDetails && !model.isLoading
-        ) { key in
-            if let day = model.days.first(where: { $0.id == key }) { select(day) }
+        HStack(alignment: .top, spacing: 5) {
+            VStack(spacing: 3) {
+                ForEach([2, 3, 4, 5, 6, 7, 1], id: \.self) { weekday in
+                    let weekend = weekday == 7 || weekday == 1
+                    Text(weekdayLabel(weekday))
+                        .font(.system(size: 7, weight: weekend ? .semibold : .regular))
+                        .foregroundStyle(weekend ? .primary : .secondary)
+                        .frame(width: 20, height: 9)
+                        .background {
+                            if weekend { RoundedRectangle(cornerRadius: 2).fill(Color.primary.opacity(0.08)) }
+                        }
+                        .help(weekend ? "history.weekends".localized : weekdayLabel(weekday))
+                }
+            }
+            .padding(.top, Theme.Layout.historyCalendarGridTop)
+            HistoryCalendarView(
+                days: model.days, providers: providers, selectedDayKey: model.selectedDay?.id,
+                focusID: "\(model.periodStart.timeIntervalSince1970):\(calendarFocusRequest)",
+                hoverEnabled: !showingDetails && !model.isLoading
+            ) { key in
+                if let day = model.days.first(where: { $0.id == key }) { select(day) }
+            }
         }
-        .frame(height: 96)
+        .frame(height: Theme.Layout.historyCalendarHeight)
+    }
+
+    private func weekdayLabel(_ weekday: Int) -> String {
+        var calendar = Calendar.current
+        calendar.locale = locale
+        return calendar.shortWeekdaySymbols[weekday - 1].capitalized(with: locale)
     }
 
     @ViewBuilder private var selectionSummary: some View {

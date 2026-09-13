@@ -17,6 +17,12 @@ struct HistoryCalendarDay: Identifiable, Equatable, Sendable {
     let efforts: [HistoryEffortRow]
 
     func tokens(for provider: UsageProvider) -> Int? { totals[provider] }
+    func dominantProviders(for providers: [UsageProvider]) -> [UsageProvider] {
+        let observed = providers.filter { (totals[$0] ?? 0) > 0 }
+        guard let maximum = observed.compactMap({ totals[$0] }).max() else { return [] }
+        return observed.filter { totals[$0] == maximum }
+    }
+
     func total(for providers: [UsageProvider]) -> Int? {
         let values = providers.compactMap { totals[$0] }
         return values.isEmpty

@@ -105,6 +105,19 @@ final class HistoryDashboardTests: XCTestCase {
         XCTAssertEqual(model.days.last?.tokens(for: .codex), 20)
     }
 
+    func testCalendarDominanceUsesOnlyVisibleRecordedProviders() {
+        func day(_ totals: [UsageProvider: Int]) -> HistoryCalendarDay {
+            HistoryCalendarDay(id: "2026-09-12", date: Date(), totals: totals, efforts: [])
+        }
+        XCTAssertEqual(day([.codex: 90, .claude: 10]).dominantProviders(for: [.codex, .claude]), [.codex])
+        XCTAssertEqual(day([.codex: 10, .claude: 90]).dominantProviders(for: [.codex, .claude]), [.claude])
+        XCTAssertEqual(day([.codex: 10, .claude: 90]).dominantProviders(for: [.codex]), [.codex])
+        XCTAssertEqual(day([.codex: 50, .claude: 50]).dominantProviders(for: [.codex, .claude]), [.codex, .claude])
+        XCTAssertEqual(day([.claude: 10]).dominantProviders(for: [.codex, .claude]), [.claude])
+        XCTAssertTrue(day([.codex: 0, .claude: 0]).dominantProviders(for: [.codex, .claude]).isEmpty)
+        XCTAssertTrue(day([:]).dominantProviders(for: [.codex, .claude]).isEmpty)
+    }
+
     func testPreviewStoresDoNotReadOrCollectLiveHistory() {
         let name = "TokenGauge.history-preview.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!

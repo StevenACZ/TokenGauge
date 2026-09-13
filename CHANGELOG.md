@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Navigable weekly history and a yearly activity calendar, with local model and reasoning effort token details.
+- Provider-colored calendar days, distinct month blocks, and highlighted Saturday/Sunday rows.
 - Optional weekly quota pace estimates based on verified readings, with reset and observation-gap handling.
 
 - Optional compact and ring quota panels that adapt to visible limits, plus independent mini-bar and mini-ring menu indicators with integrated provider logos.
