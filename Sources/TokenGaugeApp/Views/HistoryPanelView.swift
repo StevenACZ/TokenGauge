@@ -74,20 +74,14 @@ struct HistoryPanelView: View {
                 height: Theme.Layout.historyModeSegmentHeight + 4)
     }
 
-    private var todayButton: some View {
-        Button {
-            returnToToday()
-        } label: {
-            HStack(spacing: 3) {
-                Circle().fill(accent).frame(width: 3, height: 3)
-                Text("history.today".localized)
-            }
-            .font(.system(size: 9, weight: .medium))
-            .padding(.horizontal, 6).padding(.vertical, 3)
-            .background(RoundedRectangle(cornerRadius: 5).fill(accent.opacity(0.08)))
+    private var todayBadge: some View {
+        HStack(spacing: 3) {
+            Circle().fill(accent).frame(width: 3, height: 3)
+            Text("history.today".localized)
         }
-        .buttonStyle(.plain)
-        .help("history.return_today".localized)
+        .font(.system(size: 9, weight: .medium))
+        .padding(.horizontal, 6).padding(.vertical, 3)
+        .background(RoundedRectangle(cornerRadius: 5).fill(accent.opacity(0.08)))
     }
 
     private var navigation: some View {
@@ -215,7 +209,10 @@ struct HistoryPanelView: View {
                 HStack {
                     Text(day.date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated).locale(locale)))
                         .font(.system(size: 10)).foregroundStyle(.secondary)
-                    if mode != .recent { todayButton }
+                        .contentTransition(.opacity)
+                    todayBadge
+                        .opacity(Calendar.current.isDate(day.date, inSameDayAs: today) ? 1 : 0)
+                        .accessibilityHidden(!Calendar.current.isDate(day.date, inSameDayAs: today))
                     Spacer()
                     Button {
                         showingDetails.toggle()
@@ -239,6 +236,7 @@ struct HistoryPanelView: View {
             }
             .padding(10)
             .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(0.035)))
+            .animation(motion, value: day.id)
         }
     }
 

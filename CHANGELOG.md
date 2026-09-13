@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Provider-colored calendar days, distinct month blocks, and highlighted Saturday/Sunday rows.
 - Optional weekly quota pace estimates with a clickable explanation, dated recent and previous readings, and local persistence across idle periods and app restarts.
 - Consistent spacing between quota titles, rings, and reading details in individual and Unified cards.
+- The history Today badge appears only on the current date, with a stable, animated summary when changing selection.
 
 - Optional compact and ring quota panels that adapt to visible limits, plus independent mini-bar and mini-ring menu indicators with integrated provider logos.
 - Appearance settings and a panel view picker, with brief optional transitions that respect Reduce Motion.
