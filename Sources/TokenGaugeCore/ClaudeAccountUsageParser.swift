@@ -38,13 +38,7 @@ public enum ClaudeAccountUsageParser {
         guard !entries.isEmpty else { return .empty }
         let windows = limits(from: entries)
         guard !windows.isEmpty else { throw UsageDataError.invalidPayload }
-        return .windows(
-            windows.sorted { left, right in
-                let leftDuration = left.durationMinutes ?? Int.max
-                let rightDuration = right.durationMinutes ?? Int.max
-                if leftDuration != rightDuration { return leftDuration < rightDuration }
-                return left.id < right.id
-            })
+        return .windows(windows.sorted(by: QuotaWindow.displayOrder))
     }
 
     private static func limits(from entries: [Any]) -> [QuotaWindow] {

@@ -77,7 +77,7 @@ final class UsageStoreRefreshTests: XCTestCase {
             let refresher = UsageRefresher(
                 homeDirectory: FileManager.default.temporaryDirectory,
                 fetchClaude: { _ in
-                    releaseClaude.wait()
+                    try? await BlockingWork.run { releaseClaude.wait() }
                     return ClaudeUsageResult(snapshot: claudeSnapshot, access: .live, lastActivityAt: now)
                 },
                 fetchCodex: { ProviderViewState(snapshot: codexSnapshot, status: .ready, isRefreshing: false) })

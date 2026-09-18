@@ -8,19 +8,19 @@ enum ProviderOutcome: Sendable {
 
 struct UsageRefresher: Sendable {
     let homeDirectory: URL
-    private let fetchClaude: @Sendable (ClaudeRecoveryAuthorization) -> ClaudeUsageResult?
+    private let fetchClaude: @Sendable (ClaudeRecoveryAuthorization) async -> ClaudeUsageResult?
     private let fetchCodex: @Sendable () -> ProviderViewState
 
     init(claudeClient: ClaudeUsageClient, codexClient: CodexAppServerClient) {
         self.init(
             homeDirectory: claudeClient.homeDirectory,
-            fetchClaude: { try? claudeClient.fetch(recoveryAuthorization: $0) },
+            fetchClaude: { await claudeClient.fetch(recoveryAuthorization: $0) },
             fetchCodex: { Self.codexState(client: codexClient) })
     }
 
     init(
         homeDirectory: URL,
-        fetchClaude: @escaping @Sendable (ClaudeRecoveryAuthorization) -> ClaudeUsageResult?,
+        fetchClaude: @escaping @Sendable (ClaudeRecoveryAuthorization) async -> ClaudeUsageResult?,
         fetchCodex: @escaping @Sendable () -> ProviderViewState
     ) {
         self.homeDirectory = homeDirectory
@@ -34,7 +34,7 @@ struct UsageRefresher: Sendable {
         return AsyncStream { continuation in
             Task.detached(priority: .utility) {
                 await withTaskGroup(of: ProviderOutcome.self) { group in
-                    group.addTask { .claude(fetchClaude(recoveryAuthorization)) }
+                    group.addTask { .claude(await fetchClaude(recoveryAuthorization)) }
                     group.addTask { .codex(fetchCodex()) }
                     for await outcome in group { continuation.yield(outcome) }
                 }

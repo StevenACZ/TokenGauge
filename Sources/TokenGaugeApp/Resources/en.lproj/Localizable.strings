@@ -102,7 +102,6 @@
 "setup.claude_session" = "Uses your local Claude session";
 "updates.local" = "Local installation";
 "settings.mark_cancelled" = "Subscription cancelled";
-"activity.selected_scoped" = "%@: %@";
 "view.unified" = "Unified";
 "settings.display_mode" = "Menu bar view";
 "settings.display_mode_help" = "Choose one provider or both in the menu bar and panel.";

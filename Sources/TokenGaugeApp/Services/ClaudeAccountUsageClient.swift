@@ -35,15 +35,6 @@ struct ClaudeAccountUsageClient: Sendable {
     }()
     private static let log = Logger(subsystem: "com.stevenacz.TokenGauge", category: "claude-account")
 
-    func fetch(now: Date = Date(), identity: ClaudeAccountIdentity?) throws -> ClaudeAccountSnapshot {
-        do {
-            return try BlockingWork.waitForResult(timeout: 25) { try await fetch(now: now, identity: identity) }
-        } catch is BlockingWork.TimedOut {
-            Self.log.error("Claude usage request did not complete within its bound")
-            throw ClaudeAccountUsageError.unavailable
-        }
-    }
-
     func fetch(now: Date = Date(), identity: ClaudeAccountIdentity?) async throws -> ClaudeAccountSnapshot {
         let accountUuid = identity?.accountUuid
         guard let token = try await BlockingWork.run({ ClaudeOAuthTokenReader.read(accountUuid: accountUuid) })

@@ -44,11 +44,7 @@ public enum EffortUsageScanner {
     }
 
     static func hash(provider: UsageProvider, identifier: String) -> String {
-        let hex = Array("0123456789abcdef".utf8)
-        return String(
-            decoding: SHA256.hash(data: Data("\(provider.rawValue):\(identifier)".utf8)).flatMap {
-                [hex[Int($0 >> 4)], hex[Int($0 & 15)]]
-            }, as: UTF8.self)
+        Hex.string(SHA256.hash(data: Data("\(provider.rawValue):\(identifier)".utf8)))
     }
 
     static func codexDirectories(root: URL, cutoff: Date, now: Date) -> [URL] {
