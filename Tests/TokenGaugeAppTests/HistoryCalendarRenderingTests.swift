@@ -197,6 +197,41 @@ final class HistoryCalendarRenderingTests: XCTestCase {
         XCTAssertEqual(dismissals, 2)
     }
 
+    func testPinMonitorIsInstalledWhilePinnedAndRemovedOnDismissOrWindowLoss() throws {
+        let interval = HistoryDashboardModel.interval(mode: .calendar, offset: 0, now: Date())
+        let days = HistoryDashboardModel.makeDays(interval: interval, tokens: [], efforts: [])
+        let view = HistoryCalendarScrollView()
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 600), styleMask: [.borderless], backing: .buffered,
+            defer: false)
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 600))
+        window.contentView = root
+        defer { window.contentView = nil }
+        view.frame = NSRect(x: 0, y: 200, width: 440, height: Theme.Layout.historyCalendarHeight)
+        root.addSubview(view)
+        var dismissals = 0
+        func update(pinned: String?) {
+            view.calendar.update(
+                HistoryCalendarView(
+                    days: days, providers: [.codex], selectedDayKey: days[0].id, focusID: "year",
+                    pinnedDayKey: pinned, onDismissCard: { dismissals += 1 }
+                ) { _ in })
+        }
+        update(pinned: nil)
+        XCTAssertFalse(view.calendar.hasPinMonitor)
+        update(pinned: days[0].id)
+        XCTAssertTrue(view.calendar.hasPinMonitor)
+        XCTAssertTrue(window.firstResponder === view.calendar)
+        view.calendar.cancelOperation(nil)
+        XCTAssertEqual(dismissals, 1)
+        XCTAssertFalse(view.calendar.hasPinMonitor)
+        XCTAssertFalse(window.firstResponder === view.calendar)
+        update(pinned: days[0].id)
+        XCTAssertTrue(view.calendar.hasPinMonitor)
+        view.removeFromSuperview()
+        XCTAssertFalse(view.calendar.hasPinMonitor)
+    }
+
     private func mouseDown(at location: NSPoint, windowNumber: Int) throws -> NSEvent {
         try XCTUnwrap(
             NSEvent.mouseEvent(

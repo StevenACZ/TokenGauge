@@ -66,6 +66,40 @@ final class PopoverLayoutTests: XCTestCase {
         }
     }
 
+    func testUpdateBannerNeverClipsTheRingProviderCards() throws {
+        let suite = "TokenGauge.layout.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer {
+            defaults.removePersistentDomain(forName: suite)
+            UpdateManager.shared.handleNotFound()
+        }
+        let store = UsageStore(
+            defaults: defaults, initialSnapshots: [codexSnapshot(), claudeSnapshot()], historyReadsEnabled: false)
+        store.showHourlyPace = true
+        store.panelStyle = .rings
+        store.displayMode = .unified
+        try withEachLanguage { language in
+            for banner in [false, true] {
+                UpdateManager.shared.handleNotFound()
+                if banner {
+                    _ = UpdateManager.shared.handleUpdateFound(
+                        version: "1.4.1", releasePage: nil, informationOnly: false)
+                }
+                for downloading in banner ? [false, true] : [false] {
+                    if downloading { UpdateManager.shared.handleDownloadInitiated() }
+                    let view = PopoverView(store: store, showSettings: {}, showAbout: {})
+                    let content = fittingSize(
+                        view.providerContent.frame(width: view.panelWidth - Theme.Layout.panelPadding * 2))
+                    XCTAssertEqual(view.providerMaxHeight, Theme.Layout.ringProviderMaxHeight)
+                    XCTAssertLessThanOrEqual(
+                        content.height, view.providerMaxHeight,
+                        "\(language.rawValue) / \(UpdateManager.shared.phase)")
+                    assertHeight(store)
+                }
+            }
+        }
+    }
+
     private func claudeSnapshot() -> ProviderUsageSnapshot {
         Fixture.snapshot(
             .claude,
@@ -102,10 +136,11 @@ final class PopoverLayoutTests: XCTestCase {
 
     private func assertHeight(_ store: UsageStore, file: StaticString = #filePath, line: UInt = #line) {
         let view = NSHostingView(rootView: PopoverView(store: store, showSettings: {}, showAbout: {}))
+        let budget = Theme.Layout.maximumPanelHeight + UpdateBannerView.height(for: UpdateManager.shared.phase)
         XCTAssertGreaterThanOrEqual(view.fittingSize.width, Theme.Layout.compactPanelWidth, file: file, line: line)
         XCTAssertLessThanOrEqual(view.fittingSize.width, Theme.Layout.unifiedPanelWidth, file: file, line: line)
         XCTAssertLessThanOrEqual(
-            view.fittingSize.height, Theme.Layout.maximumPanelHeight,
+            view.fittingSize.height, budget,
             "\(LocalizationManager.shared.language.rawValue) / \(store.displayMode.rawValue) / \(store.panelStyle.rawValue) / \(UpdateManager.shared.phase)",
             file: file, line: line)
     }
