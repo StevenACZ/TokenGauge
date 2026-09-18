@@ -209,7 +209,7 @@ struct ClaudeUsageClient: Sendable {
     static func historyBuckets(
         executable: URL,
         arguments: [String] = ["--collect"],
-        timeout: TimeInterval = 20,
+        timeout: TimeInterval = 45,
         workingDirectory: URL
     ) throws -> [ModelTokenBucket] {
         let result: ProcessResult

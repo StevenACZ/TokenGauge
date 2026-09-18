@@ -112,7 +112,7 @@ final class SQLiteConnection {
     }
 
     func close() {
-        sqlite3_close(handle)
+        sqlite3_close_v2(handle)
     }
 
     func exec(_ sql: String) throws {

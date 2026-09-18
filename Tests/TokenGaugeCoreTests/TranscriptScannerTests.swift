@@ -158,6 +158,112 @@ final class TranscriptScannerTests: XCTestCase {
         }
     }
 
+    func testInPlaceRewriteAtALineBoundaryFallsBackToFullRescan() throws {
+        try withHome { home in
+            let state = home.appending(path: "support/scan-state.json")
+            let file = home.appending(path: ".claude/projects/project/a.jsonl")
+            try write(
+                file,
+                [
+                    claude("m1", time: "12:00:00", output: 3), claude("m2", time: "12:05:00", output: 5),
+                    claude("m3", time: "12:10:00", output: 7),
+                ])
+            let original = try size(file)
+            XCTAssertEqual(try scan(home, state: state).bytesRead, original)
+
+            let head = claude("n1", time: "13:00:00", output: 4)
+            let padding = original - Data((head + "\n").utf8).count
+            XCTAssertGreaterThan(padding, 0)
+            let boundary = pad(head, by: padding)
+            XCTAssertEqual(Data((boundary + "\n").utf8).count, original)
+            try rewrite(
+                file,
+                [
+                    boundary, claude("n2", time: "13:05:00", output: 6), claude("n3", time: "13:10:00", output: 8),
+                    claude("n4", time: "13:15:00", output: 2),
+                ])
+            XCTAssertGreaterThan(try size(file), original)
+
+            let rewritten = try scan(home, state: state)
+            XCTAssertEqual(rewritten.bytesRead, try size(file))
+            XCTAssertEqual(rewritten.buckets, try fullBuckets(home))
+            XCTAssertEqual(rewritten.effortRecords, try fullRecords(home))
+            XCTAssertEqual(rewritten.buckets.map(\.tokens), [260])
+        }
+    }
+
+    func testOlderStateVersionForcesAFullRescan() throws {
+        try withHome { home in
+            let state = home.appending(path: "support/scan-state.json")
+            let file = home.appending(path: ".claude/projects/project/a.jsonl")
+            try write(file, [claude("m1", time: "12:00:00", output: 3)])
+            let total = try size(file)
+            XCTAssertEqual(try scan(home, state: state).bytesRead, total)
+            XCTAssertEqual(try scan(home, state: state).bytesRead, 0)
+
+            var stored = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: try Data(contentsOf: state)) as? [String: Any])
+            XCTAssertEqual(stored["version"] as? Int, 2)
+            stored["version"] = 1
+            try JSONSerialization.data(withJSONObject: stored).write(to: state)
+            XCTAssertEqual(try scan(home, state: state).bytesRead, total)
+        }
+    }
+
+    func testUnchangedScanDoesNotRewriteTheStateFile() throws {
+        try withHome { home in
+            let state = home.appending(path: "support/scan-state.json")
+            let file = home.appending(path: ".claude/projects/project/a.jsonl")
+            try write(file, [claude("m1", time: "12:00:00", output: 3)])
+            XCTAssertGreaterThan(try scan(home, state: state).bytesRead, 0)
+
+            let marker = Date(timeIntervalSince1970: 1_000_000)
+            try setModified(state, marker)
+            XCTAssertEqual(try scan(home, state: state).bytesRead, 0)
+            XCTAssertEqual(try modified(state), marker)
+
+            try append(file, [claude("m2", time: "12:05:00", output: 5)])
+            XCTAssertGreaterThan(try scan(home, state: state).bytesRead, 0)
+            XCTAssertGreaterThan(try modified(state), marker)
+        }
+    }
+
+    func testNestedBackupDayDirectoryIsIgnored() throws {
+        try withHome { home in
+            let state = home.appending(path: "support/scan-state.json")
+            let backup = home.appending(path: ".codex/sessions/backup/2026/09/12/a.jsonl")
+            try write(backup, [codex("r-backup", time: "12:30:00", tokens: 40)])
+            try setModified(backup, Date(timeIntervalSince1970: 0))
+
+            let scanned = try scan(home, state: state)
+            XCTAssertEqual(scanned.bytesRead, 0)
+            XCTAssertEqual(scanned.effortRecords, [])
+            XCTAssertEqual(scanned.effortRecords, try fullRecords(home))
+        }
+    }
+
+    func testInterruptedScanKeepsTheFinishedRootPersisted() throws {
+        try withHome { home in
+            let state = home.appending(path: "support/scan-state.json")
+            let claudeFile = home.appending(path: ".claude/projects/project/a.jsonl")
+            let codexFile = home.appending(path: ".codex/sessions/2026/09/12/a.jsonl")
+            try write(claudeFile, [claude("m1", time: "12:00:00", output: 3)])
+            try write(codexFile, [codex("r1", time: "12:30:00", tokens: 40)])
+            try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: codexFile.path)
+
+            XCTAssertThrowsError(try scan(home, state: state))
+            let stored = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: try Data(contentsOf: state)) as? [String: Any])
+            let files = try XCTUnwrap(stored["files"] as? [String: Any])
+            XCTAssertEqual(files.keys.map { URL(filePath: $0).standardizedFileURL.path }, [claudeFile.path])
+
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: codexFile.path)
+            let resumed = try scan(home, state: state)
+            XCTAssertEqual(resumed.bytesRead, try size(codexFile))
+            XCTAssertEqual(resumed.effortRecords.map(\.tokens), [63, 40])
+        }
+    }
+
     func testCorruptOrRegressedStateFallsBackToFullScan() throws {
         try withHome { home in
             let state = home.appending(path: "support/scan-state.json")
@@ -219,6 +325,22 @@ final class TranscriptScannerTests: XCTestCase {
 
     private func size(_ file: URL) throws -> Int {
         try XCTUnwrap(FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int)
+    }
+
+    private func rewrite(_ file: URL, _ lines: [String]) throws {
+        let handle = try FileHandle(forWritingTo: file)
+        defer { try? handle.close() }
+        try handle.truncate(atOffset: 0)
+        try handle.write(contentsOf: Data((lines.joined(separator: "\n") + "\n").utf8))
+    }
+
+    private func pad(_ line: String, by count: Int) -> String {
+        line.replacingOccurrences(
+            of: "synthetic ignored content", with: "synthetic ignored content" + String(repeating: "x", count: count))
+    }
+
+    private func modified(_ file: URL) throws -> Date {
+        try XCTUnwrap(FileManager.default.attributesOfItem(atPath: file.path)[.modificationDate] as? Date)
     }
 
     private func setModified(_ file: URL, _ date: Date) throws {

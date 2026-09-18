@@ -1,7 +1,9 @@
+import CryptoKit
 import Foundation
 
 enum JSONLReader {
     static let maximumLineBytes = 1_048_576
+    static let anchorBytes = 4_096
 
     struct Progress {
         let bytesRead: Int
@@ -10,6 +12,16 @@ enum JSONLReader {
 
     enum ReadError: Error {
         case offsetNotAtLineBoundary
+    }
+
+    static func anchor(_ url: URL, endingAt offset: Int) throws -> String? {
+        guard offset > 0 else { return nil }
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        let length = min(offset, anchorBytes)
+        try handle.seek(toOffset: UInt64(offset - length))
+        guard let data = try handle.read(upToCount: length), data.count == length else { return nil }
+        return Hex.string(SHA256.hash(data: data))
     }
 
     @discardableResult
