@@ -86,6 +86,14 @@ final class HistoryAnalyticsTests: XCTestCase {
             HistoryAnalytics.streaks(usageDays: days, today: "2026-09-18", calendar: calendar).current, 0)
     }
 
+    func testMalformedDayKeysAreIgnoredByStreaks() {
+        let days: Set<String> = ["2026-09-16", "2026-09-17", "garbage", "2026-13-01", "2026-09", "2026-09-32"]
+        let result = HistoryAnalytics.streaks(usageDays: days, today: "2026-09-17", calendar: calendar)
+        XCTAssertEqual(result.current, 2)
+        XCTAssertEqual(result.longest, 2)
+        XCTAssertEqual(HistoryAnalytics.streaks(usageDays: days, today: "today", calendar: calendar).current, 0)
+    }
+
     func testEmptyAndSingleDayHistories() {
         XCTAssertEqual(HistoryAnalytics.streaks(usageDays: [], today: "2026-09-17", calendar: calendar).current, 0)
         XCTAssertEqual(HistoryAnalytics.streaks(usageDays: [], today: "2026-09-17", calendar: calendar).longest, 0)

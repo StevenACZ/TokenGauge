@@ -36,6 +36,38 @@ final class HistoryDayCardTests: XCTestCase {
         XCTAssertEqual(leading.x, bounds.minX)
     }
 
+    func testTallCardFallsBelowAboveThenClampsToTheBottomOrTop() {
+        let size = CGSize(width: HistoryDayCardPlacement.width, height: 160)
+        let bounds = CGRect(x: -20, y: -300, width: 560, height: 700)
+        func origin(_ y: CGFloat, in bounds: CGRect) -> CGPoint {
+            HistoryDayCardPlacement.origin(
+                anchor: CGRect(x: 280, y: y, width: 9, height: 9), cardSize: size, bounds: bounds)
+        }
+        XCTAssertEqual(origin(100, in: bounds).y, 109 + HistoryDayCardPlacement.spacing)
+        XCTAssertEqual(origin(300, in: bounds).y, 300 - HistoryDayCardPlacement.spacing - size.height)
+        let short = CGRect(x: 0, y: 0, width: 560, height: 200)
+        XCTAssertEqual(origin(100, in: short).y, short.maxY - size.height)
+        let tiny = CGRect(x: 0, y: 0, width: 560, height: 150)
+        XCTAssertEqual(origin(60, in: tiny).y, tiny.minY)
+        for (y, frame) in [(100, bounds), (300, bounds), (100, short)] {
+            let point = origin(CGFloat(y), in: frame)
+            XCTAssertTrue(frame.contains(CGRect(origin: point, size: size)), "\(y) in \(frame)")
+        }
+    }
+
+    func testSharePercentagesUseLargestRemainderAndSumToOneHundred() {
+        XCTAssertEqual(HistoryDayCardPlacement.percentages([505, 495]), [51, 49])
+        XCTAssertEqual(HistoryDayCardPlacement.percentages([1, 1, 1]), [34, 33, 33])
+        XCTAssertEqual(HistoryDayCardPlacement.percentages([800, 200]), [80, 20])
+        XCTAssertEqual(HistoryDayCardPlacement.percentages([1, 999]), [0, 100])
+        XCTAssertEqual(HistoryDayCardPlacement.percentages([7]), [100])
+        XCTAssertEqual(HistoryDayCardPlacement.percentages([0, 0]), [0, 0])
+        XCTAssertEqual(HistoryDayCardPlacement.percentages([]), [])
+        for values in [[1, 2], [333, 333, 334], [2, 3, 5, 7, 11], [Int.max / 2, Int.max / 2]] {
+            XCTAssertEqual(HistoryDayCardPlacement.percentages(values).reduce(0, +), 100, "\(values)")
+        }
+    }
+
     func testCardRendersBothProvidersInEveryLanguage() {
         let language = LocalizationManager.shared.language
         defer { LocalizationManager.shared.language = language }
