@@ -21,7 +21,17 @@ public enum UsagePaths {
         supportDirectory(homeDirectory: homeDirectory).appending(path: "usage-history.sqlite")
     }
 
+    public static func recoveryWorkingDirectory(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        supportDirectory(homeDirectory: homeDirectory).appending(path: "recovery", directoryHint: .isDirectory)
+    }
+
     public static func claudeProjects(homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
         homeDirectory.appending(path: ".claude/projects", directoryHint: .isDirectory)
+    }
+
+    public static func claudeConfig(homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
+        homeDirectory.appending(path: ".claude.json")
     }
 }

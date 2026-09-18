@@ -14,6 +14,19 @@ struct ClaudeUsageResult: Sendable {
     let snapshot: ProviderUsageSnapshot
     let access: ClaudeAccessState
     let lastActivityAt: Date?
+    let accountFingerprint: String?
+    let accountLabel: String?
+
+    init(
+        snapshot: ProviderUsageSnapshot, access: ClaudeAccessState, lastActivityAt: Date?,
+        accountFingerprint: String? = nil, accountLabel: String? = nil
+    ) {
+        self.snapshot = snapshot
+        self.access = access
+        self.lastActivityAt = lastActivityAt
+        self.accountFingerprint = accountFingerprint
+        self.accountLabel = accountLabel
+    }
 }
 
 struct ClaudeUsageClient: Sendable {
@@ -26,22 +39,30 @@ struct ClaudeUsageClient: Sendable {
     func fetch(
         now: Date = Date(), recoveryAuthorization: ClaudeRecoveryAuthorization = ClaudeRecoveryAuthorization()
     ) throws -> ClaudeUsageResult {
+        let identity = ClaudeAccountIdentityReader.current(homeDirectory: homeDirectory)
         let buckets = try? fetchModelBuckets()
         let account = ClaudeAccountUsageClient(homeDirectory: homeDirectory)
         let outcome = Self.readAccount(
-            fetch: { try account.fetch(now: Date()) },
+            fetch: { try account.fetch(now: Date(), identity: identity) },
             recover: {
                 ClaudeSessionRecovery.shared.attempt(homeDirectory: homeDirectory, authorization: recoveryAuthorization)
             }
         )
-        let capture = try? SecureMetricStore.read(
-            ClaudeCapturedSnapshot.self,
-            from: UsagePaths.claudeCapture(homeDirectory: homeDirectory)
-        )
+        let capture = Self.capture(
+            at: UsagePaths.claudeCapture(homeDirectory: homeDirectory),
+            accountFingerprint: identity?.fingerprint)
         return Self.resolve(
-            account: outcome, cached: account.cached(), capture: capture, modelBuckets: buckets ?? [], now: now,
-            activityReadSucceeded: buckets != nil
+            account: outcome, cached: account.cached(identity: identity), capture: capture,
+            modelBuckets: buckets ?? [], now: now, activityReadSucceeded: buckets != nil,
+            accountFingerprint: identity?.fingerprint, accountLabel: identity?.label
         )
+    }
+
+    static func capture(at url: URL, accountFingerprint: String?) -> ClaudeCapturedSnapshot? {
+        guard let snapshot = try? SecureMetricStore.read(ClaudeCapturedSnapshot.self, from: url),
+            snapshot.belongs(to: accountFingerprint)
+        else { return nil }
+        return snapshot
     }
 
     static func readAccount(
@@ -65,7 +86,9 @@ struct ClaudeUsageClient: Sendable {
         capture: ClaudeCapturedSnapshot?,
         modelBuckets: [ModelTokenBucket],
         now: Date,
-        activityReadSucceeded: Bool = true
+        activityReadSucceeded: Bool = true,
+        accountFingerprint: String? = nil,
+        accountLabel: String? = nil
     ) -> ClaudeUsageResult {
         if case .success(let live) = account, !live.windows.isEmpty {
             return ClaudeUsageResult(
@@ -73,7 +96,9 @@ struct ClaudeUsageClient: Sendable {
                     windows: live.windows, capturedAt: live.capturedAt, modelBuckets: modelBuckets,
                     activityReadSucceeded: activityReadSucceeded),
                 access: .live,
-                lastActivityAt: capture?.capturedAt
+                lastActivityAt: capture?.capturedAt,
+                accountFingerprint: accountFingerprint,
+                accountLabel: accountLabel
             )
         }
         let fallback = Self.fallback(cached: cached, capture: capture, modelBuckets: modelBuckets, now: now)
@@ -94,7 +119,9 @@ struct ClaudeUsageClient: Sendable {
                 windows: fallback.windows, capturedAt: fallback.capturedAt, modelBuckets: modelBuckets,
                 activityReadSucceeded: activityReadSucceeded),
             access: access,
-            lastActivityAt: capture?.capturedAt
+            lastActivityAt: capture?.capturedAt,
+            accountFingerprint: accountFingerprint,
+            accountLabel: accountLabel
         )
     }
 
@@ -144,18 +171,22 @@ struct ClaudeUsageClient: Sendable {
 
     private func fetchModelBuckets() throws -> [ModelTokenBucket] {
         guard let executable = resolveCaptureExecutable() else { throw UsageDataError.executableNotFound }
-        return try Self.historyBuckets(executable: executable)
+        return try Self.historyBuckets(
+            executable: executable,
+            workingDirectory: UsagePaths.recoveryWorkingDirectory(homeDirectory: homeDirectory))
     }
 
     static func historyBuckets(
         executable: URL,
         arguments: [String] = ["--history"],
-        timeout: TimeInterval = 20
+        timeout: TimeInterval = 20,
+        workingDirectory: URL
     ) throws -> [ModelTokenBucket] {
         let result: ProcessResult
         do {
             result = try ProcessRunner.run(
-                executable: executable, arguments: arguments, input: Data(), requiredResponseIDs: [], timeout: timeout
+                executable: executable, arguments: arguments, input: Data(), requiredResponseIDs: [],
+                timeout: timeout, workingDirectory: workingDirectory
             )
         } catch UsageDataError.timedOut {
             throw UsageDataError.timedOut

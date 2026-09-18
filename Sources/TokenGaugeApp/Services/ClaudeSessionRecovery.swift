@@ -27,7 +27,8 @@ final class ClaudeSessionRecovery: @unchecked Sendable {
                 shouldContinue: { authorization.isAllowed }
             ) {
                 ClaudeOAuthTokenReader.invalidate()
-                return ClaudeOAuthTokenReader.read().map { !$0.isExpired } ?? false
+                let accountUuid = ClaudeAccountIdentityReader.current(homeDirectory: homeDirectory)?.accountUuid
+                return ClaudeOAuthTokenReader.read(accountUuid: accountUuid).map { !$0.isExpired } ?? false
             }
         }
     }

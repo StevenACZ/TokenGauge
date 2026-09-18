@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import TokenGaugeCore
 import XCTest
 
 @testable import TokenGaugeApp
@@ -11,14 +12,14 @@ final class ClaudeRecoveryProcessTests: XCTestCase {
         let marker = directory.appending(path: "ready")
         let script = """
             test -t 0 && test -t 1 && test -t 2 || exit 1
-            test "$PWD" -ef "$HOME" || exit 2
+            test "$PWD" -ef "$HOME/Library/Application Support/TokenGauge/recovery" || exit 2
             test -z "$ANTHROPIC_API_KEY$CLAUDECODE$NODE_OPTIONS$TMUX" || exit 3
             case "$PATH" in *evil*) exit 4;; esac
             stty -icanon min 0 time 1
             test "$(dd bs=1 count=1 2>/dev/null | wc -c | tr -d ' ')" = 0 || exit 5
             /usr/bin/head -c 1048576 /dev/zero
             /usr/bin/head -c 1048576 /dev/zero >&2
-            touch ready
+            touch "$HOME/ready"
             sleep 10
             """
         var checks: [TimeInterval] = []
@@ -51,9 +52,9 @@ final class ClaudeRecoveryProcessTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let script = """
             trap '' TERM
-            echo $$ > parent
+            echo $$ > "$HOME/parent"
             /bin/sh -c 'trap "" TERM; while :; do sleep 1; done' &
-            echo $! > child
+            echo $! > "$HOME/child"
             wait
             """
         let start = ProcessInfo.processInfo.systemUptime
@@ -73,7 +74,7 @@ final class ClaudeRecoveryProcessTests: XCTestCase {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let executable = directory.appending(path: "fake-claude")
-        try "#!/bin/sh\n[ \"$#\" = 1 ] && [ \"$1\" = --safe-mode ] && touch ready\nsleep 10\n"
+        try "#!/bin/sh\n[ \"$#\" = 1 ] && [ \"$1\" = --safe-mode ] && touch \"$HOME/ready\"\nsleep 10\n"
             .write(to: executable, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
         XCTAssertTrue(
@@ -91,7 +92,8 @@ final class ClaudeRecoveryProcessTests: XCTestCase {
         XCTAssertFalse(
             ClaudeRecoveryProcess.run(
                 executable: URL(filePath: "/bin/sh"), homeDirectory: directory, timeout: 10,
-                arguments: ["-c", "trap '' TERM; echo $$ > parent; while :; do sleep 1; done"], environment: [:],
+                arguments: ["-c", "trap '' TERM; echo $$ > \"$HOME/parent\"; while :; do sleep 1; done"],
+                environment: [:],
                 shouldContinue: { !FileManager.default.fileExists(atPath: marker.path) }
             ) { false }
         )
@@ -116,6 +118,43 @@ final class ClaudeRecoveryProcessTests: XCTestCase {
                 usleep(200_000)
                 return true
             })
+    }
+
+    func testChildRunsInDedicatedDirectoryCreatedPrivatelyInsteadOfHome() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let recovery = UsagePaths.recoveryWorkingDirectory(homeDirectory: directory)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: recovery.path))
+        XCTAssertFalse(
+            ClaudeRecoveryProcess.run(
+                executable: URL(filePath: "/bin/sh"), homeDirectory: directory, timeout: 4,
+                arguments: ["-c", "pwd > \"$TMPDIR/cwd\""], environment: ["TMPDIR": directory.path]
+            ) { false }
+        )
+        let value = try String(contentsOf: directory.appending(path: "cwd"), encoding: .utf8)
+        let observed = URL(filePath: value.trimmingCharacters(in: .whitespacesAndNewlines))
+        XCTAssertEqual(observed.resolvingSymlinksInPath().path, recovery.resolvingSymlinksInPath().path)
+        XCTAssertNotEqual(observed.resolvingSymlinksInPath().path, directory.resolvingSymlinksInPath().path)
+        let permissions =
+            try FileManager.default.attributesOfItem(atPath: recovery.path)[.posixPermissions] as? Int
+        XCTAssertEqual(permissions, 0o700)
+    }
+
+    func testAppServerAndCaptureHelperRunInTheSameDedicatedDirectory() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let recovery = UsagePaths.recoveryWorkingDirectory(homeDirectory: directory)
+        let result = try ProcessRunner.run(
+            executable: URL(filePath: "/bin/sh"), arguments: ["-c", "pwd"], input: Data(),
+            requiredResponseIDs: [], timeout: 4, workingDirectory: recovery
+        )
+        let value = String(decoding: result.standardOutput, as: UTF8.self)
+        let observed = URL(filePath: value.trimmingCharacters(in: .whitespacesAndNewlines))
+        XCTAssertEqual(observed.resolvingSymlinksInPath().path, recovery.resolvingSymlinksInPath().path)
+        XCTAssertNotEqual(observed.resolvingSymlinksInPath().path, directory.resolvingSymlinksInPath().path)
+        let permissions =
+            try FileManager.default.attributesOfItem(atPath: recovery.path)[.posixPermissions] as? Int
+        XCTAssertEqual(permissions, 0o700)
     }
 
     private func run(

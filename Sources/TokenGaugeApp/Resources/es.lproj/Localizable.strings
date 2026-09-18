@@ -175,3 +175,4 @@
 "pace.info_method" = "Se calcula con al menos 30 minutos observados dentro de la última hora. Los reinicios y los huecos largos se excluyen.";
 "pace.info_retention" = "Si no se registra consumo nuevo, conservamos el último ritmo activo con su fecha. Las mediciones se guardan solo en este Mac.";
 "pace.info_saved" = "Mostramos la última medición con consumo mientras llegan datos nuevos.";
+"account.current" = "Cuenta: %@";

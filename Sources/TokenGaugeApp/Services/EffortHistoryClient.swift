@@ -5,7 +5,7 @@ import os
 enum EffortHistoryClient {
     private static let collecting = OSAllocatedUnfairLock(initialState: false)
 
-    static func collect() throws {
+    static func collect(homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) throws {
         let acquired = collecting.withLock { active in
             guard !active else { return false }
             active = true
@@ -22,7 +22,8 @@ enum EffortHistoryClient {
         }
         let result = try ProcessRunner.run(
             executable: executable, arguments: ["--record-effort-history"], input: Data(),
-            requiredResponseIDs: [], timeout: 25)
+            requiredResponseIDs: [], timeout: 25,
+            workingDirectory: UsagePaths.recoveryWorkingDirectory(homeDirectory: homeDirectory))
         guard result.exitCode == 0 else { throw UsageDataError.processFailed("Could not update effort history") }
         let receipt = try JSONDecoder().decode([String: Int].self, from: result.standardOutput)
         guard let records = receipt["records"], records >= 0 else { throw UsageDataError.invalidPayload }

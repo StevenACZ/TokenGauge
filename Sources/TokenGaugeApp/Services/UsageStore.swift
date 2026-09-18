@@ -76,6 +76,8 @@ final class UsageStore: ObservableObject {
             recoveryAuthorization.setAllowed(claudeAutomaticRecovery && claudeCancelledAt == nil)
         }
     }
+    @Published private(set) var claudeAccountLabel: String?
+    @Published private(set) var claudeAccountFingerprint: String?
     @Published private(set) var claudeCancelledAt: Date?
     @Published private(set) var codexCancelledAt: Date?
 
@@ -130,6 +132,15 @@ final class UsageStore: ObservableObject {
         }
         if claudeCancelledAt != nil { claude.status = .cancelled }
         if codexCancelledAt != nil { codex.status = .cancelled }
+        if self.historyReadsEnabled {
+            let identity = ClaudeAccountIdentityReader.current(homeDirectory: claudeClient.homeDirectory)
+            claudeAccountLabel = identity?.label
+            claudeAccountFingerprint = identity?.fingerprint
+        }
+    }
+
+    func setPreviewAccountLabel(_ label: String?) {
+        claudeAccountLabel = label
     }
 
     func start() {
@@ -156,6 +167,7 @@ final class UsageStore: ObservableObject {
         let claudeClient = self.claudeClient
         let codexClient = self.codexClient
         let recoveryAuthorization = self.recoveryAuthorization
+        let effortHome = claudeClient.homeDirectory
 
         Task {
             async let claudeOutcome = Task.detached(priority: .utility) {
@@ -164,18 +176,23 @@ final class UsageStore: ObservableObject {
             async let codexOutcome = Task.detached(priority: .utility) {
                 Self.fetchCodex(client: codexClient)
             }.value
-
             let codexState = await codexOutcome
             applyCodexState(codexState)
             let claudeResult = await claudeOutcome
             applyRefreshResults(claudeResult: claudeResult, codexState: codexState)
+            if historyReadsEnabled {
+                claudeAccountLabel = claudeResult?.accountLabel
+                claudeAccountFingerprint = claudeResult?.accountFingerprint
+            }
             lastRefresh = Date()
             isRefreshing = false
             scheduleResetRefresh()
             if historyReadsEnabled {
                 await Task.detached(priority: .background) {
-                    Self.archive(claudeResult: claudeResult, codexState: codexState)
-                    try? EffortHistoryClient.collect()
+                    Self.archive(
+                        claudeResult: claudeResult, codexState: codexState,
+                        accountFingerprint: claudeResult?.accountFingerprint)
+                    try? EffortHistoryClient.collect(homeDirectory: effortHome)
                 }.value
                 historyRevision &+= 1
             }
@@ -202,10 +219,12 @@ final class UsageStore: ObservableObject {
 
     nonisolated static func archive(
         claudeResult: ClaudeUsageResult?, codexState: ProviderViewState,
-        at url: URL = UsagePaths.history()
+        at url: URL = UsagePaths.history(), accountFingerprint: String? = nil
     ) {
         if let result = claudeResult {
-            try? UsageHistoryStore.record(result.snapshot, at: url, recordQuota: result.access == .live)
+            try? UsageHistoryStore.record(
+                result.snapshot, at: url, recordQuota: result.access == .live,
+                accountFingerprint: accountFingerprint)
         }
         if let snapshot = codexState.snapshot {
             try? UsageHistoryStore.record(

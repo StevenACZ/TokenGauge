@@ -13,15 +13,25 @@ public struct ClaudeCapturedWindow: Codable, Equatable, Sendable {
 public struct ClaudeCapturedSnapshot: Codable, Equatable, Sendable {
     public let capturedAt: Date
     public let windows: [String: ClaudeCapturedWindow]
+    public let accountFingerprint: String?
 
-    public init(capturedAt: Date, windows: [String: ClaudeCapturedWindow]) {
+    public init(
+        capturedAt: Date, windows: [String: ClaudeCapturedWindow], accountFingerprint: String? = nil
+    ) {
         self.capturedAt = capturedAt
         self.windows = windows
+        self.accountFingerprint = accountFingerprint
+    }
+
+    public func belongs(to fingerprint: String?) -> Bool {
+        ClaudeAccountIdentity.isCompatible(stored: accountFingerprint, current: fingerprint)
     }
 }
 
 public enum ClaudeUsageParser {
-    public static func capture(from statusLineData: Data, capturedAt: Date = Date()) throws -> ClaudeCapturedSnapshot {
+    public static func capture(
+        from statusLineData: Data, capturedAt: Date = Date(), accountFingerprint: String? = nil
+    ) throws -> ClaudeCapturedSnapshot {
         guard
             let root = try JSONSerialization.jsonObject(with: statusLineData) as? [String: Any],
             let rateLimits = JSONValue.dictionary(root["rate_limits"])
@@ -37,7 +47,8 @@ public enum ClaudeUsageParser {
             windows[key] = ClaudeCapturedWindow(usedPercentage: used, resetsAt: reset)
         }
         guard !windows.isEmpty else { throw UsageDataError.invalidPayload }
-        return ClaudeCapturedSnapshot(capturedAt: capturedAt, windows: windows)
+        return ClaudeCapturedSnapshot(
+            capturedAt: capturedAt, windows: windows, accountFingerprint: accountFingerprint)
     }
 
     public static func normalize(

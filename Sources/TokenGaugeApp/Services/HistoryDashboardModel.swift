@@ -121,7 +121,7 @@ final class HistoryDashboardModel: ObservableObject {
 
     func load(
         mode: HistoryMode, revision: Int, previewSnapshots: [ProviderUsageSnapshot]? = nil,
-        paceKeys: [HistoryPaceKey] = []
+        paceKeys: [HistoryPaceKey] = [], accountFingerprint: String? = nil
     ) async {
         let request = UUID()
         generation = request
@@ -136,7 +136,9 @@ final class HistoryDashboardModel: ObservableObject {
             cacheOrder.removeAll(keepingCapacity: true)
             cacheRevision = revision
         }
-        let cacheKey = first + ":" + last + ":" + paceKeys.map(\.id).sorted().joined(separator: "|")
+        let cacheKey =
+            first + ":" + last + ":" + (accountFingerprint ?? "")
+            + ":" + paceKeys.map(\.id).sorted().joined(separator: "|")
         do {
             let result: ReadResult
             if let cached = cachedReads[cacheKey] {
@@ -157,8 +159,10 @@ final class HistoryDashboardModel: ObservableObject {
                     return ReadResult(
                         days: Self.makeDays(interval: interval, tokens: tokens, efforts: efforts),
                         latest: try UsageHistoryStore.recentPaces(
-                            for: paceKeys, limitPerWindow: 1, before: now, matchingLatestQuota: true),
-                        retained: try UsageHistoryStore.recentPaces(for: paceKeys, activeOnly: true, before: now),
+                            for: paceKeys, limitPerWindow: 1, before: now, matchingLatestQuota: true,
+                            accountFingerprint: accountFingerprint),
+                        retained: try UsageHistoryStore.recentPaces(
+                            for: paceKeys, activeOnly: true, before: now, accountFingerprint: accountFingerprint),
                         first: try UsageHistoryStore.bounds().firstDay)
                 }.value
             }

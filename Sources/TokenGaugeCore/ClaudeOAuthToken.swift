@@ -15,15 +15,33 @@ public struct ClaudeOAuthToken: Sendable {
 public enum ClaudeOAuthTokenReader {
     public static let service = "Claude Code-credentials"
 
-    private static let cache = OSAllocatedUnfairLock<ClaudeOAuthToken?>(initialState: nil)
+    private struct CachedToken {
+        let token: ClaudeOAuthToken
+        let accountUuid: String?
+    }
 
-    public static func read(account: String = NSUserName()) -> ClaudeOAuthToken? {
+    private static let cache = OSAllocatedUnfairLock<CachedToken?>(initialState: nil)
+
+    public static func read(account: String = NSUserName(), accountUuid: String? = nil) -> ClaudeOAuthToken? {
+        read(accountUuid: accountUuid) { readFromKeychain(account: account) }
+    }
+
+    static func read(accountUuid: String?, load: @Sendable () -> ClaudeOAuthToken?) -> ClaudeOAuthToken? {
         cache.withLock { cached in
-            if let cached, !cached.isExpired { return cached }
-            let fresh = readFromKeychain(account: account)
-            if fresh != nil { cached = fresh }
+            if let current = cached, !current.token.isExpired,
+                !isForeign(cached: current.accountUuid, requested: accountUuid)
+            {
+                return current.token
+            }
+            let fresh = load()
+            if let fresh { cached = CachedToken(token: fresh, accountUuid: accountUuid) }
             return fresh
         }
+    }
+
+    static func isForeign(cached: String?, requested: String?) -> Bool {
+        guard let requested else { return false }
+        return cached != requested
     }
 
     public static func invalidate() {

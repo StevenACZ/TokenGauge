@@ -17,7 +17,8 @@ final class ClaudeRecoveryLiveTests: XCTestCase {
             fetch: {
                 reads += 1
                 if reads == 1 { throw ClaudeAccountUsageError.credentialExpired }
-                return try ClaudeAccountUsageClient(homeDirectory: home).fetch()
+                return try ClaudeAccountUsageClient(homeDirectory: home).fetch(
+                    identity: ClaudeAccountIdentityReader.current(homeDirectory: home))
             },
             recover: {
                 ClaudeRecoveryProcess.run(executable: executable, homeDirectory: home) {
