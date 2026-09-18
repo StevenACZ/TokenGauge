@@ -49,4 +49,30 @@ final class ClaudeAccountUsageParserTests: XCTestCase {
     func testRejectsPayloadWithoutLimits() {
         XCTAssertThrowsError(try ClaudeAccountUsageParser.parse(Data("{\"limits\":[]}".utf8)))
     }
+
+    func testReportsEmptyLimitsSeparatelyFromMalformedPayloads() throws {
+        XCTAssertEqual(try ClaudeAccountUsageParser.parseLimits(Data("{\"limits\":[]}".utf8)), .empty)
+        for payload in ["invalid", "{}", "{\"limits\":[{}]}", "{\"limits\":{}}"] {
+            XCTAssertThrowsError(try ClaudeAccountUsageParser.parseLimits(Data(payload.utf8)))
+        }
+    }
+
+    func testParsesResetInstantsWithAndWithoutFractionalSeconds() throws {
+        let input = Data(
+            """
+            {"limits": [
+              {"kind": "session", "percent": 10, "resets_at": "2026-08-25T22:59:59.535623+00:00", "scope": null},
+              {"kind": "weekly_all", "percent": 20, "resets_at": "2026-08-31T07:59:59Z", "scope": null}
+            ]}
+            """.utf8
+        )
+        let windows = try ClaudeAccountUsageParser.parse(input)
+        let expected = [
+            ISO8601DateFormatter().date(from: "2026-08-25T22:59:59+00:00")!,
+            ISO8601DateFormatter().date(from: "2026-08-31T07:59:59Z")!,
+        ]
+        for (window, instant) in zip(windows, expected) {
+            XCTAssertEqual(window.resetsAt?.timeIntervalSince1970 ?? 0, instant.timeIntervalSince1970, accuracy: 1)
+        }
+    }
 }
