@@ -1,3 +1,4 @@
+import Combine
 import Sparkle
 import XCTest
 
@@ -8,10 +9,15 @@ final class UpdateManagerTests: XCTestCase {
 
     private var clock = Date(timeIntervalSince1970: 1_000)
 
-    private func makeManager() -> UpdateManager {
-        UpdateManager(
-            defaults: UserDefaults(suiteName: "TokenGauge.UpdaterTests." + UUID().uuidString)!,
-            now: { [unowned self] in self.clock })
+    private func makeDefaults() -> UserDefaults {
+        let suite = "TokenGauge.UpdaterTests." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
+        return defaults
+    }
+
+    private func makeManager(defaults: UserDefaults? = nil) -> UpdateManager {
+        UpdateManager(defaults: defaults ?? makeDefaults(), now: { [unowned self] in self.clock })
     }
 
     private func found(
@@ -238,7 +244,7 @@ final class UpdateManagerTests: XCTestCase {
 
     func testFeedOverridePrecedence() {
         let qa = ["TOKENGAUGE_QA_UPDATES": "1", "TOKENGAUGE_UPDATE_FEED_URL": "http://127.0.0.1:18764/appcast.xml"]
-        let override = "http://127.0.0.1:8000/override.xml"
+        let override = "https://updates.example.com/override.xml"
 
         XCTAssertEqual(
             UpdateManager.feedURL(environment: qa, override: override, isDevelopmentBuild: true),
@@ -249,6 +255,130 @@ final class UpdateManagerTests: XCTestCase {
             UpdateManager.feedURL(environment: qa, override: override, isDevelopmentBuild: false), override)
         XCTAssertNil(UpdateManager.feedURL(environment: [:], override: nil, isDevelopmentBuild: false))
         XCTAssertNil(UpdateManager.feedURL(environment: [:], override: "not a url", isDevelopmentBuild: false))
+    }
+
+    func testFeedOverrideIsHonouredOnlyOverHTTPS() {
+        for raw in ["http://127.0.0.1:8000/override.xml", "http://updates.example.com/appcast.xml"] {
+            XCTAssertNil(UpdateManager.feedURL(environment: [:], override: raw, isDevelopmentBuild: false))
+            XCTAssertNil(UpdateManager.feedURL(environment: [:], override: raw, isDevelopmentBuild: true))
+        }
+        XCTAssertEqual(
+            UpdateManager.feedURL(
+                environment: [:], override: "https://updates.example.com/appcast.xml", isDevelopmentBuild: false),
+            "https://updates.example.com/appcast.xml")
+        let qa = ["TOKENGAUGE_QA_UPDATES": "1", "TOKENGAUGE_UPDATE_FEED_URL": "http://127.0.0.1:18764/appcast.xml"]
+        XCTAssertEqual(
+            UpdateManager.feedURL(environment: qa, override: nil, isDevelopmentBuild: true),
+            qa["TOKENGAUGE_UPDATE_FEED_URL"])
+    }
+
+    func testManualCheckWithoutAnUpdaterReturnsToIdle() {
+        let defaults = makeDefaults()
+        defaults.set("https://updates.example.com/appcast.xml", forKey: UpdateManager.feedOverrideDefaultsKey)
+        let manager = makeManager(defaults: defaults)
+
+        manager.checkForUpdatesManually()
+
+        XCTAssertEqual(manager.manualCheckStatus, .failed)
+        XCTAssertEqual(manager.phase, .idle)
+    }
+
+    func testDismissedCheckReturnsToIdle() {
+        let manager = makeManager()
+        manager.handleManualCheckStarted()
+        XCTAssertEqual(manager.phase, .checking)
+
+        manager.handleDismissInstallation()
+
+        XCTAssertEqual(manager.phase, .idle)
+    }
+
+    func testScheduledCheckNeverShowsTheCheckingPhase() {
+        let manager = makeManager()
+        var phases: [UpdateManager.Phase] = []
+        let subscription = manager.$phase.sink { phases.append($0) }
+
+        _ = found(manager)
+        manager.handleNotFound()
+        subscription.cancel()
+
+        XCTAssertFalse(phases.contains(.checking))
+        XCTAssertEqual(manager.phase, .idle)
+    }
+
+    func testDownloadBarCompletesBeforeExtractionStarts() {
+        let manager = makeManager()
+        _ = found(manager)
+        manager.handleDownloadInitiated()
+        manager.handleDownloadExpectedLength(1_000)
+        manager.handleDownloadReceived(bytes: 400)
+        var phases: [UpdateManager.Phase] = []
+        let subscription = manager.$phase.sink { phases.append($0) }
+
+        manager.handleExtractionStarted()
+        subscription.cancel()
+
+        XCTAssertEqual(
+            phases,
+            [
+                .downloading(version: "9.9.9", fraction: 0.4),
+                .downloading(version: "9.9.9", fraction: 1),
+                .extracting(version: "9.9.9", fraction: nil),
+            ])
+    }
+
+    func testDeferredVersionIsPersistedUntilTheUpdateInstalls() {
+        let defaults = makeDefaults()
+        let manager = makeManager(defaults: defaults)
+        _ = found(manager)
+        manager.handleReadyToInstall { _ in }
+
+        manager.deferReadyUpdate()
+        XCTAssertEqual(defaults.string(forKey: UpdateManager.deferredVersionDefaultsKey), "9.9.9")
+
+        manager.resumeDeferredInstall()
+        XCTAssertEqual(found(manager, stage: .downloaded), .install)
+        XCTAssertNil(defaults.string(forKey: UpdateManager.deferredVersionDefaultsKey))
+    }
+
+    func testDownloadedStageRestoresTheDeferredVersionAfterRelaunch() {
+        let defaults = makeDefaults()
+        let manager = makeManager(defaults: defaults)
+
+        XCTAssertEqual(found(manager, stage: .downloaded), .dismiss)
+
+        XCTAssertEqual(manager.phase, .readyToInstall(version: "9.9.9", deferred: true))
+        XCTAssertEqual(defaults.string(forKey: UpdateManager.deferredVersionDefaultsKey), "9.9.9")
+    }
+
+    func testDeferredVersionIsClearedByAnotherVersionAndByNoUpdate() {
+        let defaults = makeDefaults()
+        let manager = makeManager(defaults: defaults)
+        _ = found(manager, stage: .downloaded)
+
+        _ = found(manager, version: "9.9.10")
+        XCTAssertNil(defaults.string(forKey: UpdateManager.deferredVersionDefaultsKey))
+
+        _ = found(manager, stage: .downloaded)
+        XCTAssertEqual(defaults.string(forKey: UpdateManager.deferredVersionDefaultsKey), "9.9.9")
+
+        manager.handleNotFound()
+        XCTAssertNil(defaults.string(forKey: UpdateManager.deferredVersionDefaultsKey))
+    }
+
+    func testInstallingAReadyUpdateClearsTheDeferredVersion() {
+        let defaults = makeDefaults()
+        let manager = makeManager(defaults: defaults)
+        _ = found(manager, stage: .downloaded)
+        manager.handleReadyToInstall { _ in }
+        manager.deferReadyUpdate()
+        XCTAssertEqual(defaults.string(forKey: UpdateManager.deferredVersionDefaultsKey), "9.9.9")
+
+        manager.handleReadyToInstall { _ in }
+        manager.installReadyUpdate()
+
+        XCTAssertEqual(manager.phase, .installing(version: "9.9.9"))
+        XCTAssertNil(defaults.string(forKey: UpdateManager.deferredVersionDefaultsKey))
     }
 
     func testManualCheckFailureIsVisibleWithoutPublishingErrorDetails() {

@@ -66,8 +66,9 @@ struct QuotaRingWindow: View {
                 Text(UsageFormatters.reset(window.resetsAt))
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                     .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
                 if showPace { QuotaPaceLabel(pace: pace, previousPace: previousPace) }
                 if let summary = UsageFormatters.modelChips(chips) {
                     Text(summary)
@@ -119,6 +120,7 @@ struct QuotaRingRow: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .truncationMode(.tail)
                 if showPace { QuotaPaceLabel(pace: pace, previousPace: previousPace) }
                 if let summary = UsageFormatters.modelChips(chips) {
                     Text(summary)

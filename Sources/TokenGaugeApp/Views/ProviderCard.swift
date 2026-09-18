@@ -77,9 +77,9 @@ struct ProviderCard: View {
                     showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id],
                     metrics: .single, alignsTitleRows: false)
             } else {
-                QuotaRingModeLayout(windows: visibleWindows.count) {
-                    ringGrid.quotaRingVariant()
-                    ringRows.quotaRingVariant()
+                ViewThatFits(in: .horizontal) {
+                    ringGrid.frame(minWidth: QuotaRingLayout.minimumGridWidth(windows: visibleWindows.count))
+                    ringRows
                 }
             }
         } else {
@@ -178,7 +178,7 @@ struct ProviderCard: View {
             if !showsTitle { Spacer(minLength: 4) }
             if state.status == .ready, let credits = state.snapshot?.availableResetCredits, credits > 0 {
                 Text(UsageFormatters.resetCredits(credits))
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)

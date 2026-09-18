@@ -9,12 +9,44 @@ enum QuotaRingLayout {
 
     static func choose(availableWidth: CGFloat, windows: Int) -> Mode {
         guard windows > 1 else { return .single }
-        guard availableWidth / CGFloat(windows) >= Theme.Layout.quotaRingCellWidth else { return .rows }
+        guard cellWidth(availableWidth: availableWidth, columns: windows) >= Theme.Layout.quotaRingCellWidth else {
+            return .rows
+        }
         return .grid(columns: windows)
     }
 
+    static func cellWidth(availableWidth: CGFloat, columns: Int) -> CGFloat {
+        let columns = max(1, columns)
+        return (availableWidth - CGFloat(columns - 1) * Theme.Layout.quotaRingSpacing) / CGFloat(columns)
+    }
+
+    static func minimumGridWidth(windows: Int) -> CGFloat {
+        let columns = max(1, windows)
+        return CGFloat(columns) * Theme.Layout.quotaRingCellWidth
+            + CGFloat(columns - 1) * Theme.Layout.quotaRingSpacing
+    }
+
+    static func minimumCardWidth(cells: Int) -> CGFloat {
+        max(
+            Theme.Layout.minimumRingCardWidth,
+            minimumGridWidth(windows: min(max(cells, 1), 3)) + Theme.Layout.cardPadding * 2)
+    }
+
+    static func unifiedPanelWidth(codexCells: Int, claudeCells: Int) -> CGFloat {
+        let content =
+            minimumCardWidth(cells: codexCells) + minimumCardWidth(cells: claudeCells)
+            + Theme.Layout.panelPadding * 2 + Theme.Layout.quotaRingSpacing
+        return min(max(content, Theme.Layout.minimumRingUnifiedWidth), Theme.Layout.ringUnifiedWidth)
+    }
+
     static func columns(availableWidth: CGFloat, windows: Int) -> Int {
-        max(1, min(windows, Int(availableWidth / Theme.Layout.quotaRingCellWidth)))
+        var columns = max(1, windows)
+        while columns > 1,
+            cellWidth(availableWidth: availableWidth, columns: columns) < Theme.Layout.quotaRingCellWidth
+        {
+            columns -= 1
+        }
+        return columns
     }
 }
 
@@ -34,37 +66,4 @@ struct QuotaRingMetrics {
     static let row = QuotaRingMetrics(
         diameter: Theme.Layout.quotaRingRowDiameter, lineWidth: Theme.Layout.quotaRingRowLineWidth,
         percentageSize: Theme.Layout.quotaRingRowPercentageSize, contentPadding: 2, showsLabel: false)
-}
-
-struct QuotaRingModeLayout: Layout {
-    let windows: Int
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width =
-            proposal.width.flatMap { $0.isFinite ? max(0, $0) : nil }
-            ?? subviews[0].sizeThatFits(.unspecified).width
-        let height = subviews[index(for: width)].sizeThatFits(ProposedViewSize(width: width, height: nil)).height
-        return CGSize(width: width, height: height)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let chosen = index(for: bounds.width)
-        for (offset, subview) in subviews.enumerated() {
-            let visible = offset == chosen
-            subview.place(
-                at: visible ? CGPoint(x: bounds.minX, y: bounds.minY) : CGPoint(x: bounds.maxX, y: bounds.maxY),
-                anchor: .topLeading,
-                proposal: visible ? ProposedViewSize(width: bounds.width, height: bounds.height) : .zero)
-        }
-    }
-
-    private func index(for width: CGFloat) -> Int {
-        QuotaRingLayout.choose(availableWidth: width, windows: windows) == .rows ? 1 : 0
-    }
-}
-
-extension View {
-    func quotaRingVariant() -> some View {
-        frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).clipped()
-    }
 }

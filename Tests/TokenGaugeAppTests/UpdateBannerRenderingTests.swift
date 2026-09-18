@@ -44,6 +44,27 @@ final class UpdateBannerRenderingTests: XCTestCase {
         XCTAssertEqual(view.fittingSize.height, 0, accuracy: 1)
     }
 
+    func testAboutKeepsTheManualCheckReachableOutsideARunningUpdate() throws {
+        let idle = try actionHeight(phase: .idle)
+        let available = try actionHeight(phase: .available(version: "1.4.0"))
+        let deferred = try actionHeight(phase: .readyToInstall(version: "1.4.0", deferred: true))
+        let installing = try actionHeight(phase: .installing(version: "1.4.0"))
+
+        XCTAssertGreaterThan(idle, 0)
+        XCTAssertLessThan(idle, UpdateBannerView.compactHeight)
+        XCTAssertGreaterThan(available, 0)
+        XCTAssertLessThan(available, UpdateBannerView.compactHeight)
+        XCTAssertGreaterThan(deferred, max(idle, available))
+        XCTAssertEqual(installing, UpdateBannerView.compactHeight, accuracy: 1)
+    }
+
+    private func actionHeight(phase: UpdateManager.Phase) throws -> CGFloat {
+        let manager = try makeManager(phase: phase)
+        let view = NSHostingView(
+            rootView: UpdateActionView(updates: manager).frame(width: Theme.Layout.panelWidth))
+        return view.fittingSize.height
+    }
+
     private func makeManager(phase: UpdateManager.Phase) throws -> UpdateManager {
         let suite = "TokenGauge.banner.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

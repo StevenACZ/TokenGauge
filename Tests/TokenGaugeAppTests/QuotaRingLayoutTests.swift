@@ -5,6 +5,7 @@ import XCTest
 
 final class QuotaRingLayoutTests: XCTestCase {
     private let cell = Theme.Layout.quotaRingCellWidth
+    private let spacing = Theme.Layout.quotaRingSpacing
 
     func testOneWindowAlwaysChoosesTheSingleRing() {
         for width: CGFloat in [0, 90, 146, 170, 310, 560] {
@@ -14,7 +15,8 @@ final class QuotaRingLayoutTests: XCTestCase {
 
     func testGridIsChosenOnlyWhenEveryCellReachesTheMinimumCellWidth() {
         for windows in 2...5 {
-            let exact = cell * CGFloat(windows)
+            let exact = QuotaRingLayout.minimumGridWidth(windows: windows)
+            XCTAssertEqual(exact, cell * CGFloat(windows) + spacing * CGFloat(windows - 1), "windows \(windows)")
             XCTAssertEqual(
                 QuotaRingLayout.choose(availableWidth: exact, windows: windows), .grid(columns: windows),
                 "windows \(windows)")
@@ -40,7 +42,7 @@ final class QuotaRingLayoutTests: XCTestCase {
             (individual, 3, .rows),
             (narrowCard, 1, .single),
             (narrowCard, 2, .rows),
-            (halfCard, 2, .grid(columns: 2)),
+            (halfCard, 2, .rows),
             (wideCard, 3, .rows),
             (wideCard, 2, .grid(columns: 2)),
         ]
@@ -52,8 +54,36 @@ final class QuotaRingLayoutTests: XCTestCase {
 
     func testColumnsNeverExceedTheWindowCountAndStayAtLeastOne() {
         XCTAssertEqual(QuotaRingLayout.columns(availableWidth: 600, windows: 2), 2)
-        XCTAssertEqual(QuotaRingLayout.columns(availableWidth: cell * 3, windows: 3), 3)
-        XCTAssertEqual(QuotaRingLayout.columns(availableWidth: cell * 2, windows: 3), 2)
+        XCTAssertEqual(
+            QuotaRingLayout.columns(availableWidth: QuotaRingLayout.minimumGridWidth(windows: 3), windows: 3), 3)
+        XCTAssertEqual(QuotaRingLayout.columns(availableWidth: cell * 3, windows: 3), 2)
+        XCTAssertEqual(QuotaRingLayout.columns(availableWidth: cell * 2, windows: 3), 1)
         XCTAssertEqual(QuotaRingLayout.columns(availableWidth: 0, windows: 3), 1)
+    }
+
+    func testTheGridThresholdIsTheCellFormulaSharedWithTheGridLayout() {
+        for windows in 2...4 {
+            let minimum = QuotaRingLayout.minimumGridWidth(windows: windows)
+            XCTAssertEqual(
+                QuotaRingLayout.cellWidth(availableWidth: minimum, columns: windows), cell, accuracy: 0.001,
+                "windows \(windows)")
+            XCTAssertEqual(
+                QuotaRingLayout.choose(availableWidth: minimum, windows: windows), .grid(columns: windows),
+                "windows \(windows)")
+            XCTAssertEqual(
+                QuotaRingLayout.choose(availableWidth: minimum - 1, windows: windows), .rows, "windows \(windows)")
+        }
+    }
+
+    func testUnifiedPanelWidthStaysWithinItsBounds() {
+        XCTAssertEqual(
+            QuotaRingLayout.unifiedPanelWidth(codexCells: 1, claudeCells: 1), Theme.Layout.minimumRingUnifiedWidth)
+        XCTAssertEqual(
+            QuotaRingLayout.unifiedPanelWidth(codexCells: 3, claudeCells: 3), Theme.Layout.ringUnifiedWidth)
+        let wideCard = QuotaRingLayout.minimumGridWidth(windows: 2) + Theme.Layout.cardPadding * 2
+        let chrome: CGFloat = Theme.Layout.panelPadding * 2 + spacing
+        XCTAssertEqual(
+            QuotaRingLayout.unifiedPanelWidth(codexCells: 1, claudeCells: 2),
+            Theme.Layout.minimumRingCardWidth + wideCard + chrome)
     }
 }
