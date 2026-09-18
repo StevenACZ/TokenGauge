@@ -211,13 +211,11 @@ final class MenuBarPresentationTests: XCTestCase {
     private func state(provider: UsageProvider, status: ProviderStatus, usedPercentage: Double? = nil)
         -> ProviderViewState
     {
-        let window = QuotaWindow(
+        let window = Fixture.window(
             id: provider == .codex ? "codex.primary" : "seven_day",
             usedPercentage: usedPercentage ?? (provider == .codex ? 80 : 40),
-            resetsAt: Date().addingTimeInterval(86_400), durationMinutes: 10_080, displayName: nil)
-        let snapshot = ProviderUsageSnapshot(
-            provider: provider, windows: [window], dailyUsage: [], summary: nil,
-            availableResetCredits: nil, creditBalance: nil, capturedAt: Date())
+            resetsAt: Date().addingTimeInterval(86_400), durationMinutes: 10_080)
+        let snapshot = Fixture.snapshot(provider, windows: [window])
         return ProviderViewState(snapshot: snapshot, status: status, isRefreshing: false)
     }
 }

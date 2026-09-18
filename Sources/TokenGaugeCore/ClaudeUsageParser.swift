@@ -63,12 +63,7 @@ public enum ClaudeUsageParser {
                 durationMinutes: duration(for: key),
                 displayName: nil
             )
-        }.sorted { left, right in
-            let leftDuration = left.durationMinutes ?? Int.max
-            let rightDuration = right.durationMinutes ?? Int.max
-            if leftDuration != rightDuration { return leftDuration < rightDuration }
-            return left.id < right.id
-        }
+        }.sorted(by: QuotaWindow.displayOrder)
         return ProviderUsageSnapshot(
             provider: .claude,
             windows: windows,

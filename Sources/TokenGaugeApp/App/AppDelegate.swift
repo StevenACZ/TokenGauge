@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusController: StatusItemController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        signal(SIGPIPE, SIG_IGN)
         NSApp.setActivationPolicy(.accessory)
         statusController = StatusItemController(store: store, launchAtLogin: launchAtLogin)
         requestClaudeRecoveryConsent()
@@ -27,9 +28,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func requestClaudeRecoveryConsent() {
-        guard UserDefaults.standard.object(forKey: "claudeAutomaticRecovery") == nil,
-            ClaudeSessionRecovery.executable() != nil
-        else { return }
+        guard !AppPreferences().claudeAutomaticRecoveryDecided, ClaudeSessionRecovery.executable() != nil else {
+            return
+        }
         let alert = NSAlert()
         alert.messageText = "setup.claude_recovery_title".localized
         alert.informativeText = "setup.claude_recovery_message".localized

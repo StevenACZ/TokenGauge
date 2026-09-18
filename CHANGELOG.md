@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-18
+
+### Added
+
+- Quota ring cards that switch between one large ring, a grid, or compact rows according to the visible windows and the available width, keeping three Claude windows with model chips and pace lines fully readable.
+- A calendar day card, shown by holding the pointer over a day or pinned with a click, with per-provider icons, tokens, percentages, model detail, and current and best streaks.
+- Five calendar intensity levels derived from usage quantiles, so more color means more usage.
+- An in-panel update banner with real download and extraction progress, followed by Install now or Later.
+- A persistent Install button in the panel and in About after choosing Later, preserved across relaunches.
+
+### Changed
+
+- The yearly calendar now shows combined activity in the Codex, Claude, and Unified views.
+- Calendar selection follows the pointer and returns to today when the pointer leaves the calendar; Esc, a click outside, scrolling, or changing view dismisses a pinned day card.
+- The standard panel moves Settings, About, and Quit into a header gear menu instead of footer rows.
+- Manual update checks are available in About whenever no update is in progress.
+- Faster refreshes: transcripts are scanned incrementally with a resume file, a single capture pass replaces two, Claude activity and account data are read concurrently within a 12-second network limit, and each provider's card appears as soon as its own data is ready.
+- Update feed overrides are accepted only over HTTPS.
+
+### Fixed
+
+- Claude readings, history, and pace continuity are scoped to the signed-in account, and Claude helper commands run in a private working directory.
+- A refresh stays marked as busy until local archiving finishes.
+- Local history read handles are closed when the database reports a schema error.
+- Daily totals use the Gregorian calendar regardless of the system calendar setting.
+
 ## [1.3.0] - 2026-09-13
 
 ### Added

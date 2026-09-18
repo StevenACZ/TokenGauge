@@ -5,7 +5,7 @@ import XCTest
 @testable import TokenGaugeApp
 
 final class ClaudeRecoveryLiveTests: XCTestCase {
-    func testOptInRealCLIStartupAndUsageRetry() throws {
+    func testOptInRealCLIStartupAndUsageRetry() async throws {
         guard ProcessInfo.processInfo.environment["TOKENGAUGE_LIVE_RECOVERY_QA"] == "1" else {
             throw XCTSkip("Requires explicit local Claude recovery QA authorization")
         }
@@ -13,11 +13,11 @@ final class ClaudeRecoveryLiveTests: XCTestCase {
         let executable = try XCTUnwrap(ClaudeSessionRecovery.executable(homeDirectory: home))
         let started = ProcessInfo.processInfo.systemUptime
         var reads = 0
-        let result = ClaudeUsageClient.readAccount(
+        let result = await ClaudeUsageClient.readAccount(
             fetch: {
                 reads += 1
                 if reads == 1 { throw ClaudeAccountUsageError.credentialExpired }
-                return try ClaudeAccountUsageClient(homeDirectory: home).fetch(
+                return try await ClaudeAccountUsageClient(homeDirectory: home).fetch(
                     identity: ClaudeAccountIdentityReader.current(homeDirectory: home))
             },
             recover: {

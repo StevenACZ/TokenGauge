@@ -37,7 +37,7 @@ struct QuotaPaceLabel: View {
                 QuotaPaceDetailsView(display: display)
             }
         }
-        .font(.system(size: 9)).foregroundStyle(.secondary)
+        .font(.system(size: 10)).foregroundStyle(.secondary)
     }
 }
 
@@ -60,9 +60,9 @@ struct QuotaPaceDetailsView: View {
             if let previous = display.previous {
                 reading(previous, title: "pace.previous".localized)
             }
-            Text("pace.info_method".localized).font(.system(size: 9)).foregroundStyle(.secondary)
+            Text("pace.info_method".localized).font(.system(size: 10)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("pace.info_retention".localized).font(.system(size: 9)).foregroundStyle(.secondary)
+            Text("pace.info_retention".localized).font(.system(size: 10)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(14).frame(width: 285)
@@ -77,7 +77,7 @@ struct QuotaPaceDetailsView: View {
                     .font(.system(size: 12, weight: .semibold)).monospacedDigit()
             }
             Text(pace.sampledAt.formatted(.dateTime.day().month(.abbreviated).year().hour().minute().locale(locale)))
-                .font(.system(size: 9)).foregroundStyle(.secondary)
+                .font(.system(size: 10)).foregroundStyle(.secondary)
         }
     }
 

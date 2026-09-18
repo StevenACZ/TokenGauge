@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import SQLite3
 import XCTest
@@ -189,6 +190,105 @@ final class UsageHistoryStoreTests: XCTestCase {
         let db = try XCTUnwrap(handle)
         defer { sqlite3_close(db) }
         XCTAssertEqual(sqlite3_exec(db, sql, nil, nil, nil), SQLITE_OK)
+    }
+
+    func testUsageDaysReportOnlyDaysWithRecordedTokens() throws {
+        try UsageHistoryStore.record(
+            ProviderUsageSnapshot(
+                provider: .codex, windows: [],
+                dailyUsage: [
+                    DailyTokenUsage(day: "2026-09-15", tokens: 120), DailyTokenUsage(day: "2026-09-16", tokens: 0),
+                ],
+                summary: nil, availableResetCredits: nil, creditBalance: nil,
+                capturedAt: Date(timeIntervalSince1970: 1_787_000_000)),
+            at: database)
+        try UsageHistoryStore.record(
+            claudeSnapshot(buckets: [bucket(day: "2026-09-17", hour: 0, model: "claude-fable-5", tokens: 40)]),
+            at: database)
+
+        XCTAssertEqual(try UsageHistoryStore.usageDays(provider: .codex, at: database), ["2026-09-15"])
+        XCTAssertEqual(try UsageHistoryStore.usageDays(provider: .claude, at: database), ["2026-09-17"])
+        XCTAssertEqual(try UsageHistoryStore.usageDays(at: database), ["2026-09-15", "2026-09-17"])
+    }
+
+    func testUsageDaysByProviderReturnsEveryProviderInOneRead() throws {
+        try UsageHistoryStore.record(
+            ProviderUsageSnapshot(
+                provider: .codex, windows: [],
+                dailyUsage: [
+                    DailyTokenUsage(day: "2026-09-15", tokens: 120), DailyTokenUsage(day: "2026-09-16", tokens: 0),
+                    DailyTokenUsage(day: "2026-09-17", tokens: 80),
+                ],
+                summary: nil, availableResetCredits: nil, creditBalance: nil,
+                capturedAt: Date(timeIntervalSince1970: 1_787_000_000)),
+            at: database)
+        try UsageHistoryStore.record(
+            claudeSnapshot(buckets: [bucket(day: "2026-09-17", hour: 0, model: "claude-fable-5", tokens: 40)]),
+            at: database)
+
+        let entries = UsageHistoryStore.entryCount
+        let days = try UsageHistoryStore.usageDaysByProvider(at: database)
+        XCTAssertEqual(UsageHistoryStore.entryCount, entries + 1)
+        XCTAssertEqual(days[.codex], ["2026-09-15", "2026-09-17"])
+        XCTAssertEqual(days[.claude], ["2026-09-17"])
+        XCTAssertEqual(days[.codex], try UsageHistoryStore.usageDays(provider: .codex, at: database))
+        XCTAssertEqual(days[.claude], try UsageHistoryStore.usageDays(provider: .claude, at: database))
+    }
+
+    func testSchemaIsPreparedOncePerProcessAndPath() throws {
+        try UsageHistoryStore.record(claudeSnapshot(), at: database)
+        try UsageHistoryStore.record(claudeSnapshot(used: 60), at: database)
+        _ = try UsageHistoryStore.tokenRows(at: database)
+        _ = try UsageHistoryStore.quotaRows(at: database)
+
+        XCTAssertTrue(UsageHistoryStore.preparedPaths.contains(database.path))
+        XCTAssertEqual(UsageHistoryStore.schemaPreparations(for: database.path), 1)
+
+        let other = root.appending(path: "other-history.sqlite")
+        _ = try UsageHistoryStore.bounds(at: other)
+        _ = try UsageHistoryStore.bounds(at: other)
+        XCTAssertEqual(UsageHistoryStore.schemaPreparations(for: other.path), 1)
+        XCTAssertEqual(UsageHistoryStore.schemaPreparations(for: database.path), 1)
+    }
+
+    func testReadEntriesOpenReadOnly() throws {
+        try UsageHistoryStore.record(claudeSnapshot(), at: database)
+        XCTAssertEqual(UsageHistoryStore.lastEntryWasReadOnly, false)
+
+        _ = try UsageHistoryStore.quotaRows(at: database)
+        XCTAssertEqual(UsageHistoryStore.lastEntryWasReadOnly, true)
+        _ = try UsageHistoryStore.tokenRows(at: database)
+        XCTAssertEqual(UsageHistoryStore.lastEntryWasReadOnly, true)
+        _ = try UsageHistoryStore.bounds(at: database)
+        XCTAssertEqual(UsageHistoryStore.lastEntryWasReadOnly, true)
+
+        try UsageHistoryStore.record(claudeSnapshot(used: 70), at: database)
+        XCTAssertEqual(UsageHistoryStore.lastEntryWasReadOnly, false)
+    }
+
+    func testThrowingSchemaCheckClosesTheReadOnlyHandle() throws {
+        try UsageHistoryStore.record(claudeSnapshot(), at: database)
+        _ = try UsageHistoryStore.quotaRows(at: database)
+
+        try Data(repeating: 0x5A, count: 8_192).write(to: database)
+        let descriptors = openDescriptors(for: database.path)
+        for _ in 0..<5 {
+            XCTAssertThrowsError(try UsageHistoryStore.quotaRows(at: database))
+        }
+        XCTAssertEqual(openDescriptors(for: database.path), descriptors)
+    }
+
+    private func openDescriptors(for path: String) -> Int {
+        let target = URL(filePath: path).standardizedFileURL.path
+        let entries = (try? FileManager.default.contentsOfDirectory(atPath: "/dev/fd")) ?? []
+        return entries.reduce(into: 0) { count, entry in
+            guard let descriptor = Int32(entry) else { return }
+            var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
+            guard fcntl(descriptor, F_GETPATH, &buffer) != -1,
+                URL(filePath: String(cString: buffer)).standardizedFileURL.path == target
+            else { return }
+            count += 1
+        }
     }
 
     private func claudeSnapshot(

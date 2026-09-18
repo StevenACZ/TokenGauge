@@ -38,23 +38,49 @@ struct ClaudeUsageClient: Sendable {
 
     func fetch(
         now: Date = Date(), recoveryAuthorization: ClaudeRecoveryAuthorization = ClaudeRecoveryAuthorization()
-    ) throws -> ClaudeUsageResult {
+    ) async -> ClaudeUsageResult {
+        let homeDirectory = homeDirectory
         let identity = ClaudeAccountIdentityReader.current(homeDirectory: homeDirectory)
-        let buckets = try? fetchModelBuckets()
         let account = ClaudeAccountUsageClient(homeDirectory: homeDirectory)
-        let outcome = Self.readAccount(
-            fetch: { try account.fetch(now: Date(), identity: identity) },
-            recover: {
-                ClaudeSessionRecovery.shared.attempt(homeDirectory: homeDirectory, authorization: recoveryAuthorization)
-            }
+        return await Self.fetch(
+            history: { try? await BlockingWork.run { try self.fetchModelBuckets() } },
+            account: {
+                await Self.readAccount(
+                    fetch: { try await account.fetch(now: Date(), identity: identity) },
+                    recover: {
+                        (try? await BlockingWork.run {
+                            ClaudeSessionRecovery.shared.attempt(
+                                homeDirectory: homeDirectory, authorization: recoveryAuthorization)
+                        }) ?? false
+                    }
+                )
+            },
+            cached: { account.cached(identity: identity) },
+            capture: {
+                Self.capture(
+                    at: UsagePaths.claudeCapture(homeDirectory: homeDirectory),
+                    accountFingerprint: identity?.fingerprint)
+            },
+            now: now, accountFingerprint: identity?.fingerprint, accountLabel: identity?.label
         )
-        let capture = Self.capture(
-            at: UsagePaths.claudeCapture(homeDirectory: homeDirectory),
-            accountFingerprint: identity?.fingerprint)
-        return Self.resolve(
-            account: outcome, cached: account.cached(identity: identity), capture: capture,
-            modelBuckets: buckets ?? [], now: now, activityReadSucceeded: buckets != nil,
-            accountFingerprint: identity?.fingerprint, accountLabel: identity?.label
+    }
+
+    static func fetch(
+        history: @escaping @Sendable () async -> [ModelTokenBucket]?,
+        account: @escaping @Sendable () async -> Result<ClaudeAccountSnapshot, Error>,
+        cached: @escaping @Sendable () -> ClaudeAccountSnapshot?,
+        capture: @escaping @Sendable () -> ClaudeCapturedSnapshot?,
+        now: Date,
+        accountFingerprint: String? = nil,
+        accountLabel: String? = nil
+    ) async -> ClaudeUsageResult {
+        async let buckets = history()
+        async let outcome = account()
+        let (modelBuckets, resolved) = await (buckets, outcome)
+        return resolve(
+            account: resolved, cached: cached(), capture: capture(), modelBuckets: modelBuckets ?? [], now: now,
+            activityReadSucceeded: modelBuckets != nil, accountFingerprint: accountFingerprint,
+            accountLabel: accountLabel
         )
     }
 
@@ -66,15 +92,19 @@ struct ClaudeUsageClient: Sendable {
     }
 
     static func readAccount(
-        fetch: () throws -> ClaudeAccountSnapshot,
-        recover: () -> Bool
-    ) -> Result<ClaudeAccountSnapshot, Error> {
+        fetch: () async throws -> ClaudeAccountSnapshot,
+        recover: () async -> Bool
+    ) async -> Result<ClaudeAccountSnapshot, Error> {
         do {
-            return .success(try fetch())
+            return .success(try await fetch())
         } catch ClaudeAccountUsageError.credentialExpired {
-            guard recover() else { return .failure(ClaudeAccountUsageError.credentialExpired) }
+            guard await recover() else { return .failure(ClaudeAccountUsageError.credentialExpired) }
             ClaudeOAuthTokenReader.invalidate()
-            return Result { try fetch() }
+            do {
+                return .success(try await fetch())
+            } catch {
+                return .failure(error)
+            }
         } catch {
             return .failure(error)
         }
@@ -178,8 +208,8 @@ struct ClaudeUsageClient: Sendable {
 
     static func historyBuckets(
         executable: URL,
-        arguments: [String] = ["--history"],
-        timeout: TimeInterval = 20,
+        arguments: [String] = ["--collect"],
+        timeout: TimeInterval = 45,
         workingDirectory: URL
     ) throws -> [ModelTokenBucket] {
         let result: ProcessResult
@@ -196,11 +226,14 @@ struct ClaudeUsageClient: Sendable {
         guard result.exitCode == 0 else {
             throw UsageDataError.processFailed("History helper exited with status \(result.exitCode)")
         }
+        let collection: CaptureCollection
         do {
-            return try JSONDecoder().decode([ModelTokenBucket].self, from: result.standardOutput)
+            collection = try JSONDecoder().decode(CaptureCollection.self, from: result.standardOutput)
         } catch {
             throw UsageDataError.invalidPayload
         }
+        EffortHistoryClient.markRecorded(by: collection)
+        return collection.buckets
     }
 
     private func resolveCaptureExecutable() -> URL? {

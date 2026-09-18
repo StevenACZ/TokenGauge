@@ -8,15 +8,14 @@ import XCTest
 @MainActor
 final class QuotaPanelRenderingTests: XCTestCase {
     func testNewStylesRenderOneTwoAndThreeWindowsAtSupportedWidths() throws {
-        let originalLanguage = LocalizationManager.shared.language
-        defer { LocalizationManager.shared.language = originalLanguage }
-        for language in AppLanguage.allCases {
-            LocalizationManager.shared.language = language
+        try withEachLanguage { _ in
             for style in [QuotaPanelStyle.compact, .rings] {
                 for count in 1...3 {
                     for width: CGFloat in style == .rings ? [240, 334] : [334, 414] {
+                        let claude = state(count: count)
                         let card = ProviderCard(
-                            provider: .claude, state: state(count: count), panelStyle: style, showProviderTitle: true)
+                            provider: .claude, state: claude, panelStyle: style, showProviderTitle: true,
+                            showHourlyPace: true, paces: paces(claude))
                         let bitmap = try render(card.frame(width: width), maximumHeight: 420)
                         XCTAssertGreaterThan(bitmap.pixelsWide, 0)
                         XCTAssertEqual(bitmap.size.width, width, accuracy: 1)
@@ -27,10 +26,7 @@ final class QuotaPanelRenderingTests: XCTestCase {
     }
 
     func testCompactOneAndTwoWindowCardsStayBelowCombinedHeightBudget() throws {
-        let originalLanguage = LocalizationManager.shared.language
-        defer { LocalizationManager.shared.language = originalLanguage }
-        for language in AppLanguage.allCases {
-            LocalizationManager.shared.language = language
+        try withEachLanguage { _ in
             var combinedHeight: CGFloat = Theme.Layout.sectionSpacing
             for count in 1...2 {
                 let card = ProviderCard(
@@ -54,14 +50,14 @@ final class QuotaPanelRenderingTests: XCTestCase {
     }
 
     func testProportionalRingWidthsKeepTwoAndThreeWindowsOnOneRow() throws {
-        let originalLanguage = LocalizationManager.shared.language
-        defer { LocalizationManager.shared.language = originalLanguage }
-        for language in AppLanguage.allCases {
-            LocalizationManager.shared.language = language
-            for (count, width) in [(2, CGFloat(194)), (3, CGFloat(290))] {
+        try withEachLanguage { _ in
+            for count in [2, 3] {
+                let width = QuotaRingLayout.minimumGridWidth(windows: count) + Theme.Layout.cardPadding * 2
+                let claude = state(count: count)
                 let card = ProviderCard(
-                    provider: .claude, state: state(count: count), panelStyle: .rings, showProviderTitle: true)
-                let bitmap = try render(card.frame(width: width), maximumHeight: 220)
+                    provider: .claude, state: claude, panelStyle: .rings, showProviderTitle: true,
+                    showHourlyPace: true, paces: paces(claude))
+                let bitmap = try render(card.frame(width: width), maximumHeight: 260)
                 XCTAssertEqual(bitmap.size.width, width, accuracy: 1)
             }
         }
@@ -82,12 +78,14 @@ final class QuotaPanelRenderingTests: XCTestCase {
     }
 
     func testHiddenWindowsDoNotOccupyRingSpace() throws {
+        let claude = state(count: 3)
         var card = ProviderCard(
-            provider: .claude, state: state(count: 3), panelStyle: .rings, showProviderTitle: true)
-        let all = try render(card.frame(width: 240), maximumHeight: 320)
+            provider: .claude, state: claude, panelStyle: .rings, showProviderTitle: true,
+            showHourlyPace: true, paces: paces(claude))
+        let all = try render(card.frame(width: 240), maximumHeight: 420)
         card.hiddenClaudeWindows = [.weekly]
-        let filtered = try render(card.frame(width: 240), maximumHeight: 190)
-        XCTAssertLessThan(filtered.size.height, all.size.height - 100)
+        let filtered = try render(card.frame(width: 240), maximumHeight: 300)
+        XCTAssertLessThan(filtered.size.height, all.size.height - 50)
     }
 
     func testZeroAndFullRingsHaveDistinctRenderedBalances() throws {
@@ -96,6 +94,126 @@ final class QuotaPanelRenderingTests: XCTestCase {
         XCTAssertEqual(empty.size.width, Theme.Layout.quotaRingDiameter, accuracy: 1)
         XCTAssertEqual(full.size.width, Theme.Layout.quotaRingDiameter, accuracy: 1)
         XCTAssertGreaterThan(bluePixelCount(full), bluePixelCount(empty) + 100)
+    }
+
+    func testAdaptiveRingCardsRenderEveryWindowCountWithinThePanelHeight() throws {
+        let width = Theme.Layout.ringPanelWidth - Theme.Layout.panelPadding * 2
+        try withEachLanguage { _ in
+            for count in 1...3 {
+                let state = state(count: count)
+                let claude = ProviderCard(
+                    provider: .claude, state: state, panelStyle: .rings, showProviderTitle: true,
+                    showHourlyPace: true, paces: paces(state))
+                let bitmap = try render(claude.frame(width: width), maximumHeight: Theme.Layout.maximumPanelHeight)
+                XCTAssertEqual(bitmap.size.width, width, accuracy: 1)
+            }
+            for count in 1...2 {
+                let state = codexState(count: count)
+                let codex = ProviderCard(
+                    provider: .codex, state: state, panelStyle: .rings, showProviderTitle: true,
+                    showHourlyPace: true, paces: paces(state))
+                let bitmap = try render(codex.frame(width: width), maximumHeight: Theme.Layout.maximumPanelHeight)
+                XCTAssertEqual(bitmap.size.width, width, accuracy: 1)
+            }
+        }
+    }
+
+    func testThreeWindowIndividualCardFallsBackToRowsAndStaysOnOneColumn() throws {
+        let cardWidth = Theme.Layout.ringPanelWidth - Theme.Layout.panelPadding * 2
+        let available = cardWidth - Theme.Layout.cardPadding * 2
+        XCTAssertEqual(QuotaRingLayout.choose(availableWidth: available, windows: 3), .rows)
+        XCTAssertEqual(QuotaRingLayout.choose(availableWidth: available, windows: 2), .grid(columns: 2))
+        let claude = state(count: 3)
+        let card = ProviderCard(
+            provider: .claude, state: claude, panelStyle: .rings, showProviderTitle: true,
+            showHourlyPace: true, paces: paces(claude))
+        let rows = try render(card.frame(width: cardWidth), maximumHeight: Theme.Layout.maximumPanelHeight)
+        let grid = try render(
+            card.frame(width: QuotaRingLayout.minimumGridWidth(windows: 3) + Theme.Layout.cardPadding * 2),
+            maximumHeight: Theme.Layout.maximumPanelHeight)
+        XCTAssertGreaterThan(rows.size.height, grid.size.height)
+    }
+
+    func testUnifiedRingCardsShareOneHeight() throws {
+        let available = Theme.Layout.ringUnifiedWidth - Theme.Layout.panelPadding * 2 - Theme.Layout.quotaRingSpacing
+        let balanced = QuotaRingLayout.minimumGridWidth(windows: 2) * 2 + Theme.Layout.cardPadding * 4
+        let matrix: [(Int, Int, CGFloat, CGFloat)] = [
+            (1, 3, Theme.Layout.minimumRingCardWidth, available - Theme.Layout.minimumRingCardWidth),
+            (2, 2, balanced / 2, balanced / 2),
+        ]
+        for (codexWindows, claudeWindows, codexWidth, claudeWidth) in matrix {
+            let codexState = codexState(count: codexWindows)
+            let claudeState = state(count: claudeWindows)
+            let codex = ProviderCard(
+                provider: .codex, state: codexState, panelStyle: .rings,
+                showProviderTitle: true, showHourlyPace: true, stretchesHeight: true, paces: paces(codexState))
+            let claude = ProviderCard(
+                provider: .claude, state: claudeState, panelStyle: .rings,
+                showProviderTitle: true, showHourlyPace: true, stretchesHeight: true, paces: paces(claudeState))
+            let row = HStack(alignment: .top, spacing: Theme.Layout.quotaRingSpacing) {
+                codex.frame(width: codexWidth)
+                claude.frame(width: claudeWidth)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .environment(\.colorScheme, .light)
+            .background(Color.white)
+            let bitmap = try render(row, maximumHeight: Theme.Layout.maximumPanelHeight)
+            let tall = try render(claude.frame(width: claudeWidth), maximumHeight: Theme.Layout.maximumPanelHeight)
+            XCTAssertEqual(bitmap.size.height, max(bitmap.size.height, tall.size.height), accuracy: 1)
+            let scale = CGFloat(bitmap.pixelsWide) / bitmap.size.width
+            let bottom = bitmap.pixelsHigh - Int(4 * scale)
+            let card = try XCTUnwrap(
+                bitmap.colorAt(x: Int(codexWidth / 2 * scale), y: bottom)?.usingColorSpace(.deviceRGB))
+            let gap = try XCTUnwrap(
+                bitmap.colorAt(x: Int((codexWidth + Theme.Layout.quotaRingSpacing / 2) * scale), y: bottom)?
+                    .usingColorSpace(.deviceRGB))
+            XCTAssertLessThan(card.redComponent, gap.redComponent - 0.005, "\(codexWindows) vs \(claudeWindows)")
+        }
+    }
+
+    func testStandardCardsFitTheProviderAreaWithoutScrolling() throws {
+        let available = Theme.Layout.unifiedPanelWidth - Theme.Layout.panelPadding * 2
+        let cardWidth = (available - 10) / 2
+        try withEachLanguage { language in
+            let codexState = codexState(count: 2)
+            let claudeState = state(count: 3)
+            let codex = ProviderCard(
+                provider: .codex, state: codexState, showProviderTitle: true, showHourlyPace: true,
+                paces: paces(codexState))
+            let claude = ProviderCard(
+                provider: .claude, state: claudeState, showProviderTitle: true, showHourlyPace: true,
+                paces: paces(claudeState))
+            let unified = HStack(alignment: .top, spacing: 10) {
+                codex.frame(width: cardWidth)
+                claude.frame(width: cardWidth)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            XCTAssertLessThanOrEqual(
+                fittingSize(unified).height, Theme.Layout.providerMaxHeight, language.rawValue)
+            let single = ProviderCard(
+                provider: .claude, state: claudeState, showHourlyPace: true, paces: paces(claudeState))
+            XCTAssertLessThanOrEqual(
+                fittingSize(single.frame(width: Theme.Layout.panelWidth - Theme.Layout.panelPadding * 2)).height,
+                Theme.Layout.providerMaxHeight, language.rawValue)
+        }
+    }
+
+    func testStandardPanelWithLargestProviderCardsStaysWithinTheMaximumHeight() throws {
+        try withDefaults { defaults in
+            let store = Fixture.store(
+                defaults: defaults,
+                snapshots: [codexState(count: 2).snapshot, state(count: 3).snapshot].compactMap { $0 })
+            store.panelStyle = .standard
+            store.showHourlyPace = true
+            try withEachLanguage { language in
+                for mode in UsageDisplayMode.allCases {
+                    store.displayMode = mode
+                    let size = fittingSize(PopoverView(store: store, showSettings: {}, showAbout: {}))
+                    XCTAssertLessThanOrEqual(
+                        size.height, Theme.Layout.maximumPanelHeight, "\(language.rawValue) / \(mode.rawValue)")
+                }
+            }
+        }
     }
 
     private func bluePixelCount(_ bitmap: NSBitmapImageRep) -> Int {
@@ -111,33 +229,46 @@ final class QuotaPanelRenderingTests: XCTestCase {
 
     private func state(count: Int, status: ProviderStatus = .ready) -> ProviderViewState {
         let windows = [
-            QuotaWindow(
+            Fixture.window(
                 id: "five_hour", usedPercentage: 2, resetsAt: Date().addingTimeInterval(7200),
-                durationMinutes: 300, displayName: nil),
-            QuotaWindow(
+                durationMinutes: 300),
+            Fixture.window(
                 id: "seven_day", usedPercentage: 25, resetsAt: Date().addingTimeInterval(172800),
-                durationMinutes: 10080, displayName: nil),
-            QuotaWindow(
+                durationMinutes: 10080),
+            Fixture.window(
                 id: "seven_day_fable", usedPercentage: 88, resetsAt: Date().addingTimeInterval(172800),
                 durationMinutes: 10080, displayName: "Fable"),
         ]
-        let snapshot = ProviderUsageSnapshot(
-            provider: .claude, windows: Array(windows.prefix(count)), dailyUsage: [], summary: nil,
-            availableResetCredits: 2, creditBalance: nil, capturedAt: Date().addingTimeInterval(-600))
+        let snapshot = Fixture.snapshot(
+            .claude, windows: Array(windows.prefix(count)), availableResetCredits: 2,
+            capturedAt: Date().addingTimeInterval(-600),
+            modelBuckets: Fixture.modelBuckets([
+                ("claude-opus-4-6", 171_600_000), ("claude-fable-1", 67_900_000),
+                ("claude-haiku-4-5", 1_100_000),
+            ]))
         return ProviderViewState(snapshot: snapshot, status: status, isRefreshing: false)
     }
 
-    private func render(_ content: some View, maximumHeight: CGFloat) throws -> NSBitmapImageRep {
-        let view = NSHostingView(rootView: content.environment(\.quotaAnimationsEnabled, false))
-        let size = view.fittingSize
-        XCTAssertLessThanOrEqual(size.height, maximumHeight)
-        view.frame = NSRect(origin: .zero, size: size)
-        let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
-        window.contentView = view
-        defer { window.contentView = nil }
-        view.layoutSubtreeIfNeeded()
-        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-        view.cacheDisplay(in: view.bounds, to: bitmap)
-        return bitmap
+    private func codexState(count: Int, status: ProviderStatus = .ready) -> ProviderViewState {
+        let windows = [
+            Fixture.window(
+                id: "codex.weekly", usedPercentage: 41, resetsAt: Date().addingTimeInterval(172800),
+                durationMinutes: 10080),
+            Fixture.window(
+                id: "base_model_inference.weekly", usedPercentage: 12,
+                resetsAt: Date().addingTimeInterval(172800), durationMinutes: 10080, displayName: "gpt-reserve"),
+        ]
+        let snapshot = Fixture.snapshot(
+            .codex, windows: Array(windows.prefix(count)), capturedAt: Date().addingTimeInterval(-600),
+            modelBuckets: Fixture.modelBuckets([("gpt-6-astra", 148_300_000), ("gpt-6-codex", 52_400_000)]))
+        return ProviderViewState(snapshot: snapshot, status: status, isRefreshing: false)
+    }
+
+    private func paces(_ state: ProviderViewState) -> [String: QuotaPace] {
+        var result: [String: QuotaPace] = [:]
+        for window in state.snapshot?.windows ?? [] {
+            result[window.id] = Fixture.pace(15.6, resetsAt: window.resetsAt)
+        }
+        return result
     }
 }

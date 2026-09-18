@@ -65,6 +65,27 @@ final class ClaudeAccountIdentityTests: XCTestCase {
             [.modificationDate: stamp.addingTimeInterval(60)], ofItemAtPath: file.path)
         XCTAssertEqual(ClaudeAccountIdentityReader.current(homeDirectory: home)?.accountUuid, "uuid-b")
     }
+    func testCacheIsReusedForAnUnchangedFileAndRefreshedWhenTheSizeChanges() throws {
+        ClaudeAccountIdentityReader.invalidate()
+        let home = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let file = UsagePaths.claudeConfig(homeDirectory: home)
+        let stamp = Date(timeIntervalSince1970: 1_756_500_000)
+        try Data(#"{"oauthAccount":{"accountUuid":"uuid-a"}}"#.utf8).write(to: file)
+        try FileManager.default.setAttributes([.modificationDate: stamp], ofItemAtPath: file.path)
+
+        XCTAssertEqual(ClaudeAccountIdentityReader.read(at: file)?.accountUuid, "uuid-a")
+
+        try Data(#"{"oauthAccount":{"accountUuid":"uuid-c"}}"#.utf8).write(to: file)
+        try FileManager.default.setAttributes([.modificationDate: stamp], ofItemAtPath: file.path)
+        XCTAssertEqual(ClaudeAccountIdentityReader.read(at: file)?.accountUuid, "uuid-a")
+
+        try Data(#"{"oauthAccount":{"accountUuid":"uuid-c","displayName":"Three"}}"#.utf8).write(to: file)
+        try FileManager.default.setAttributes([.modificationDate: stamp], ofItemAtPath: file.path)
+        XCTAssertEqual(ClaudeAccountIdentityReader.read(at: file)?.displayName, "Three")
+    }
+
     func testTransientReadFailureKeepsTheLastIdentityButLogoutClearsIt() throws {
         ClaudeAccountIdentityReader.invalidate()
         let home = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)

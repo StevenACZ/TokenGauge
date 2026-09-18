@@ -3,16 +3,29 @@ import TokenGaugeCore
 import os
 
 enum EffortHistoryClient {
-    private static let collecting = OSAllocatedUnfairLock(initialState: false)
+    private struct State {
+        var collecting = false
+        var recordedByCapture = false
+    }
+
+    private static let state = OSAllocatedUnfairLock(initialState: State())
+
+    static func markRecorded(by collection: CaptureCollection) {
+        state.withLock { $0.recordedByCapture = collection.effortRecords != nil }
+    }
 
     static func collect(homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) throws {
-        let acquired = collecting.withLock { active in
-            guard !active else { return false }
-            active = true
+        let acquired = state.withLock { state in
+            if state.recordedByCapture {
+                state.recordedByCapture = false
+                return false
+            }
+            guard !state.collecting else { return false }
+            state.collecting = true
             return true
         }
         guard acquired else { return }
-        defer { collecting.withLock { $0 = false } }
+        defer { state.withLock { $0.collecting = false } }
         guard let directory = Bundle.main.executableURL?.deletingLastPathComponent() else {
             throw UsageDataError.executableNotFound
         }

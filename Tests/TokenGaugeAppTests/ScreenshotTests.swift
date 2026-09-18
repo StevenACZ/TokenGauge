@@ -14,8 +14,9 @@ final class ScreenshotTests: XCTestCase {
         let output = URL(fileURLWithPath: directory)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let previousIcon = NSApplication.shared.applicationIconImage
-        let icon = output.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(
-            "Resources/AppIcon.icns")
+        let icon = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Resources/AppIcon.icns")
         NSApplication.shared.applicationIconImage = try XCTUnwrap(NSImage(contentsOf: icon))
         defer { NSApplication.shared.applicationIconImage = previousIcon }
         let suite = "TokenGauge.screenshots.\(UUID().uuidString)"
@@ -35,27 +36,27 @@ final class ScreenshotTests: XCTestCase {
         }
         let snapshots = UsageProvider.allCases.map { provider in
             var windows = [
-                QuotaWindow(
+                Fixture.window(
                     id: "\(provider.rawValue).primary", usedPercentage: provider == .codex ? 28 : 42,
-                    resetsAt: now.addingTimeInterval(4 * 86400), durationMinutes: 10080, displayName: nil)
+                    resetsAt: now.addingTimeInterval(4 * 86400), durationMinutes: 10080)
             ]
             if provider == .codex {
                 windows.append(
-                    QuotaWindow(
+                    Fixture.window(
                         id: "base_model_inference.primary", usedPercentage: 0,
-                        resetsAt: now.addingTimeInterval(6 * 86400), durationMinutes: 10080, displayName: "gpt-reserve")
+                        resetsAt: now.addingTimeInterval(6 * 86400), durationMinutes: 10080,
+                        displayName: "gpt-reserve")
                 )
             }
-            return ProviderUsageSnapshot(
-                provider: provider,
+            return Fixture.snapshot(
+                provider,
                 windows: windows,
                 dailyUsage: activity.enumerated().map { index, usage in
                     let tokens = provider == .codex ? usage.tokens : (index >= 3 && index <= 5 ? 0 : usage.tokens / 3)
                     return DailyTokenUsage(day: usage.day, tokens: tokens)
-                },
-                summary: nil, availableResetCredits: nil, creditBalance: nil, capturedAt: now)
+                }, capturedAt: now)
         }
-        let store = UsageStore(defaults: defaults, initialSnapshots: snapshots, historyReadsEnabled: false)
+        let store = Fixture.store(defaults: defaults, snapshots: snapshots)
         try render(
             PopoverView(store: store, showSettings: {}, showAbout: {}), to: output.appendingPathComponent("panel.png"))
         store.displayMode = .claude
@@ -70,20 +71,19 @@ final class ScreenshotTests: XCTestCase {
                 SettingsView(store: store, launchAtLogin: LaunchAtLoginManager()).defaultAppStorage(defaults)
             }.frame(width: 600, height: 750),
             to: output.appendingPathComponent("settings.png"), maximumHeight: 750)
-        let historical = ProviderUsageSnapshot(
-            provider: .claude,
+        let historical = Fixture.snapshot(
+            .claude,
             windows: [
-                QuotaWindow(
-                    id: "five_hour", usedPercentage: 2, resetsAt: now.addingTimeInterval(10_800), durationMinutes: 300,
-                    displayName: nil),
-                QuotaWindow(
+                Fixture.window(
+                    id: "five_hour", usedPercentage: 2, resetsAt: now.addingTimeInterval(10_800),
+                    durationMinutes: 300),
+                Fixture.window(
                     id: "seven_day", usedPercentage: 60, resetsAt: now.addingTimeInterval(172_800),
-                    durationMinutes: 10_080, displayName: nil),
-                QuotaWindow(
+                    durationMinutes: 10_080),
+                Fixture.window(
                     id: "seven_day_fable", usedPercentage: 88, resetsAt: now.addingTimeInterval(172_800),
                     durationMinutes: 10_080, displayName: "Fable"),
-            ], dailyUsage: [], summary: nil, availableResetCredits: nil, creditBalance: nil,
-            capturedAt: now.addingTimeInterval(-3600))
+            ], capturedAt: now.addingTimeInterval(-3600))
         store.claudeAutomaticRecovery = true
         store.applyRefreshResults(
             claudeResult: ClaudeUsageResult(snapshot: historical, access: .credentialExpired, lastActivityAt: nil),
@@ -172,36 +172,18 @@ final class ScreenshotTests: XCTestCase {
         let fitted = try render(
             PopoverView(store: store, showSettings: {}, showAbout: {}),
             to: output.appendingPathComponent("rings-current.png"))
-        XCTAssertEqual(fitted.width, Theme.Layout.minimumRingUnifiedWidth)
-
-    }
-
-    @discardableResult
-    private func render(_ content: some View, to output: URL, maximumHeight: CGFloat = Theme.Layout.maximumPanelHeight)
-        throws -> NSSize
-    {
-        let application = NSApplication.shared
-        let previousAppearance = application.appearance
-        application.appearance = NSAppearance(named: .darkAqua)
-        defer { application.appearance = previousAppearance }
-        let view = NSHostingView(
-            rootView: content.background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, .dark))
-        view.appearance = NSAppearance(named: .darkAqua)
-        let size = view.fittingSize
-        XCTAssertGreaterThan(size.width, 200)
-        XCTAssertLessThanOrEqual(size.height, maximumHeight)
-        view.frame = NSRect(origin: .zero, size: size)
-        let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
-        window.backgroundColor = .windowBackgroundColor
-        window.contentView = view
-        view.layoutSubtreeIfNeeded()
-        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-        view.appearance?.performAsCurrentDrawingAppearance {
-            view.cacheDisplay(in: view.bounds, to: bitmap)
+        let visibleWindows = { (provider: UsageProvider) -> Int in
+            max(
+                1,
+                WindowVisibility.visible(
+                    store.state(for: provider).snapshot?.windows ?? [], provider: provider,
+                    showLunaReserve: store.showLunaReserve, hiddenClaudeWindows: store.hiddenClaudeWindows
+                ).count)
         }
-        let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
-        try png.write(to: output)
-        window.contentView = nil
-        return size
+        XCTAssertEqual(
+            fitted.width,
+            QuotaRingLayout.unifiedPanelWidth(
+                codexCells: visibleWindows(.codex), claudeCells: visibleWindows(.claude)))
+
     }
 }

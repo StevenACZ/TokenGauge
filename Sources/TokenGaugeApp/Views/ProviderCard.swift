@@ -12,6 +12,7 @@ struct ProviderCard: View {
     var claudeMenuBarSource: ClaudeMenuBarSource = .automatic
     var claudeAutomaticRecovery = false
     var showHourlyPace = false
+    var stretchesHeight = false
     var accountLabel: String?
     var paces: [String: QuotaPace] = [:]
     var previousPaces: [String: QuotaPace] = [:]
@@ -63,6 +64,7 @@ struct ProviderCard: View {
         }
         .padding(compact ? 9 : (panelStyle == .compact ? 8 : 12))
         .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxHeight: stretchesHeight ? .infinity : nil, alignment: .top)
         .providerCard()
     }
 
@@ -73,15 +75,11 @@ struct ProviderCard: View {
                 QuotaRingWindow(
                     window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown,
                     showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id],
-                    alignsTitleRows: false)
+                    metrics: .single, alignsTitleRows: false)
             } else {
-                QuotaRingGrid {
-                    ForEach(visibleWindows) { window in
-                        QuotaRingWindow(
-                            window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown,
-                            showPace: canShowPace(window), pace: paces[window.id],
-                            previousPace: previousPaces[window.id])
-                    }
+                ViewThatFits(in: .horizontal) {
+                    ringGrid.frame(minWidth: QuotaRingLayout.minimumGridWidth(windows: visibleWindows.count))
+                    ringRows
                 }
             }
         } else {
@@ -101,6 +99,27 @@ struct ProviderCard: View {
                         showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id]
                     )
                 }
+            }
+        }
+    }
+
+    private var ringGrid: some View {
+        QuotaRingGrid {
+            ForEach(visibleWindows) { window in
+                QuotaRingWindow(
+                    window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown,
+                    showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id])
+            }
+        }
+    }
+
+    private var ringRows: some View {
+        VStack(spacing: Theme.Layout.ringRowSpacing) {
+            ForEach(Array(visibleWindows.enumerated()), id: \.element.id) { index, window in
+                if index > 0 { Divider() }
+                QuotaRingRow(
+                    window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown,
+                    showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id])
             }
         }
     }
@@ -159,7 +178,7 @@ struct ProviderCard: View {
             if !showsTitle { Spacer(minLength: 4) }
             if state.status == .ready, let credits = state.snapshot?.availableResetCredits, credits > 0 {
                 Text(UsageFormatters.resetCredits(credits))
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)

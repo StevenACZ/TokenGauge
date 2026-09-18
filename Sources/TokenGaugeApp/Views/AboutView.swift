@@ -62,38 +62,46 @@ struct AboutView: View {
 }
 
 struct UpdateActionView: View {
-    @ObservedObject private var updates = UpdateManager.shared
+    @ObservedObject var updates: UpdateManager
+
+    init(updates: UpdateManager = .shared) {
+        self.updates = updates
+    }
 
     var body: some View {
         Group {
             switch updates.phase {
             case .idle:
-                switch updates.manualCheckStatus {
-                case .checking:
-                    Label("updates.checking".localized, systemImage: "clock")
-                case .upToDate:
-                    Label("updates.current".localized, systemImage: "checkmark.circle")
-                case .failed:
-                    Button("updates.check_failed".localized) { updates.checkForUpdatesManually() }
-                case .idle:
-                    Button("updates.check".localized) { updates.checkForUpdatesManually() }
+                checkControl
+            case .available:
+                VStack(spacing: 8) {
+                    Button("updates.download".localized) { updates.installPendingUpdate() }
+                        .buttonStyle(.borderedProminent)
+                    checkControl
                 }
-            case .available(let version):
-                Button("updates.install".localized(version)) { updates.installPendingUpdate() }
-            case .downloading(let fraction):
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("updates.downloading".localized)
-                    if let fraction {
-                        ProgressView(value: fraction)
-                    } else {
-                        ProgressView().controlSize(.small)
-                    }
+            case .readyToInstall(let version, true):
+                VStack(spacing: 8) {
+                    Button("updates.install_version".localized(version)) { updates.resumeDeferredInstall() }
+                        .buttonStyle(.borderedProminent)
+                    checkControl
                 }
-            case .installing:
-                Label("updates.installing".localized, systemImage: "arrow.down.circle")
-            case .failed:
-                Button("updates.retry".localized) { updates.installPendingUpdate() }
+            case .checking, .downloading, .extracting, .installing, .readyToInstall, .failed:
+                UpdateBannerView(updates: updates)
             }
         }.font(.callout).frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    @ViewBuilder
+    private var checkControl: some View {
+        switch updates.manualCheckStatus {
+        case .checking:
+            Label("updates.checking".localized, systemImage: "clock")
+        case .upToDate:
+            Label("updates.current".localized, systemImage: "checkmark.circle")
+        case .failed:
+            Button("updates.check_failed".localized) { updates.checkForUpdatesManually() }
+        case .idle:
+            Button("updates.check".localized) { updates.checkForUpdatesManually() }
+        }
     }
 }

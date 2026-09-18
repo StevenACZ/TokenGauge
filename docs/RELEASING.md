@@ -14,6 +14,8 @@ The release version is `CFBundleShortVersionString` in `Resources/Info.plist`. I
 4. Verify a real Sparkle update with two development builds, including a tampered ZIP rejection, retry, installation/relaunch, and preserved preferences.
 5. Update CHANGELOG.md, screenshots, and release notes. Use synthetic data for public screenshots.
 
+The incremental transcript scan keeps its resume state in `scan-state.json`, next to the history database under `~/Library/Application Support/TokenGauge`. Deleting it is safe and forces a full rescan.
+
 ## Build artifacts
 
 Prerequisites: an Apple Developer membership, an installed Developer ID Application certificate, `create-dmg`, and an existing `notarytool` Keychain profile. Signing/private-key access and public publication follow the owner’s authorization; never export credentials into the repository or logs.
@@ -46,6 +48,10 @@ TOKENGAUGE_UPDATE_FEED_URL=http://127.0.0.1:8000/appcast.xml
 ```
 
 Only a loopback HTTP feed is accepted for this explicit QA override. Normal development launches disable updates. Test through About using real input, verify the higher build relaunches with the same Apple Development signing identity, then restore the real version and remove task-owned QA artifacts/server. Do not copy production credentials or user usage history to a test Mac.
+
+## Feed override
+
+`defaults write com.stevenacz.TokenGauge updateFeedURLOverride <url>` points any build, including a notarized distribution build, at another appcast; `defaults delete com.stevenacz.TokenGauge updateFeedURLOverride` restores the feed from `Info.plist`. EdDSA signatures still gate every install, so an override cannot install an unsigned update. The precedence is `TOKENGAUGE_QA_UPDATES` plus `TOKENGAUGE_UPDATE_FEED_URL` (development builds, loopback only), then `updateFeedURLOverride`, then `SUFeedURL`. Remove the override after QA.
 
 ## Repository visibility
 

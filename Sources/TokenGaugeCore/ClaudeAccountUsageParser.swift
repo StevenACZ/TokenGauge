@@ -16,19 +16,29 @@ public struct ClaudeAccountSnapshot: Codable, Equatable, Sendable {
     }
 }
 
+public enum ClaudeAccountLimits: Equatable, Sendable {
+    case empty
+    case windows([QuotaWindow])
+}
+
 public enum ClaudeAccountUsageParser {
     public static func parse(_ data: Data) throws -> [QuotaWindow] {
-        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        switch try parseLimits(data) {
+        case .empty: throw UsageDataError.invalidPayload
+        case .windows(let windows): return windows
+        }
+    }
+
+    public static func parseLimits(_ data: Data) throws -> ClaudeAccountLimits {
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let entries = JSONValue.array(root["limits"])
+        else {
             throw UsageDataError.invalidPayload
         }
-        let windows = JSONValue.array(root["limits"]).map(limits(from:)) ?? []
+        guard !entries.isEmpty else { return .empty }
+        let windows = limits(from: entries)
         guard !windows.isEmpty else { throw UsageDataError.invalidPayload }
-        return windows.sorted { left, right in
-            let leftDuration = left.durationMinutes ?? Int.max
-            let rightDuration = right.durationMinutes ?? Int.max
-            if leftDuration != rightDuration { return leftDuration < rightDuration }
-            return left.id < right.id
-        }
+        return .windows(windows.sorted(by: QuotaWindow.displayOrder))
     }
 
     private static func limits(from entries: [Any]) -> [QuotaWindow] {
@@ -76,9 +86,10 @@ public enum ClaudeAccountUsageParser {
         }
     }
 
+    private static let fractionalInstant = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+    private static let instant = Date.ISO8601FormatStyle()
+
     private static func date(from text: String) -> Date? {
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return fractional.date(from: text) ?? ISO8601DateFormatter().date(from: text)
+        (try? fractionalInstant.parse(text)) ?? (try? instant.parse(text))
     }
 }

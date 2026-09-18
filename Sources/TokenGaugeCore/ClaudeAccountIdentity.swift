@@ -7,6 +7,7 @@ public struct ClaudeAccountIdentity: Equatable, Sendable {
     public let emailAddress: String?
     public let displayName: String?
     public let organizationName: String?
+    public let fingerprint: String
 
     public init(
         accountUuid: String,
@@ -18,14 +19,7 @@ public struct ClaudeAccountIdentity: Equatable, Sendable {
         self.emailAddress = emailAddress
         self.displayName = displayName
         self.organizationName = organizationName
-    }
-
-    public var fingerprint: String {
-        let hex = Array("0123456789abcdef".utf8)
-        return String(
-            decoding: SHA256.hash(data: Data(accountUuid.utf8)).flatMap {
-                [hex[Int($0 >> 4)], hex[Int($0 & 15)]]
-            }, as: UTF8.self)
+        fingerprint = Hex.string(SHA256.hash(data: Data(accountUuid.utf8)))
     }
 
     public static func isCompatible(stored: String?, current: String?) -> Bool {
@@ -83,18 +77,21 @@ public enum ClaudeAccountIdentityReader {
     }
 
     public static func read(at url: URL) -> ClaudeAccountIdentity? {
-        cache.withLock { entry in
-            let previous = entry?.url == url ? entry?.identity : nil
-            guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else {
-                return previous
-            }
-            let modifiedAt = attributes[.modificationDate] as? Date
-            let size = attributes[.size] as? Int ?? 0
-            if let entry, entry.url == url, entry.modifiedAt == modifiedAt, entry.size == size {
+        let previous = cache.withLock { entry in entry?.url == url ? entry : nil }
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else {
+            return previous?.identity
+        }
+        let modifiedAt = attributes[.modificationDate] as? Date
+        let size = attributes[.size] as? Int ?? 0
+        if let previous, previous.modifiedAt == modifiedAt, previous.size == size {
+            return previous.identity
+        }
+        guard let data = try? Data(contentsOf: url) else { return previous?.identity }
+        let identity = ClaudeAccountIdentity(data: data)
+        return cache.withLock { entry in
+            if let entry, entry.url == url, let stored = entry.modifiedAt, let read = modifiedAt, stored > read {
                 return entry.identity
             }
-            guard let data = try? Data(contentsOf: url) else { return previous }
-            let identity = ClaudeAccountIdentity(data: data)
             entry = Entry(url: url, modifiedAt: modifiedAt, size: size, identity: identity)
             return identity
         }

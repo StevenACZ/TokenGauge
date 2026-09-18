@@ -34,10 +34,67 @@ struct HistoryCalendarDay: Identifiable, Equatable, Sendable {
     }
 }
 
+// Rects relative to the calendar view's top-left corner; `bounds` is the popover root, so it may start negative.
+struct HistoryDayCardAnchor: Equatable, Sendable {
+    var cell: CGRect
+    var bounds: CGRect
+}
+
+struct HistoryDaySelection: Equatable, Sendable {
+    var dayKey: String
+    var isPinned: Bool
+    var anchor: HistoryDayCardAnchor?
+}
+
+struct HistoryUsageDays: Equatable, Sendable {
+    var claude: Set<String> = []
+    var codex: Set<String> = []
+    var any: Set<String> { claude.union(codex) }
+
+    func days(for providers: [UsageProvider]) -> Set<String> {
+        if providers == [.claude] { return claude }
+        if providers == [.codex] { return codex }
+        return any
+    }
+}
+
+struct HistoryStreak: Equatable, Sendable {
+    var current = 0
+    var longest = 0
+}
+
+struct HistoryStreaks: Equatable, Sendable {
+    var claude = HistoryStreak()
+    var codex = HistoryStreak()
+    var unified = HistoryStreak()
+
+    init() {}
+
+    init(usageDays: HistoryUsageDays, today: String, calendar: Calendar = .current) {
+        claude = Self.streak(usageDays.claude, today: today, calendar: calendar)
+        codex = Self.streak(usageDays.codex, today: today, calendar: calendar)
+        unified = Self.streak(usageDays.any, today: today, calendar: calendar)
+    }
+
+    func streak(for providers: [UsageProvider]) -> HistoryStreak {
+        if providers == [.claude] { return claude }
+        if providers == [.codex] { return codex }
+        return unified
+    }
+
+    private static func streak(_ days: Set<String>, today: String, calendar: Calendar) -> HistoryStreak {
+        let value = HistoryAnalytics.streaks(usageDays: days, today: today, calendar: calendar)
+        return HistoryStreak(current: value.current, longest: value.longest)
+    }
+}
+
 @MainActor
 final class HistoryDashboardModel: ObservableObject {
     @Published var offset = 0
     @Published var selectedDayKey: String?
+    @Published var daySelection: HistoryDaySelection?
+    @Published private(set) var usageDays = HistoryUsageDays()
+    @Published private(set) var streaks = HistoryStreaks()
     @Published private(set) var days: [HistoryCalendarDay] = []
     @Published private(set) var isLoading = false
     @Published private(set) var loadedMode: HistoryMode?
@@ -50,15 +107,17 @@ final class HistoryDashboardModel: ObservableObject {
     private var savedPaces: [String: [QuotaPace]] = [:]
     private var paceActivity: [String: Bool] = [:]
     private let previewEfforts: [HistoryEffortRow]
+    private let historyURL: URL
     private var cachedReads: [String: ReadResult] = [:]
     private var cacheOrder: [String] = []
     private var cacheRevision: Int?
 
     init(
         previewSnapshots: [ProviderUsageSnapshot]? = nil, mode: HistoryMode = .recent,
-        previewEfforts: [HistoryEffortRow] = [], now: Date = Date()
+        previewEfforts: [HistoryEffortRow] = [], now: Date = Date(), historyURL: URL = UsagePaths.history()
     ) {
         self.previewEfforts = previewEfforts
+        self.historyURL = historyURL
         if let snapshots = previewSnapshots {
             let interval = Self.interval(mode: mode, offset: 0, now: now)
             let rows = snapshots.flatMap { snapshot in
@@ -67,6 +126,8 @@ final class HistoryDashboardModel: ObservableObject {
                 }
             }
             days = Self.makeDays(interval: interval, tokens: rows, efforts: previewEfforts)
+            usageDays = Self.usageDays(tokens: rows)
+            streaks = HistoryStreaks(usageDays: usageDays, today: Self.dayKey(now))
             loadedMode = mode
             periodStart = interval.start
             periodEnd = interval.end
@@ -89,6 +150,38 @@ final class HistoryDashboardModel: ObservableObject {
     func move(_ direction: Int) {
         guard direction < 0 ? canGoBack : canGoForward else { return }
         offset = min(0, offset + direction)
+        selectedDayKey = nil
+    }
+
+    func streak(for providers: [UsageProvider]) -> HistoryStreak {
+        streaks.streak(for: providers)
+    }
+
+    func showDayCard(_ dayKey: String, anchor: HistoryDayCardAnchor?) {
+        guard daySelection?.isPinned != true else { return }
+        daySelection = HistoryDaySelection(dayKey: dayKey, isPinned: false, anchor: anchor)
+    }
+
+    func hideDayCard() {
+        guard let selection = daySelection, !selection.isPinned else { return }
+        daySelection = nil
+    }
+
+    func pinDayCard(_ dayKey: String, anchor: HistoryDayCardAnchor?) {
+        if let current = daySelection, current.isPinned, current.dayKey == dayKey {
+            daySelection = nil
+            return
+        }
+        daySelection = HistoryDaySelection(dayKey: dayKey, isPinned: true, anchor: anchor)
+    }
+
+    func dismissDayCard() {
+        guard daySelection != nil else { return }
+        daySelection = nil
+    }
+
+    func popoverDidClose() {
+        daySelection = nil
         selectedDayKey = nil
     }
 
@@ -131,13 +224,14 @@ final class HistoryDashboardModel: ObservableObject {
         let interval = Self.interval(mode: mode, offset: offset, now: now)
         let first = Self.dayKey(interval.start)
         let last = Self.dayKey(interval.end.addingTimeInterval(-1))
+        let today = Self.dayKey(now)
         if cacheRevision != revision {
             cachedReads.removeAll(keepingCapacity: true)
             cacheOrder.removeAll(keepingCapacity: true)
             cacheRevision = revision
         }
         let cacheKey =
-            first + ":" + last + ":" + (accountFingerprint ?? "")
+            first + ":" + last + ":" + today + ":" + (accountFingerprint ?? "")
             + ":" + paceKeys.map(\.id).sorted().joined(separator: "|")
         do {
             let result: ReadResult
@@ -151,19 +245,25 @@ final class HistoryDashboardModel: ObservableObject {
                 }
                 result = ReadResult(
                     days: Self.makeDays(interval: interval, tokens: rows, efforts: previewEfforts),
-                    latest: [], retained: [], first: rows.map(\.day).min())
+                    latest: [], retained: [], first: rows.map(\.day).min(), usage: Self.usageDays(tokens: rows),
+                    today: today)
             } else {
+                let url = historyURL
                 result = try await Task.detached(priority: .utility) {
-                    let tokens = try UsageHistoryStore.tokenRows(since: first, through: last)
-                    let efforts = try UsageHistoryStore.effortRows(since: first, through: last)
+                    let tokens = try UsageHistoryStore.tokenRows(since: first, through: last, at: url)
+                    let efforts = try UsageHistoryStore.effortRows(since: first, through: last, at: url)
+                    let usage = try UsageHistoryStore.usageDaysByProvider(at: url)
                     return ReadResult(
                         days: Self.makeDays(interval: interval, tokens: tokens, efforts: efforts),
                         latest: try UsageHistoryStore.recentPaces(
                             for: paceKeys, limitPerWindow: 1, before: now, matchingLatestQuota: true,
-                            accountFingerprint: accountFingerprint),
+                            accountFingerprint: accountFingerprint, at: url),
                         retained: try UsageHistoryStore.recentPaces(
-                            for: paceKeys, activeOnly: true, before: now, accountFingerprint: accountFingerprint),
-                        first: try UsageHistoryStore.bounds().firstDay)
+                            for: paceKeys, activeOnly: true, before: now, accountFingerprint: accountFingerprint,
+                            at: url),
+                        first: try UsageHistoryStore.bounds(at: url).firstDay,
+                        usage: HistoryUsageDays(claude: usage[.claude] ?? [], codex: usage[.codex] ?? []),
+                        today: today)
                 }.value
             }
             guard !Task.isCancelled, generation == request else { return }
@@ -176,6 +276,8 @@ final class HistoryDashboardModel: ObservableObject {
             periodEnd = interval.end
             firstRecordedDay = result.first
             days = result.days
+            usageDays = result.usage
+            streaks = result.streaks
             loadedMode = mode
             paces = Dictionary(uniqueKeysWithValues: result.latest.map { ($0.key.id, $0.pace) })
             paceActivity = Dictionary(uniqueKeysWithValues: result.latest.map { ($0.key.id, $0.isActive) })
@@ -188,6 +290,8 @@ final class HistoryDashboardModel: ObservableObject {
             isLoading = false
             paces = [:]
             days = []
+            usageDays = HistoryUsageDays()
+            streaks = HistoryStreaks()
         }
     }
 
@@ -212,17 +316,15 @@ final class HistoryDashboardModel: ObservableObject {
         }
     }
 
-    nonisolated static func dayKey(_ date: Date, calendar: Calendar = .current) -> String {
-        dayFormatter(calendar: calendar).string(from: date)
+    private nonisolated static var dayCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        return calendar
     }
 
-    nonisolated private static func dayFormatter(calendar: Calendar) -> DateFormatter {
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
+    nonisolated static func dayKey(_ date: Date, calendar: Calendar = dayCalendar) -> String {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04ld-%02ld-%02ld", components.year ?? 0, components.month ?? 0, components.day ?? 0)
     }
 
     nonisolated static func makeDays(
@@ -230,11 +332,10 @@ final class HistoryDashboardModel: ObservableObject {
     ) -> [HistoryCalendarDay] {
         let tokenDays = Dictionary(grouping: tokens, by: \.day)
         let effortDays = Dictionary(grouping: efforts, by: \.day)
-        let formatter = dayFormatter(calendar: calendar)
         var date = interval.start
         var result: [HistoryCalendarDay] = []
         while date < interval.end {
-            let key = formatter.string(from: date)
+            let key = dayKey(date, calendar: calendar)
             var totals: [UsageProvider: Int] = [:]
             for provider in UsageProvider.allCases {
                 let rows = (tokenDays[key] ?? []).filter { $0.provider == provider && $0.tokens >= 0 }
@@ -251,6 +352,13 @@ final class HistoryDashboardModel: ObservableObject {
         return result
     }
 
+    nonisolated static func usageDays(tokens: [HistoryTokenRow]) -> HistoryUsageDays {
+        let used = tokens.filter { $0.tokens > 0 }
+        let claude = Set(used.filter { $0.provider == .claude }.map(\.day))
+        let codex = Set(used.filter { $0.provider == .codex }.map(\.day))
+        return HistoryUsageDays(claude: claude, codex: codex)
+    }
+
     nonisolated private static func sum(_ values: [Int]) -> Int {
         values.reduce(0) { partial, value in
             let addition = partial.addingReportingOverflow(value)
@@ -263,5 +371,19 @@ final class HistoryDashboardModel: ObservableObject {
         let latest: [HistoryPaceRow]
         let retained: [HistoryPaceRow]
         let first: String?
+        let usage: HistoryUsageDays
+        let streaks: HistoryStreaks
+
+        init(
+            days: [HistoryCalendarDay], latest: [HistoryPaceRow], retained: [HistoryPaceRow], first: String?,
+            usage: HistoryUsageDays, today: String
+        ) {
+            self.days = days
+            self.latest = latest
+            self.retained = retained
+            self.first = first
+            self.usage = usage
+            streaks = HistoryStreaks(usageDays: usage, today: today)
+        }
     }
 }

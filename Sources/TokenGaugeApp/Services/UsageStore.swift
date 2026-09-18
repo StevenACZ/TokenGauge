@@ -30,49 +30,49 @@ final class UsageStore: ObservableObject {
     @Published private(set) var isRefreshing = false
     @Published var primaryProvider: UsageProvider {
         didSet {
-            defaults.set(primaryProvider.rawValue, forKey: "primaryProvider")
+            preferences.primaryProvider = primaryProvider
             let mode = primaryProvider == .codex ? UsageDisplayMode.codex : .claude
             if displayMode != mode { displayMode = mode }
         }
     }
     @Published var displayMode: UsageDisplayMode {
         didSet {
-            defaults.set(displayMode.rawValue, forKey: "displayMode")
+            preferences.displayMode = displayMode
             if let provider = displayMode.singleProvider, primaryProvider != provider { primaryProvider = provider }
         }
     }
     @Published var menuBarSize: MenuBarSize {
-        didSet { defaults.set(menuBarSize.rawValue, forKey: "menuBarSize") }
+        didSet { preferences.menuBarSize = menuBarSize }
     }
     @Published var panelStyle: QuotaPanelStyle {
-        didSet { defaults.set(panelStyle.rawValue, forKey: "quotaPanelStyle") }
+        didSet { preferences.panelStyle = panelStyle }
     }
     @Published var menuBarStyle: QuotaMenuBarStyle {
-        didSet { defaults.set(menuBarStyle.rawValue, forKey: "quotaMenuBarStyle") }
+        didSet { preferences.menuBarStyle = menuBarStyle }
     }
     @Published var animateChanges: Bool {
-        didSet { defaults.set(animateChanges, forKey: "quotaAnimateChanges") }
+        didSet { preferences.animateChanges = animateChanges }
     }
     @Published var historyMode: HistoryMode {
-        didSet { defaults.set(historyMode.rawValue, forKey: "historyMode") }
+        didSet { preferences.historyMode = historyMode }
     }
     @Published var showHourlyPace: Bool {
-        didSet { defaults.set(showHourlyPace, forKey: "showHourlyPace") }
+        didSet { preferences.showHourlyPace = showHourlyPace }
     }
     @Published private(set) var historyRevision = 0
     let historyReadsEnabled: Bool
     @Published var showLunaReserve: Bool {
-        didSet { defaults.set(showLunaReserve, forKey: "showLunaReserve") }
+        didSet { preferences.showLunaReserve = showLunaReserve }
     }
     @Published private(set) var hiddenClaudeWindows: Set<ClaudeWindowKind> {
-        didSet { defaults.set(hiddenClaudeWindows.map(\.rawValue).sorted(), forKey: "hiddenClaudeWindows") }
+        didSet { preferences.hiddenClaudeWindows = hiddenClaudeWindows }
     }
     @Published var claudeMenuBarSource: ClaudeMenuBarSource {
-        didSet { defaults.set(claudeMenuBarSource.rawValue, forKey: "claudeMenuBarSource") }
+        didSet { preferences.claudeMenuBarSource = claudeMenuBarSource }
     }
     @Published var claudeAutomaticRecovery: Bool {
         didSet {
-            defaults.set(claudeAutomaticRecovery, forKey: "claudeAutomaticRecovery")
+            preferences.claudeAutomaticRecovery = claudeAutomaticRecovery
             recoveryAuthorization.setAllowed(claudeAutomaticRecovery && claudeCancelledAt == nil)
         }
     }
@@ -81,49 +81,66 @@ final class UsageStore: ObservableObject {
     @Published private(set) var claudeCancelledAt: Date?
     @Published private(set) var codexCancelledAt: Date?
 
+    typealias ArchiveWork = @Sendable (ClaudeUsageResult?, ProviderViewState, URL) async -> Void
+
+    static let liveArchiveWork: ArchiveWork = { claudeResult, codexState, homeDirectory in
+        try? await BlockingWork.run {
+            archive(
+                claudeResult: claudeResult, codexState: codexState,
+                accountFingerprint: claudeResult?.accountFingerprint)
+            try? EffortHistoryClient.collect(homeDirectory: homeDirectory)
+        }
+    }
+
     let recoveryAuthorization: ClaudeRecoveryAuthorization
-    private let defaults: UserDefaults
+    private let preferences: AppPreferences
+    private let refresher: UsageRefresher
+    private let archiveWork: ArchiveWork
+    private lazy var scheduler = RefreshScheduler { [weak self] in self?.refresh(force: true) }
 
-    private let claudeClient: ClaudeUsageClient
-    private let codexClient: CodexAppServerClient
-    private var timer: Timer?
-    private var resetTimer: Timer?
-
-    init(
+    convenience init(
         claudeClient: ClaudeUsageClient = ClaudeUsageClient(),
         codexClient: CodexAppServerClient = CodexAppServerClient(),
         defaults: UserDefaults = .standard,
         initialSnapshots: [ProviderUsageSnapshot] = [],
         historyReadsEnabled: Bool? = nil
     ) {
-        self.claudeClient = claudeClient
-        self.codexClient = codexClient
-        self.defaults = defaults
+        self.init(
+            refresher: UsageRefresher(claudeClient: claudeClient, codexClient: codexClient),
+            defaults: defaults, initialSnapshots: initialSnapshots, historyReadsEnabled: historyReadsEnabled)
+    }
+
+    init(
+        refresher: UsageRefresher,
+        defaults: UserDefaults = .standard,
+        initialSnapshots: [ProviderUsageSnapshot] = [],
+        historyReadsEnabled: Bool? = nil,
+        archiveWork: @escaping ArchiveWork = UsageStore.liveArchiveWork
+    ) {
+        let preferences = AppPreferences(defaults: defaults)
+        self.refresher = refresher
+        self.archiveWork = archiveWork
+        self.preferences = preferences
         self.historyReadsEnabled =
             historyReadsEnabled ?? (defaults === UserDefaults.standard && initialSnapshots.isEmpty)
+        let claudeCancelledAt = preferences.cancelledAt(.claude)
         recoveryAuthorization = ClaudeRecoveryAuthorization(
-            allowed: defaults.bool(forKey: "claudeAutomaticRecovery")
-                && defaults.object(forKey: "claudeCancelledAt") == nil)
-        let savedProvider = UsageProvider(rawValue: defaults.string(forKey: "primaryProvider") ?? "") ?? .codex
-        let mode =
-            UsageDisplayMode(rawValue: defaults.string(forKey: "displayMode") ?? savedProvider.rawValue)
-            ?? (savedProvider == .codex ? .codex : .claude)
-        primaryProvider = mode.singleProvider ?? savedProvider
+            allowed: preferences.claudeAutomaticRecovery && claudeCancelledAt == nil)
+        let mode = preferences.displayMode
+        primaryProvider = mode.singleProvider ?? preferences.primaryProvider
         displayMode = mode
-        menuBarSize = MenuBarSize(rawValue: defaults.string(forKey: "menuBarSize") ?? "") ?? .large
-        historyMode = HistoryMode(rawValue: defaults.string(forKey: "historyMode") ?? "") ?? .recent
-        showHourlyPace = defaults.object(forKey: "showHourlyPace") == nil || defaults.bool(forKey: "showHourlyPace")
-        panelStyle = QuotaPanelStyle(rawValue: defaults.string(forKey: "quotaPanelStyle") ?? "") ?? .standard
-        menuBarStyle = QuotaMenuBarStyle(rawValue: defaults.string(forKey: "quotaMenuBarStyle") ?? "") ?? .numbers
-        animateChanges =
-            defaults.object(forKey: "quotaAnimateChanges") == nil || defaults.bool(forKey: "quotaAnimateChanges")
-        showLunaReserve = defaults.object(forKey: "showLunaReserve") == nil || defaults.bool(forKey: "showLunaReserve")
-        hiddenClaudeWindows = ClaudeWindowKind.decode(defaults.stringArray(forKey: "hiddenClaudeWindows"))
-        claudeMenuBarSource =
-            ClaudeMenuBarSource(rawValue: defaults.string(forKey: "claudeMenuBarSource") ?? "") ?? .automatic
-        claudeAutomaticRecovery = defaults.bool(forKey: "claudeAutomaticRecovery")
-        claudeCancelledAt = defaults.object(forKey: "claudeCancelledAt") as? Date
-        codexCancelledAt = defaults.object(forKey: "codexCancelledAt") as? Date
+        menuBarSize = preferences.menuBarSize
+        historyMode = preferences.historyMode
+        showHourlyPace = preferences.showHourlyPace
+        panelStyle = preferences.panelStyle
+        menuBarStyle = preferences.menuBarStyle
+        animateChanges = preferences.animateChanges
+        showLunaReserve = preferences.showLunaReserve
+        hiddenClaudeWindows = preferences.hiddenClaudeWindows
+        claudeMenuBarSource = preferences.claudeMenuBarSource
+        claudeAutomaticRecovery = preferences.claudeAutomaticRecovery
+        self.claudeCancelledAt = claudeCancelledAt
+        codexCancelledAt = preferences.cancelledAt(.codex)
         for snapshot in initialSnapshots {
             let state = ProviderViewState(
                 snapshot: snapshot, status: isCancelled(provider: snapshot.provider) ? .cancelled : .ready,
@@ -132,11 +149,6 @@ final class UsageStore: ObservableObject {
         }
         if claudeCancelledAt != nil { claude.status = .cancelled }
         if codexCancelledAt != nil { codex.status = .cancelled }
-        if self.historyReadsEnabled {
-            let identity = ClaudeAccountIdentityReader.current(homeDirectory: claudeClient.homeDirectory)
-            claudeAccountLabel = identity?.label
-            claudeAccountFingerprint = identity?.fingerprint
-        }
     }
 
     func setPreviewAccountLabel(_ label: String?) {
@@ -145,16 +157,11 @@ final class UsageStore: ObservableObject {
 
     func start() {
         refresh(force: true)
-        timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.refresh(force: true)
-            }
-        }
+        scheduler.start()
     }
 
     func stop() {
-        timer?.invalidate()
-        resetTimer?.invalidate()
+        scheduler.stop()
         recoveryAuthorization.setAllowed(false)
     }
 
@@ -162,45 +169,46 @@ final class UsageStore: ObservableObject {
         guard !isRefreshing else { return }
         if !force, let lastRefresh, Date().timeIntervalSince(lastRefresh) < 60 { return }
         isRefreshing = true
-        claude.isRefreshing = true
-        codex.isRefreshing = true
-        let claudeClient = self.claudeClient
-        let codexClient = self.codexClient
+        if !claude.isRefreshing { claude.isRefreshing = true }
+        if !codex.isRefreshing { codex.isRefreshing = true }
+        let refresher = self.refresher
         let recoveryAuthorization = self.recoveryAuthorization
-        let effortHome = claudeClient.homeDirectory
 
         Task {
-            async let claudeOutcome = Task.detached(priority: .utility) {
-                try? claudeClient.fetch(recoveryAuthorization: recoveryAuthorization)
-            }.value
-            async let codexOutcome = Task.detached(priority: .utility) {
-                Self.fetchCodex(client: codexClient)
-            }.value
-            let codexState = await codexOutcome
-            applyCodexState(codexState)
-            let claudeResult = await claudeOutcome
-            applyRefreshResults(claudeResult: claudeResult, codexState: codexState)
-            if historyReadsEnabled {
-                claudeAccountLabel = claudeResult?.accountLabel
-                claudeAccountFingerprint = claudeResult?.accountFingerprint
+            var claudeResult: ClaudeUsageResult?
+            var codexState = ProviderViewState.loading
+            for await outcome in refresher.outcomes(recoveryAuthorization: recoveryAuthorization) {
+                switch outcome {
+                case .claude(let result): claudeResult = result
+                case .codex(let state): codexState = state
+                }
+                receive(outcome)
             }
             lastRefresh = Date()
-            isRefreshing = false
             scheduleResetRefresh()
             if historyReadsEnabled {
-                await Task.detached(priority: .background) {
-                    Self.archive(
-                        claudeResult: claudeResult, codexState: codexState,
-                        accountFingerprint: claudeResult?.accountFingerprint)
-                    try? EffortHistoryClient.collect(homeDirectory: effortHome)
-                }.value
+                await archiveWork(claudeResult, codexState, refresher.homeDirectory)
                 historyRevision &+= 1
             }
+            isRefreshing = false
+        }
+    }
+
+    private func receive(_ outcome: ProviderOutcome) {
+        switch outcome {
+        case .claude(let result):
+            applyClaudeResult(result)
+            guard historyReadsEnabled else { return }
+            let label = result?.accountLabel
+            let fingerprint = result?.accountFingerprint
+            if claudeAccountLabel != label { claudeAccountLabel = label }
+            if claudeAccountFingerprint != fingerprint { claudeAccountFingerprint = fingerprint }
+        case .codex(let state):
+            applyCodexState(state)
         }
     }
 
     private func scheduleResetRefresh() {
-        resetTimer?.invalidate()
         let now = Date()
         let nextReset = [claude.snapshot, codex.snapshot]
             .compactMap { $0 }
@@ -208,13 +216,7 @@ final class UsageStore: ObservableObject {
             .compactMap(\.resetsAt)
             .filter { $0 > now }
             .min()
-        guard let nextReset else { return }
-        let delay = max(nextReset.timeIntervalSince(now) + 5, 1)
-        resetTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
-            Task { @MainActor in
-                self?.refresh(force: true)
-            }
-        }
+        scheduler.scheduleResetRefresh(at: nextReset, now: now)
     }
 
     nonisolated static func archive(
@@ -278,35 +280,32 @@ final class UsageStore: ObservableObject {
         } else {
             codexCancelledAt = date
         }
-        let key = "\(provider.rawValue)CancelledAt"
-        if let date { defaults.set(date, forKey: key) } else { defaults.removeObject(forKey: key) }
-        defaults.removeObject(forKey: baselineKey(for: provider))
-    }
-
-    private func baselineKey(for provider: UsageProvider) -> String {
-        "\(provider.rawValue)CancellationDailyBaseline"
+        preferences.setCancelledAt(date, for: provider)
+        preferences.setCancellationDailyBaseline(nil, for: provider)
     }
 
     func applyRefreshResults(claudeResult: ClaudeUsageResult?, codexState: ProviderViewState) {
-        if ProviderStateResolver.shouldResumeClaude(result: claudeResult, cancelledAt: claudeCancelledAt) {
-            persistCancellation(nil, for: .claude)
-        } else {
-            resumeIfActivityIncreased(
-                provider: .claude, snapshot: claudeResult?.snapshot, live: claudeResult?.access == .live)
-        }
-        resumeIfActivityIncreased(
-            provider: .codex, snapshot: codexState.snapshot, live: codexState.status == .ready)
-        let previousClaudeSnapshot = claude.snapshot
-        claude = ProviderStateResolver.claudeState(result: claudeResult, cancelled: isCancelled(provider: .claude))
-        if claude.snapshot == nil { claude.snapshot = previousClaudeSnapshot }
+        applyClaudeResult(claudeResult)
         applyCodexState(codexState)
     }
 
+    private func applyClaudeResult(_ result: ClaudeUsageResult?) {
+        if ProviderStateResolver.shouldResumeClaude(result: result, cancelledAt: claudeCancelledAt) {
+            persistCancellation(nil, for: .claude)
+        } else {
+            resumeIfActivityIncreased(provider: .claude, snapshot: result?.snapshot, live: result?.access == .live)
+        }
+        var next = ProviderStateResolver.claudeState(result: result, cancelled: isCancelled(provider: .claude))
+        if next.snapshot == nil { next.snapshot = claude.snapshot }
+        claude = next
+    }
+
     private func applyCodexState(_ state: ProviderViewState) {
-        let previous = codex.snapshot
-        codex = state
-        if codex.snapshot == nil { codex.snapshot = previous }
-        if isCancelled(provider: .codex) { codex.status = .cancelled }
+        resumeIfActivityIncreased(provider: .codex, snapshot: state.snapshot, live: state.status == .ready)
+        var next = state
+        if next.snapshot == nil { next.snapshot = codex.snapshot }
+        if isCancelled(provider: .codex) { next.status = .cancelled }
+        codex = next
     }
 
     private func resumeIfActivityIncreased(provider: UsageProvider, snapshot: ProviderUsageSnapshot?, live: Bool) {
@@ -314,21 +313,17 @@ final class UsageStore: ObservableObject {
             live, let snapshot, !snapshot.windows.isEmpty, snapshot.activityReadSucceeded,
             let capturedAt = snapshot.capturedAt, capturedAt > cancelledAt
         else { return }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.dateFormat = "yyyy-MM-dd"
-        let cancelledDay = formatter.string(from: cancelledAt)
+        let calendar = Self.dayCalendar
+        let cancelledDay = Self.dayKey(for: cancelledAt, calendar: calendar)
         var totals: [String: Int] = [:]
         for usage in snapshot.dailyUsage {
-            guard usage.day >= cancelledDay, let day = formatter.date(from: usage.day),
-                formatter.string(from: day) == usage.day
+            guard usage.day >= cancelledDay, let day = Self.date(fromDayKey: usage.day, calendar: calendar),
+                Self.dayKey(for: day, calendar: calendar) == usage.day
             else { continue }
             totals[usage.day] = max(totals[usage.day, default: 0], usage.tokens)
         }
-        let key = baselineKey(for: provider)
-        guard let baseline = defaults.dictionary(forKey: key) as? [String: Int] else {
-            defaults.set(totals, forKey: key)
+        guard let baseline = preferences.cancellationDailyBaseline(provider) else {
+            preferences.setCancellationDailyBaseline(totals, for: provider)
             return
         }
         if totals.contains(where: { $0.value > baseline[$0.key, default: 0] }) {
@@ -340,22 +335,21 @@ final class UsageStore: ObservableObject {
         ProviderStateResolver.menuBarWindow(state: state(for: primaryProvider), claudeSource: claudeMenuBarSource)
     }
 
-    private nonisolated static func fetchCodex(client: CodexAppServerClient) -> ProviderViewState {
-        do {
-            let snapshot = try client.fetch()
-            return ProviderViewState(
-                snapshot: snapshot,
-                status: ProviderStateResolver.codexStatus(snapshot: snapshot),
-                isRefreshing: false
-            )
-        } catch UsageDataError.authenticationRequired {
-            return ProviderViewState(
-                snapshot: client.cached(), status: .authenticationRequired, isRefreshing: false)
-        } catch {
-            let cached = client.cached()
-            return ProviderViewState(
-                snapshot: cached, status: cached == nil ? .unavailable : .stale, isRefreshing: false)
-        }
+    private nonisolated static var dayCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        return calendar
+    }
+
+    nonisolated static func dayKey(for date: Date, calendar: Calendar = dayCalendar) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04ld-%02ld-%02ld", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    private nonisolated static func date(fromDayKey key: String, calendar: Calendar) -> Date? {
+        let parts = key.split(separator: "-", omittingEmptySubsequences: false).compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        return calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
     }
 }
 

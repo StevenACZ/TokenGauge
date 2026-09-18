@@ -23,18 +23,18 @@ public enum SecureMetricStore {
 }
 
 extension JSONEncoder {
-    static var tokenGauge: JSONEncoder {
+    static let tokenGauge: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970
         encoder.outputFormatting = [.sortedKeys]
         return encoder
-    }
+    }()
 }
 
 extension JSONDecoder {
-    static var tokenGauge: JSONDecoder {
+    static let tokenGauge: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .secondsSince1970
         return decoder
-    }
+    }()
 }

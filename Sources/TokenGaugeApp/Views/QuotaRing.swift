@@ -7,30 +7,33 @@ struct QuotaRing: View {
     let remainingPercentage: Double
     let tint: Color
     var historical = false
+    var metrics: QuotaRingMetrics = .grid
 
     var body: some View {
         ZStack {
-            Circle().stroke(Color.primary.opacity(0.09), lineWidth: Theme.Layout.quotaRingLineWidth)
+            Circle().stroke(Color.primary.opacity(0.09), lineWidth: metrics.lineWidth)
             Circle()
                 .trim(from: 0, to: min(max(remainingPercentage / 100, 0), 1))
-                .stroke(tint, style: StrokeStyle(lineWidth: Theme.Layout.quotaRingLineWidth, lineCap: .round))
+                .stroke(tint, style: StrokeStyle(lineWidth: metrics.lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(animateChanges && !reduceMotion ? Theme.Motion.value : nil, value: remainingPercentage)
             VStack(spacing: 1) {
                 Text(UsageFormatters.percentage(remainingPercentage))
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .font(.system(size: metrics.percentageSize, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(Theme.severity(remaining: remainingPercentage) ?? .primary)
-                Text((historical ? "quota.last_remaining" : "quota.remaining").localized)
-                    .font(.system(size: 8))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
+                if metrics.showsLabel {
+                    Text((historical ? "quota.last_remaining" : "quota.remaining").localized)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                }
             }
-            .padding(5)
+            .padding(metrics.contentPadding)
         }
-        .padding(Theme.Layout.quotaRingLineWidth / 2)
-        .frame(width: Theme.Layout.quotaRingDiameter, height: Theme.Layout.quotaRingDiameter)
+        .padding(metrics.lineWidth / 2)
+        .frame(width: metrics.diameter, height: metrics.diameter)
         .accessibilityElement(children: .combine)
     }
 }
@@ -43,12 +46,13 @@ struct QuotaRingWindow: View {
     var showPace = false
     var pace: QuotaPace?
     var previousPace: QuotaPace?
+    var metrics: QuotaRingMetrics = .grid
     var alignsTitleRows = true
 
     var body: some View {
         VStack(spacing: Theme.Layout.ringSectionSpacing) {
             Text(UsageFormatters.windowName(window))
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 11, weight: .medium))
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
                 .frame(height: alignsTitleRows ? Theme.Layout.ringTitleHeight : nil, alignment: .bottom)
@@ -56,26 +60,80 @@ struct QuotaRingWindow: View {
             QuotaRing(
                 remainingPercentage: window.remainingPercentage,
                 tint: Theme.severity(remaining: window.remainingPercentage) ?? tint,
-                historical: historical)
+                historical: historical,
+                metrics: metrics)
             VStack(spacing: 4) {
                 Text(UsageFormatters.reset(window.resetsAt))
-                    .font(.system(size: 9))
+                    .font(.system(size: 10))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                     .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
                 if showPace { QuotaPaceLabel(pace: pace, previousPace: previousPace) }
                 if let summary = UsageFormatters.modelChips(chips) {
                     Text(summary)
-                        .font(.system(size: 9))
+                        .font(.system(size: 10))
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                        .multilineTextAlignment(.center)
                         .help(summary)
                         .monospacedDigit()
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .accessibilityElement(children: showPace ? .contain : .combine)
+    }
+}
+
+struct QuotaRingRow: View {
+    let window: QuotaWindow
+    let tint: Color
+    let chips: [ModelUsageChip]
+    var historical = false
+    var showPace = false
+    var pace: QuotaPace?
+    var previousPace: QuotaPace?
+
+    var body: some View {
+        HStack(spacing: Theme.Layout.quotaRingSpacing) {
+            QuotaRing(
+                remainingPercentage: window.remainingPercentage,
+                tint: Theme.severity(remaining: window.remainingPercentage) ?? tint,
+                historical: historical,
+                metrics: .row)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(UsageFormatters.windowName(window))
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+                    .help(UsageFormatters.windowHelp(window))
+                Text(
+                    (historical ? "quota.last_remaining_value" : "quota.remaining_value").localized(
+                        UsageFormatters.percentage(window.remainingPercentage))
+                )
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .monospacedDigit()
+                Text(UsageFormatters.reset(window.resetsAt))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                if showPace { QuotaPaceLabel(pace: pace, previousPace: previousPace) }
+                if let summary = UsageFormatters.modelChips(chips) {
+                    Text(summary)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .help(summary)
+                        .monospacedDigit()
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
         .accessibilityElement(children: showPace ? .contain : .combine)
     }
 }
