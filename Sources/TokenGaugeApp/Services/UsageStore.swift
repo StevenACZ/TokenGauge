@@ -81,9 +81,21 @@ final class UsageStore: ObservableObject {
     @Published private(set) var claudeCancelledAt: Date?
     @Published private(set) var codexCancelledAt: Date?
 
+    typealias ArchiveWork = @Sendable (ClaudeUsageResult?, ProviderViewState, URL) async -> Void
+
+    static let liveArchiveWork: ArchiveWork = { claudeResult, codexState, homeDirectory in
+        try? await BlockingWork.run {
+            archive(
+                claudeResult: claudeResult, codexState: codexState,
+                accountFingerprint: claudeResult?.accountFingerprint)
+            try? EffortHistoryClient.collect(homeDirectory: homeDirectory)
+        }
+    }
+
     let recoveryAuthorization: ClaudeRecoveryAuthorization
     private let preferences: AppPreferences
     private let refresher: UsageRefresher
+    private let archiveWork: ArchiveWork
     private lazy var scheduler = RefreshScheduler { [weak self] in self?.refresh(force: true) }
 
     convenience init(
@@ -102,10 +114,12 @@ final class UsageStore: ObservableObject {
         refresher: UsageRefresher,
         defaults: UserDefaults = .standard,
         initialSnapshots: [ProviderUsageSnapshot] = [],
-        historyReadsEnabled: Bool? = nil
+        historyReadsEnabled: Bool? = nil,
+        archiveWork: @escaping ArchiveWork = UsageStore.liveArchiveWork
     ) {
         let preferences = AppPreferences(defaults: defaults)
         self.refresher = refresher
+        self.archiveWork = archiveWork
         self.preferences = preferences
         self.historyReadsEnabled =
             historyReadsEnabled ?? (defaults === UserDefaults.standard && initialSnapshots.isEmpty)
@@ -171,18 +185,12 @@ final class UsageStore: ObservableObject {
                 receive(outcome)
             }
             lastRefresh = Date()
-            isRefreshing = false
             scheduleResetRefresh()
-            guard historyReadsEnabled else { return }
-            let archived = (claude: claudeResult, codex: codexState)
-            let homeDirectory = refresher.homeDirectory
-            try? await BlockingWork.run(qos: .background) {
-                Self.archive(
-                    claudeResult: archived.claude, codexState: archived.codex,
-                    accountFingerprint: archived.claude?.accountFingerprint)
-                try? EffortHistoryClient.collect(homeDirectory: homeDirectory)
+            if historyReadsEnabled {
+                await archiveWork(claudeResult, codexState, refresher.homeDirectory)
+                historyRevision &+= 1
             }
-            historyRevision &+= 1
+            isRefreshing = false
         }
     }
 

@@ -8,11 +8,10 @@ enum BlockingWork {
         label: "com.stevenacz.TokenGauge.blocking-work", qos: .utility, attributes: .concurrent)
 
     static func run<Value: Sendable>(
-        qos: DispatchQoS = .unspecified,
         _ work: @escaping @Sendable () throws -> Value
     ) async throws -> Value {
         try await withCheckedThrowingContinuation { continuation in
-            queue.async(group: nil, qos: qos, flags: []) {
+            queue.async {
                 do {
                     continuation.resume(returning: try work())
                 } catch {

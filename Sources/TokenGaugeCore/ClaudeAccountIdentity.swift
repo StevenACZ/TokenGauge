@@ -77,18 +77,21 @@ public enum ClaudeAccountIdentityReader {
     }
 
     public static func read(at url: URL) -> ClaudeAccountIdentity? {
-        cache.withLock { entry in
-            let previous = entry?.url == url ? entry?.identity : nil
-            guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else {
-                return previous
-            }
-            let modifiedAt = attributes[.modificationDate] as? Date
-            let size = attributes[.size] as? Int ?? 0
-            if let entry, entry.url == url, entry.modifiedAt == modifiedAt, entry.size == size {
+        let previous = cache.withLock { entry in entry?.url == url ? entry : nil }
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else {
+            return previous?.identity
+        }
+        let modifiedAt = attributes[.modificationDate] as? Date
+        let size = attributes[.size] as? Int ?? 0
+        if let previous, previous.modifiedAt == modifiedAt, previous.size == size {
+            return previous.identity
+        }
+        guard let data = try? Data(contentsOf: url) else { return previous?.identity }
+        let identity = ClaudeAccountIdentity(data: data)
+        return cache.withLock { entry in
+            if let entry, entry.url == url, let stored = entry.modifiedAt, let read = modifiedAt, stored > read {
                 return entry.identity
             }
-            guard let data = try? Data(contentsOf: url) else { return previous }
-            let identity = ClaudeAccountIdentity(data: data)
             entry = Entry(url: url, modifiedAt: modifiedAt, size: size, identity: identity)
             return identity
         }

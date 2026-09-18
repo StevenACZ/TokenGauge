@@ -5,6 +5,20 @@ import XCTest
 @testable import TokenGaugeApp
 
 @MainActor
+private final class FakeUpdaterSession: UpdaterSession {
+    var sessionInProgress: Bool
+    private(set) var checks = 0
+
+    init(sessionInProgress: Bool) {
+        self.sessionInProgress = sessionInProgress
+    }
+
+    func checkForUpdates() {
+        checks += 1
+    }
+}
+
+@MainActor
 final class UpdateManagerTests: XCTestCase {
 
     private var clock = Date(timeIntervalSince1970: 1_000)
@@ -138,6 +152,7 @@ final class UpdateManagerTests: XCTestCase {
         manager.handleDismissInstallation()
         XCTAssertEqual(manager.phase, .readyToInstall(version: "9.9.9", deferred: true))
 
+        manager.setSession(FakeUpdaterSession(sessionInProgress: false))
         manager.resumeDeferredInstall()
         XCTAssertEqual(manager.phase, .installing(version: "9.9.9"))
         XCTAssertEqual(found(manager, stage: .downloaded), .install)
@@ -336,6 +351,7 @@ final class UpdateManagerTests: XCTestCase {
         manager.deferReadyUpdate()
         XCTAssertEqual(defaults.string(forKey: UpdateManager.deferredVersionDefaultsKey), "9.9.9")
 
+        manager.setSession(FakeUpdaterSession(sessionInProgress: false))
         manager.resumeDeferredInstall()
         XCTAssertEqual(found(manager, stage: .downloaded), .install)
         XCTAssertNil(defaults.string(forKey: UpdateManager.deferredVersionDefaultsKey))
@@ -389,6 +405,40 @@ final class UpdateManagerTests: XCTestCase {
         manager.handleError("private network error detail")
         XCTAssertEqual(manager.manualCheckStatus, .failed)
         XCTAssertEqual(manager.phase, .idle)
+    }
+
+    func testResumeDeferredInstallIsIgnoredWhileASessionIsInProgress() {
+        let defaults = makeDefaults()
+        let manager = makeManager(defaults: defaults)
+        _ = found(manager)
+        manager.handleReadyToInstall { _ in }
+        manager.deferReadyUpdate()
+        let session = FakeUpdaterSession(sessionInProgress: true)
+        manager.setSession(session)
+
+        manager.resumeDeferredInstall()
+
+        XCTAssertEqual(manager.phase, .readyToInstall(version: "9.9.9", deferred: true))
+        XCTAssertEqual(session.checks, 0)
+        XCTAssertEqual(defaults.string(forKey: UpdateManager.deferredVersionDefaultsKey), "9.9.9")
+        XCTAssertEqual(found(manager, stage: .downloaded), .dismiss)
+        XCTAssertEqual(manager.phase, .readyToInstall(version: "9.9.9", deferred: true))
+    }
+
+    func testManualCheckReportsFailureWhileASessionIsInProgress() {
+        let defaults = makeDefaults()
+        defaults.set("https://updates.example.com/appcast.xml", forKey: UpdateManager.feedOverrideDefaultsKey)
+        let manager = makeManager(defaults: defaults)
+        _ = found(manager)
+        manager.handleReadyToInstall { _ in }
+        let session = FakeUpdaterSession(sessionInProgress: true)
+        manager.setSession(session)
+
+        manager.checkForUpdatesManually()
+
+        XCTAssertEqual(manager.manualCheckStatus, .failed)
+        XCTAssertEqual(manager.phase, .readyToInstall(version: "9.9.9", deferred: false))
+        XCTAssertEqual(session.checks, 0)
     }
 
     func testManualCheckNotFoundReportsUpToDate() {

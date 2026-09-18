@@ -5,6 +5,14 @@ import Sparkle
 import os
 
 @MainActor
+protocol UpdaterSession: AnyObject {
+    var sessionInProgress: Bool { get }
+    func checkForUpdates()
+}
+
+extension SPUUpdater: UpdaterSession {}
+
+@MainActor
 final class UpdateManager: ObservableObject {
 
     static let shared = UpdateManager()
@@ -64,6 +72,7 @@ final class UpdateManager: ObservableObject {
     private let log = Logger(subsystem: "com.stevenacz.TokenGauge", category: "updates")
 
     private var updater: SPUUpdater?
+    private var session: (any UpdaterSession)?
     private var driver: Driver?
     private var updaterDelegate: UpdaterDelegate?
 
@@ -157,8 +166,13 @@ final class UpdateManager: ObservableObject {
         self.driver = driver
         self.updaterDelegate = updaterDelegate
         self.updater = updater
+        session = updater
 
         if deferredVersion != nil { updater.checkForUpdatesInBackground() }
+    }
+
+    func setSession(_ session: any UpdaterSession) {
+        self.session = session
     }
 
     func setAutoCheckEnabled(_ enabled: Bool) {
@@ -206,24 +220,29 @@ final class UpdateManager: ObservableObject {
 
     func resumeDeferredInstall() {
         guard case .readyToInstall(let version, true) = phase else { return }
+        guard let session, session.sessionInProgress == false else { return }
         resumeInstallRequested = true
         installRequested = true
         phase = .installing(version: version)
-        guard let updater, updater.sessionInProgress == false else { return }
-        updater.checkForUpdates()
+        session.checkForUpdates()
     }
 
     func checkForUpdatesManually() {
         guard available else { return }
-        guard let updater else {
+        guard let session else {
             handleManualCheckStarted()
             finishManualCheck(status: .failed)
             phase = idleOrPendingPhase
             return
         }
-        guard updater.sessionInProgress == false else { return }
+        guard session.sessionInProgress == false else {
+            manualCheckResetTask?.cancel()
+            manualCheckPending = true
+            finishManualCheck(status: .failed)
+            return
+        }
         handleManualCheckStarted()
-        updater.checkForUpdates()
+        session.checkForUpdates()
     }
 
     func handleManualCheckStarted() {
