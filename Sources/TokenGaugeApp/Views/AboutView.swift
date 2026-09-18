@@ -74,8 +74,11 @@ struct UpdateActionView: View {
             case .idle:
                 checkControl
             case .available:
-                Button("updates.download".localized) { updates.installPendingUpdate() }
-                    .buttonStyle(.borderedProminent)
+                VStack(spacing: 8) {
+                    Button("updates.download".localized) { updates.installPendingUpdate() }
+                        .buttonStyle(.borderedProminent)
+                    checkControl
+                }
             case .readyToInstall(let version, true):
                 VStack(spacing: 8) {
                     Button("updates.install_version".localized(version)) { updates.resumeDeferredInstall() }

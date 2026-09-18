@@ -316,7 +316,13 @@ final class HistoryDashboardModel: ObservableObject {
         }
     }
 
-    nonisolated static func dayKey(_ date: Date, calendar: Calendar = .current) -> String {
+    private nonisolated static var dayCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        return calendar
+    }
+
+    nonisolated static func dayKey(_ date: Date, calendar: Calendar = dayCalendar) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04ld-%02ld-%02ld", components.year ?? 0, components.month ?? 0, components.day ?? 0)
     }

@@ -14,8 +14,9 @@ final class ScreenshotTests: XCTestCase {
         let output = URL(fileURLWithPath: directory)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let previousIcon = NSApplication.shared.applicationIconImage
-        let icon = output.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(
-            "Resources/AppIcon.icns")
+        let icon = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Resources/AppIcon.icns")
         NSApplication.shared.applicationIconImage = try XCTUnwrap(NSImage(contentsOf: icon))
         defer { NSApplication.shared.applicationIconImage = previousIcon }
         let suite = "TokenGauge.screenshots.\(UUID().uuidString)"

@@ -12,8 +12,10 @@ final class QuotaPanelRenderingTests: XCTestCase {
             for style in [QuotaPanelStyle.compact, .rings] {
                 for count in 1...3 {
                     for width: CGFloat in style == .rings ? [240, 334] : [334, 414] {
+                        let claude = state(count: count)
                         let card = ProviderCard(
-                            provider: .claude, state: state(count: count), panelStyle: style, showProviderTitle: true)
+                            provider: .claude, state: claude, panelStyle: style, showProviderTitle: true,
+                            showHourlyPace: true, paces: paces(claude))
                         let bitmap = try render(card.frame(width: width), maximumHeight: 420)
                         XCTAssertGreaterThan(bitmap.pixelsWide, 0)
                         XCTAssertEqual(bitmap.size.width, width, accuracy: 1)
@@ -51,9 +53,11 @@ final class QuotaPanelRenderingTests: XCTestCase {
         try withEachLanguage { _ in
             for count in [2, 3] {
                 let width = QuotaRingLayout.minimumGridWidth(windows: count) + Theme.Layout.cardPadding * 2
+                let claude = state(count: count)
                 let card = ProviderCard(
-                    provider: .claude, state: state(count: count), panelStyle: .rings, showProviderTitle: true)
-                let bitmap = try render(card.frame(width: width), maximumHeight: 220)
+                    provider: .claude, state: claude, panelStyle: .rings, showProviderTitle: true,
+                    showHourlyPace: true, paces: paces(claude))
+                let bitmap = try render(card.frame(width: width), maximumHeight: 260)
                 XCTAssertEqual(bitmap.size.width, width, accuracy: 1)
             }
         }
@@ -74,11 +78,13 @@ final class QuotaPanelRenderingTests: XCTestCase {
     }
 
     func testHiddenWindowsDoNotOccupyRingSpace() throws {
+        let claude = state(count: 3)
         var card = ProviderCard(
-            provider: .claude, state: state(count: 3), panelStyle: .rings, showProviderTitle: true)
-        let all = try render(card.frame(width: 240), maximumHeight: 320)
+            provider: .claude, state: claude, panelStyle: .rings, showProviderTitle: true,
+            showHourlyPace: true, paces: paces(claude))
+        let all = try render(card.frame(width: 240), maximumHeight: 420)
         card.hiddenClaudeWindows = [.weekly]
-        let filtered = try render(card.frame(width: 240), maximumHeight: 190)
+        let filtered = try render(card.frame(width: 240), maximumHeight: 300)
         XCTAssertLessThan(filtered.size.height, all.size.height - 50)
     }
 
@@ -94,15 +100,18 @@ final class QuotaPanelRenderingTests: XCTestCase {
         let width = Theme.Layout.ringPanelWidth - Theme.Layout.panelPadding * 2
         try withEachLanguage { _ in
             for count in 1...3 {
+                let state = state(count: count)
                 let claude = ProviderCard(
-                    provider: .claude, state: state(count: count), panelStyle: .rings, showProviderTitle: true,
-                    showHourlyPace: true)
+                    provider: .claude, state: state, panelStyle: .rings, showProviderTitle: true,
+                    showHourlyPace: true, paces: paces(state))
                 let bitmap = try render(claude.frame(width: width), maximumHeight: Theme.Layout.maximumPanelHeight)
                 XCTAssertEqual(bitmap.size.width, width, accuracy: 1)
             }
             for count in 1...2 {
+                let state = codexState(count: count)
                 let codex = ProviderCard(
-                    provider: .codex, state: codexState(count: count), panelStyle: .rings, showProviderTitle: true)
+                    provider: .codex, state: state, panelStyle: .rings, showProviderTitle: true,
+                    showHourlyPace: true, paces: paces(state))
                 let bitmap = try render(codex.frame(width: width), maximumHeight: Theme.Layout.maximumPanelHeight)
                 XCTAssertEqual(bitmap.size.width, width, accuracy: 1)
             }
@@ -114,8 +123,10 @@ final class QuotaPanelRenderingTests: XCTestCase {
         let available = cardWidth - Theme.Layout.cardPadding * 2
         XCTAssertEqual(QuotaRingLayout.choose(availableWidth: available, windows: 3), .rows)
         XCTAssertEqual(QuotaRingLayout.choose(availableWidth: available, windows: 2), .grid(columns: 2))
+        let claude = state(count: 3)
         let card = ProviderCard(
-            provider: .claude, state: state(count: 3), panelStyle: .rings, showProviderTitle: true)
+            provider: .claude, state: claude, panelStyle: .rings, showProviderTitle: true,
+            showHourlyPace: true, paces: paces(claude))
         let rows = try render(card.frame(width: cardWidth), maximumHeight: Theme.Layout.maximumPanelHeight)
         let grid = try render(
             card.frame(width: QuotaRingLayout.minimumGridWidth(windows: 3) + Theme.Layout.cardPadding * 2),
@@ -131,12 +142,14 @@ final class QuotaPanelRenderingTests: XCTestCase {
             (2, 2, balanced / 2, balanced / 2),
         ]
         for (codexWindows, claudeWindows, codexWidth, claudeWidth) in matrix {
+            let codexState = codexState(count: codexWindows)
+            let claudeState = state(count: claudeWindows)
             let codex = ProviderCard(
-                provider: .codex, state: codexState(count: codexWindows), panelStyle: .rings,
-                showProviderTitle: true, stretchesHeight: true)
+                provider: .codex, state: codexState, panelStyle: .rings,
+                showProviderTitle: true, showHourlyPace: true, stretchesHeight: true, paces: paces(codexState))
             let claude = ProviderCard(
-                provider: .claude, state: state(count: claudeWindows), panelStyle: .rings,
-                showProviderTitle: true, stretchesHeight: true)
+                provider: .claude, state: claudeState, panelStyle: .rings,
+                showProviderTitle: true, showHourlyPace: true, stretchesHeight: true, paces: paces(claudeState))
             let row = HStack(alignment: .top, spacing: Theme.Layout.quotaRingSpacing) {
                 codex.frame(width: codexWidth)
                 claude.frame(width: claudeWidth)
@@ -162,10 +175,14 @@ final class QuotaPanelRenderingTests: XCTestCase {
         let available = Theme.Layout.unifiedPanelWidth - Theme.Layout.panelPadding * 2
         let cardWidth = (available - 10) / 2
         try withEachLanguage { language in
+            let codexState = codexState(count: 2)
+            let claudeState = state(count: 3)
             let codex = ProviderCard(
-                provider: .codex, state: codexState(count: 2), showProviderTitle: true, showHourlyPace: true)
+                provider: .codex, state: codexState, showProviderTitle: true, showHourlyPace: true,
+                paces: paces(codexState))
             let claude = ProviderCard(
-                provider: .claude, state: state(count: 3), showProviderTitle: true, showHourlyPace: true)
+                provider: .claude, state: claudeState, showProviderTitle: true, showHourlyPace: true,
+                paces: paces(claudeState))
             let unified = HStack(alignment: .top, spacing: 10) {
                 codex.frame(width: cardWidth)
                 claude.frame(width: cardWidth)
@@ -173,7 +190,8 @@ final class QuotaPanelRenderingTests: XCTestCase {
             .fixedSize(horizontal: false, vertical: true)
             XCTAssertLessThanOrEqual(
                 fittingSize(unified).height, Theme.Layout.providerMaxHeight, language.rawValue)
-            let single = ProviderCard(provider: .claude, state: state(count: 3), showHourlyPace: true)
+            let single = ProviderCard(
+                provider: .claude, state: claudeState, showHourlyPace: true, paces: paces(claudeState))
             XCTAssertLessThanOrEqual(
                 fittingSize(single.frame(width: Theme.Layout.panelWidth - Theme.Layout.panelPadding * 2)).height,
                 Theme.Layout.providerMaxHeight, language.rawValue)
@@ -186,6 +204,7 @@ final class QuotaPanelRenderingTests: XCTestCase {
                 defaults: defaults,
                 snapshots: [codexState(count: 2).snapshot, state(count: 3).snapshot].compactMap { $0 })
             store.panelStyle = .standard
+            store.showHourlyPace = true
             try withEachLanguage { language in
                 for mode in UsageDisplayMode.allCases {
                     store.displayMode = mode
@@ -222,7 +241,11 @@ final class QuotaPanelRenderingTests: XCTestCase {
         ]
         let snapshot = Fixture.snapshot(
             .claude, windows: Array(windows.prefix(count)), availableResetCredits: 2,
-            capturedAt: Date().addingTimeInterval(-600))
+            capturedAt: Date().addingTimeInterval(-600),
+            modelBuckets: Fixture.modelBuckets([
+                ("claude-opus-4-6", 171_600_000), ("claude-fable-1", 67_900_000),
+                ("claude-haiku-4-5", 1_100_000),
+            ]))
         return ProviderViewState(snapshot: snapshot, status: status, isRefreshing: false)
     }
 
@@ -236,7 +259,16 @@ final class QuotaPanelRenderingTests: XCTestCase {
                 resetsAt: Date().addingTimeInterval(172800), durationMinutes: 10080, displayName: "gpt-reserve"),
         ]
         let snapshot = Fixture.snapshot(
-            .codex, windows: Array(windows.prefix(count)), capturedAt: Date().addingTimeInterval(-600))
+            .codex, windows: Array(windows.prefix(count)), capturedAt: Date().addingTimeInterval(-600),
+            modelBuckets: Fixture.modelBuckets([("gpt-6-astra", 148_300_000), ("gpt-6-codex", 52_400_000)]))
         return ProviderViewState(snapshot: snapshot, status: status, isRefreshing: false)
+    }
+
+    private func paces(_ state: ProviderViewState) -> [String: QuotaPace] {
+        var result: [String: QuotaPace] = [:]
+        for window in state.snapshot?.windows ?? [] {
+            result[window.id] = Fixture.pace(15.6, resetsAt: window.resetsAt)
+        }
+        return result
     }
 }

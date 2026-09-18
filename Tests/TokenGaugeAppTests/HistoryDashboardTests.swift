@@ -21,6 +21,16 @@ final class HistoryDashboardTests: XCTestCase {
         XCTAssertEqual(HistoryDashboardModel.dayKey(previous.start, calendar: calendar), "2025-12-22")
     }
 
+    func testDayKeysMatchTheWriterEvenWithANonGregorianCurrentCalendar() {
+        var japanese = Calendar(identifier: .japanese)
+        japanese.timeZone = .current
+        for offset in stride(from: -86_400 * 400, through: 86_400 * 400, by: 86_400 * 37) {
+            let date = Date().addingTimeInterval(Double(offset))
+            XCTAssertEqual(HistoryDashboardModel.dayKey(date), UsageStore.dayKey(for: date))
+            XCTAssertNotEqual(HistoryDashboardModel.dayKey(date, calendar: japanese), UsageStore.dayKey(for: date))
+        }
+    }
+
     func testLeapYearIncludesEveryDateButDoesNotInventZeroDays() {
         let now = calendar.date(from: DateComponents(year: 2024, month: 7, day: 1))!
         let year = HistoryDashboardModel.interval(mode: .calendar, offset: 0, now: now, calendar: calendar)

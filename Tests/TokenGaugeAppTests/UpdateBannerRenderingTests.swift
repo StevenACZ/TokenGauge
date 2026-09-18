@@ -45,17 +45,22 @@ final class UpdateBannerRenderingTests: XCTestCase {
     }
 
     func testAboutKeepsTheManualCheckReachableOutsideARunningUpdate() throws {
-        let idle = try actionHeight(phase: .idle)
-        let available = try actionHeight(phase: .available(version: "1.4.0"))
-        let deferred = try actionHeight(phase: .readyToInstall(version: "1.4.0", deferred: true))
-        let installing = try actionHeight(phase: .installing(version: "1.4.0"))
+        let check = try actionBitmap(phase: .idle)
+        for phase in [
+            UpdateManager.Phase.available(version: "1.4.0"), .readyToInstall(version: "1.4.0", deferred: true),
+        ] {
+            let bitmap = try actionBitmap(phase: phase)
+            XCTAssertGreaterThan(bitmap.pixelsHigh, check.pixelsHigh, "\(phase)")
+            XCTAssertTrue(endsWith(bitmap, check), "\(phase)")
+        }
+        let installing = try actionBitmap(phase: .installing(version: "1.4.0"))
+        XCTAssertFalse(endsWith(installing, check))
 
+        let idle = try actionHeight(phase: .idle)
         XCTAssertGreaterThan(idle, 0)
         XCTAssertLessThan(idle, UpdateBannerView.compactHeight)
-        XCTAssertGreaterThan(available, 0)
-        XCTAssertLessThan(available, UpdateBannerView.compactHeight)
-        XCTAssertGreaterThan(deferred, max(idle, available))
-        XCTAssertEqual(installing, UpdateBannerView.compactHeight, accuracy: 1)
+        XCTAssertEqual(
+            try actionHeight(phase: .installing(version: "1.4.0")), UpdateBannerView.compactHeight, accuracy: 1)
     }
 
     private func actionHeight(phase: UpdateManager.Phase) throws -> CGFloat {
@@ -63,6 +68,33 @@ final class UpdateBannerRenderingTests: XCTestCase {
         let view = NSHostingView(
             rootView: UpdateActionView(updates: manager).frame(width: Theme.Layout.panelWidth))
         return view.fittingSize.height
+    }
+
+    private func actionBitmap(phase: UpdateManager.Phase) throws -> NSBitmapImageRep {
+        let manager = try makeManager(phase: phase)
+        return try render(
+            UpdateActionView(updates: manager).frame(width: Theme.Layout.panelWidth)
+                .environment(\.colorScheme, .light).background(Color.white))
+    }
+
+    private func endsWith(_ bitmap: NSBitmapImageRep, _ tail: NSBitmapImageRep) -> Bool {
+        guard bitmap.pixelsWide == tail.pixelsWide, bitmap.pixelsHigh >= tail.pixelsHigh else { return false }
+        var different = 0
+        for row in 0..<tail.pixelsHigh {
+            for column in 0..<tail.pixelsWide {
+                let left = bitmap.colorAt(x: column, y: bitmap.pixelsHigh - tail.pixelsHigh + row)?
+                    .usingColorSpace(.deviceRGB)
+                let right = tail.colorAt(x: column, y: row)?.usingColorSpace(.deviceRGB)
+                guard let left, let right else { return false }
+                if abs(left.redComponent - right.redComponent) > 0.1
+                    || abs(left.greenComponent - right.greenComponent) > 0.1
+                    || abs(left.blueComponent - right.blueComponent) > 0.1
+                {
+                    different += 1
+                }
+            }
+        }
+        return different * 100 < tail.pixelsWide * tail.pixelsHigh
     }
 
     private func makeManager(phase: UpdateManager.Phase) throws -> UpdateManager {
