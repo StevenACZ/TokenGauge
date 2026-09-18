@@ -158,6 +158,45 @@ final class QuotaPanelRenderingTests: XCTestCase {
         }
     }
 
+    func testStandardCardsFitTheProviderAreaWithoutScrolling() throws {
+        let available = Theme.Layout.unifiedPanelWidth - Theme.Layout.panelPadding * 2
+        let cardWidth = (available - 10) / 2
+        try withEachLanguage { language in
+            let codex = ProviderCard(
+                provider: .codex, state: codexState(count: 2), showProviderTitle: true, showHourlyPace: true)
+            let claude = ProviderCard(
+                provider: .claude, state: state(count: 3), showProviderTitle: true, showHourlyPace: true)
+            let unified = HStack(alignment: .top, spacing: 10) {
+                codex.frame(width: cardWidth)
+                claude.frame(width: cardWidth)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            XCTAssertLessThanOrEqual(
+                fittingSize(unified).height, Theme.Layout.providerMaxHeight, language.rawValue)
+            let single = ProviderCard(provider: .claude, state: state(count: 3), showHourlyPace: true)
+            XCTAssertLessThanOrEqual(
+                fittingSize(single.frame(width: Theme.Layout.panelWidth - Theme.Layout.panelPadding * 2)).height,
+                Theme.Layout.providerMaxHeight, language.rawValue)
+        }
+    }
+
+    func testStandardPanelWithLargestProviderCardsStaysWithinTheMaximumHeight() throws {
+        try withDefaults { defaults in
+            let store = Fixture.store(
+                defaults: defaults,
+                snapshots: [codexState(count: 2).snapshot, state(count: 3).snapshot].compactMap { $0 })
+            store.panelStyle = .standard
+            try withEachLanguage { language in
+                for mode in UsageDisplayMode.allCases {
+                    store.displayMode = mode
+                    let size = fittingSize(PopoverView(store: store, showSettings: {}, showAbout: {}))
+                    XCTAssertLessThanOrEqual(
+                        size.height, Theme.Layout.maximumPanelHeight, "\(language.rawValue) / \(mode.rawValue)")
+                }
+            }
+        }
+    }
+
     private func bluePixelCount(_ bitmap: NSBitmapImageRep) -> Int {
         var count = 0
         for y in 0..<bitmap.pixelsHigh {

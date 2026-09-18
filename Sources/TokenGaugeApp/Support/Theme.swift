@@ -11,7 +11,7 @@ enum Theme {
         static let panelWidth: CGFloat = 340
         static let maximumPanelHeight: CGFloat = 640
         static let unifiedPanelWidth: CGFloat = 560
-        static let providerMaxHeight: CGFloat = 182
+        static let providerMaxHeight: CGFloat = 270
         static let compactProviderMaxHeight: CGFloat = 230
         static let ringProviderMaxHeight: CGFloat = 264
         static let compactPanelWidth: CGFloat = 320
