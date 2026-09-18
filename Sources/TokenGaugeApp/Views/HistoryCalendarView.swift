@@ -312,6 +312,8 @@ final class HistoryCalendarCanvas: NSView {
 
     var trackingOptions: NSTrackingArea.Options { tracking?.options ?? [] }
 
+    var hasPinMonitor: Bool { pinMonitor != nil }
+
     override func mouseMoved(with event: NSEvent) {
         let position = window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
         defer { lastMousePosition = position }
@@ -353,18 +355,37 @@ final class HistoryCalendarCanvas: NSView {
         guard pinned != nil, window != nil else {
             if let pinMonitor { NSEvent.removeMonitor(pinMonitor) }
             pinMonitor = nil
+            if let window, window.firstResponder === self { window.makeFirstResponder(window.contentView) }
             return
         }
-        guard pinMonitor == nil else { return }
-        pinMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .keyDown]) { [weak self] event in
-            MainActor.assumeIsolated { self?.passesPinnedEvent(event) ?? true } ? event : nil
+        if pinMonitor == nil {
+            pinMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .keyDown]) { [weak self] event in
+                MainActor.assumeIsolated { self?.passesPinnedEvent(event) ?? true } ? event : nil
+            }
         }
+        if let window, window.firstResponder !== self { window.makeFirstResponder(self) }
+    }
+
+    override var acceptsFirstResponder: Bool { pinned != nil }
+
+    override func cancelOperation(_ sender: Any?) {
+        guard pinned != nil else {
+            nextResponder?.tryToPerform(#selector(NSResponder.cancelOperation(_:)), with: sender)
+            return
+        }
+        dismissPinnedCard()
+    }
+
+    private func dismissPinnedCard() {
+        pinned = nil
+        updatePinMonitor()
+        onDismissCard?()
     }
 
     func passesPinnedEvent(_ event: NSEvent) -> Bool {
         if event.type == .keyDown {
             guard event.keyCode == 53 else { return true }
-            onDismissCard?()
+            dismissPinnedCard()
             return false
         }
         if event.window === window, let scroll = enclosingScrollView {

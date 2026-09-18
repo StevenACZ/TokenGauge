@@ -24,11 +24,9 @@ struct PopoverView: View {
     }
 
     var providerMaxHeight: CGFloat {
-        let height: CGFloat =
-            store.panelStyle == .rings
+        store.panelStyle == .rings
             ? Theme.Layout.ringProviderMaxHeight
             : store.panelStyle == .compact ? Theme.Layout.compactProviderMaxHeight : Theme.Layout.providerMaxHeight
-        return height - (updates.phase == .idle ? 0 : UpdateBannerView.height(for: updates.phase))
     }
 
     var panelWidth: CGFloat {
