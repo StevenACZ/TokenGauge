@@ -47,6 +47,10 @@ TOKENGAUGE_UPDATE_FEED_URL=http://127.0.0.1:8000/appcast.xml
 
 Only a loopback HTTP feed is accepted for this explicit QA override. Normal development launches disable updates. Test through About using real input, verify the higher build relaunches with the same Apple Development signing identity, then restore the real version and remove task-owned QA artifacts/server. Do not copy production credentials or user usage history to a test Mac.
 
+## Feed override
+
+`defaults write com.stevenacz.TokenGauge updateFeedURLOverride <url>` points any build, including a notarized distribution build, at another appcast; `defaults delete com.stevenacz.TokenGauge updateFeedURLOverride` restores the feed from `Info.plist`. EdDSA signatures still gate every install, so an override cannot install an unsigned update. The precedence is `TOKENGAUGE_QA_UPDATES` plus `TOKENGAUGE_UPDATE_FEED_URL` (development builds, loopback only), then `updateFeedURLOverride`, then `SUFeedURL`. Remove the override after QA.
+
 ## Repository visibility
 
 Review the entire history before changing a private repository to public. Permission to prepare a release does not by itself prove that publication has occurred. Record the live visibility and release URL after the owner-authorized publication step. Keep generated artifacts and signing material out of Git.

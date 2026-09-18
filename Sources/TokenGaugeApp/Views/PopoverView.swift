@@ -28,7 +28,7 @@ struct PopoverView: View {
             store.panelStyle == .rings
             ? Theme.Layout.ringProviderMaxHeight
             : store.panelStyle == .compact ? Theme.Layout.compactProviderMaxHeight : Theme.Layout.providerMaxHeight
-        return height - (updates.phase == .idle ? 0 : 44)
+        return height - (updates.phase == .idle ? 0 : UpdateBannerView.height(for: updates.phase))
     }
 
     private var panelWidth: CGFloat {
@@ -61,6 +61,9 @@ struct PopoverView: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: Theme.Layout.sectionSpacing) {
             header
+            if updates.phase != .idle {
+                UpdateBannerView(updates: updates)
+            }
             providerPicker
 
             ViewThatFits(in: .vertical) {
@@ -79,9 +82,6 @@ struct PopoverView: View {
             if store.panelStyle == .standard {
                 Divider().padding(.top, 1)
                 footer
-            } else if updates.phase != .idle {
-                Divider()
-                UpdateActionView().padding(5)
             }
         }
         .padding(.horizontal, Theme.Layout.panelPadding)
@@ -282,9 +282,6 @@ struct PopoverView: View {
 
     private var footer: some View {
         VStack(spacing: 0) {
-            if updates.phase != .idle {
-                UpdateActionView().padding(5)
-            }
             FooterActionRow(icon: "gearshape", title: "settings.title".localized, action: showSettings)
             FooterActionRow(icon: "info.circle", title: "about.title".localized, action: showAbout)
             FooterActionRow(icon: "power", title: "action.quit".localized) {

@@ -1,3 +1,4 @@
+import Sparkle
 import XCTest
 
 @testable import TokenGaugeApp
@@ -5,8 +6,20 @@ import XCTest
 @MainActor
 final class UpdateManagerTests: XCTestCase {
 
+    private var clock = Date(timeIntervalSince1970: 1_000)
+
     private func makeManager() -> UpdateManager {
-        UpdateManager(defaults: UserDefaults(suiteName: "TokenGauge.UpdaterTests." + UUID().uuidString)!)
+        UpdateManager(
+            defaults: UserDefaults(suiteName: "TokenGauge.UpdaterTests." + UUID().uuidString)!,
+            now: { [unowned self] in self.clock })
+    }
+
+    private func found(
+        _ manager: UpdateManager, version: String = "9.9.9", informationOnly: Bool = false,
+        stage: UpdateManager.Stage = .notDownloaded
+    ) -> SPUUserUpdateChoice {
+        manager.handleUpdateFound(
+            version: version, releasePage: nil, informationOnly: informationOnly, stage: stage)
     }
 
     func testScheduledFoundUpdateIsDismissedAndSurfaced() {
@@ -26,24 +39,22 @@ final class UpdateManagerTests: XCTestCase {
         let manager = makeManager()
         manager.handleInstallRequested()
 
-        let choice = manager.handleUpdateFound(
-            version: "9.9.9", releasePage: nil, informationOnly: true)
-
-        XCTAssertEqual(choice, .dismiss)
+        XCTAssertEqual(found(manager, informationOnly: true), .dismiss)
         XCTAssertEqual(manager.phase, .available(version: "9.9.9"))
     }
 
     func testDownloadProgressIsFractionOfExpectedLength() {
         let manager = makeManager()
+        _ = found(manager)
         manager.handleDownloadInitiated()
-        XCTAssertEqual(manager.phase, .downloading(fraction: nil))
+        XCTAssertEqual(manager.phase, .downloading(version: "9.9.9", fraction: nil))
 
         manager.handleDownloadExpectedLength(1_000)
         manager.handleDownloadReceived(bytes: 250)
-        XCTAssertEqual(manager.phase, .downloading(fraction: 0.25))
+        XCTAssertEqual(manager.phase, .downloading(version: "9.9.9", fraction: 0.25))
 
         manager.handleDownloadReceived(bytes: 750)
-        XCTAssertEqual(manager.phase, .downloading(fraction: 1.0))
+        XCTAssertEqual(manager.phase, .downloading(version: "9.9.9", fraction: 1.0))
     }
 
     func testUnknownContentLengthStaysIndeterminate() {
@@ -51,7 +62,7 @@ final class UpdateManagerTests: XCTestCase {
         manager.handleDownloadInitiated()
         manager.handleDownloadReceived(bytes: 4_096)
 
-        XCTAssertEqual(manager.phase, .downloading(fraction: nil))
+        XCTAssertEqual(manager.phase, .downloading(version: "", fraction: nil))
     }
 
     func testDownloadFractionIsCappedAtOne() {
@@ -60,23 +71,100 @@ final class UpdateManagerTests: XCTestCase {
         manager.handleDownloadExpectedLength(100)
         manager.handleDownloadReceived(bytes: 250)
 
-        XCTAssertEqual(manager.phase, .downloading(fraction: 1.0))
+        XCTAssertEqual(manager.phase, .downloading(version: "", fraction: 1.0))
     }
 
-    func testExtractionAndReadyToInstallShowInstalling() {
+    func testProgressPublishesAtMostTwentyTimesPerSecond() {
         let manager = makeManager()
-        manager.handleExtractionStarted()
-        XCTAssertEqual(manager.phase, .installing)
+        _ = found(manager)
+        manager.handleDownloadInitiated()
+        manager.handleDownloadExpectedLength(1_000)
 
-        XCTAssertEqual(manager.handleReadyToInstall(), .install)
-        XCTAssertEqual(manager.phase, .installing)
+        manager.handleDownloadReceived(bytes: 100)
+        XCTAssertEqual(manager.phase, .downloading(version: "9.9.9", fraction: 0.1))
+
+        manager.handleDownloadReceived(bytes: 100)
+        XCTAssertEqual(manager.phase, .downloading(version: "9.9.9", fraction: 0.1))
+
+        clock.addTimeInterval(UpdateManager.progressPublishInterval * 2)
+        manager.handleDownloadReceived(bytes: 100)
+        XCTAssertEqual(manager.phase, .downloading(version: "9.9.9", fraction: 0.3))
+    }
+
+    func testExtractionProgressIsReported() {
+        let manager = makeManager()
+        _ = found(manager)
+        manager.handleExtractionStarted()
+        XCTAssertEqual(manager.phase, .extracting(version: "9.9.9", fraction: nil))
+
+        manager.handleExtractionProgress(0.5)
+        XCTAssertEqual(manager.phase, .extracting(version: "9.9.9", fraction: 0.5))
+
+        manager.handleExtractionProgress(1.0)
+        XCTAssertEqual(manager.phase, .extracting(version: "9.9.9", fraction: 1.0))
+    }
+
+    func testReadyToInstallWaitsForTheUserChoice() {
+        let manager = makeManager()
+        _ = found(manager)
+        var choices: [SPUUserUpdateChoice] = []
+        manager.handleReadyToInstall { choices.append($0) }
+
+        XCTAssertEqual(manager.phase, .readyToInstall(version: "9.9.9", deferred: false))
+        XCTAssertTrue(choices.isEmpty)
+
+        manager.installReadyUpdate()
+
+        XCTAssertEqual(choices, [.install])
+        XCTAssertEqual(manager.phase, .installing(version: "9.9.9"))
+    }
+
+    func testDeferredReadyUpdateStaysVisibleAndResumesWithInstall() {
+        let manager = makeManager()
+        _ = found(manager)
+        var choices: [SPUUserUpdateChoice] = []
+        manager.handleReadyToInstall { choices.append($0) }
+
+        manager.deferReadyUpdate()
+        XCTAssertEqual(choices, [.dismiss])
+        XCTAssertEqual(manager.phase, .readyToInstall(version: "9.9.9", deferred: true))
+
+        manager.handleDismissInstallation()
+        XCTAssertEqual(manager.phase, .readyToInstall(version: "9.9.9", deferred: true))
+
+        manager.resumeDeferredInstall()
+        XCTAssertEqual(manager.phase, .installing(version: "9.9.9"))
+        XCTAssertEqual(found(manager, stage: .downloaded), .install)
+
+        manager.handleReadyToInstall { choices.append($0) }
+        XCTAssertEqual(choices, [.dismiss, .install])
+        XCTAssertEqual(manager.phase, .installing(version: "9.9.9"))
+    }
+
+    func testDownloadedStageWithoutInstallIntentSurfacesTheDeferredRow() {
+        XCTAssertEqual(
+            UpdateManager.decideUpdateFound(
+                version: "1.4.0", stage: .downloaded, installRequested: false, informationOnly: false),
+            UpdateManager.FoundDecision(
+                choice: .dismiss, phase: .readyToInstall(version: "1.4.0", deferred: true)))
+        XCTAssertEqual(
+            UpdateManager.decideUpdateFound(
+                version: "1.4.0", stage: .downloaded, installRequested: true, informationOnly: false),
+            UpdateManager.FoundDecision(choice: .install, phase: .installing(version: "1.4.0")))
+        XCTAssertEqual(
+            UpdateManager.decideUpdateFound(
+                version: "1.4.0", stage: .notDownloaded, installRequested: true, informationOnly: false),
+            UpdateManager.FoundDecision(
+                choice: .install, phase: .downloading(version: "1.4.0", fraction: nil)))
+        XCTAssertEqual(
+            UpdateManager.decideUpdateFound(
+                version: "1.4.0", stage: .downloaded, installRequested: true, informationOnly: true),
+            UpdateManager.FoundDecision(choice: .dismiss, phase: .available(version: "1.4.0")))
     }
 
     func testScheduledCheckErrorStaysSilent() {
         let manager = makeManager()
-        let choice = manager.handleUpdateFound(
-            version: "9.9.9", releasePage: nil, informationOnly: false)
-        XCTAssertEqual(choice, .dismiss)
+        XCTAssertEqual(found(manager), .dismiss)
 
         manager.handleError("network down")
 
@@ -92,8 +180,7 @@ final class UpdateManagerTests: XCTestCase {
 
     func testDismissDuringDownloadRollsBackToAvailable() {
         let manager = makeManager()
-        _ = manager.handleUpdateFound(
-            version: "9.9.9", releasePage: nil, informationOnly: false)
+        _ = found(manager)
         manager.handleDownloadInitiated()
 
         manager.handleDismissInstallation()
@@ -103,8 +190,7 @@ final class UpdateManagerTests: XCTestCase {
 
     func testDismissKeepsPendingRowAlive() {
         let manager = makeManager()
-        _ = manager.handleUpdateFound(
-            version: "9.9.9", releasePage: nil, informationOnly: false)
+        _ = found(manager)
 
         manager.handleDismissInstallation()
 
@@ -113,29 +199,23 @@ final class UpdateManagerTests: XCTestCase {
 
     func testNotFoundClearsPendingState() {
         let manager = makeManager()
-        _ = manager.handleUpdateFound(
-            version: "9.9.9", releasePage: nil, informationOnly: false)
+        _ = found(manager)
 
         manager.handleNotFound()
 
         XCTAssertEqual(manager.phase, .idle)
         XCTAssertNil(manager.releasePageURL)
     }
+
     func testCancelledInstallationCannotAuthorizeTheNextCheck() {
         let manager = makeManager()
-        _ = manager.handleUpdateFound(version: "1.0.1", releasePage: nil, informationOnly: false)
+        _ = found(manager, version: "1.0.1")
         manager.handleInstallRequested()
-        XCTAssertEqual(
-            manager.handleUpdateFound(version: "1.0.1", releasePage: nil, informationOnly: false),
-            .install)
+        XCTAssertEqual(found(manager, version: "1.0.1"), .install)
         manager.handleDismissInstallation()
-        XCTAssertEqual(
-            manager.handleUpdateFound(version: "1.0.1", releasePage: nil, informationOnly: false),
-            .dismiss)
+        XCTAssertEqual(found(manager, version: "1.0.1"), .dismiss)
         manager.handleInstallRequested()
-        XCTAssertEqual(
-            manager.handleUpdateFound(version: "1.0.1", releasePage: nil, informationOnly: false),
-            .install)
+        XCTAssertEqual(found(manager, version: "1.0.1"), .install)
     }
 
     func testQAFeedRequiresExplicitOptInAndLoopback() {
@@ -155,10 +235,27 @@ final class UpdateManagerTests: XCTestCase {
                 raw)
         }
     }
+
+    func testFeedOverridePrecedence() {
+        let qa = ["TOKENGAUGE_QA_UPDATES": "1", "TOKENGAUGE_UPDATE_FEED_URL": "http://127.0.0.1:18764/appcast.xml"]
+        let override = "http://127.0.0.1:8000/override.xml"
+
+        XCTAssertEqual(
+            UpdateManager.feedURL(environment: qa, override: override, isDevelopmentBuild: true),
+            qa["TOKENGAUGE_UPDATE_FEED_URL"])
+        XCTAssertEqual(
+            UpdateManager.feedURL(environment: [:], override: override, isDevelopmentBuild: true), override)
+        XCTAssertEqual(
+            UpdateManager.feedURL(environment: qa, override: override, isDevelopmentBuild: false), override)
+        XCTAssertNil(UpdateManager.feedURL(environment: [:], override: nil, isDevelopmentBuild: false))
+        XCTAssertNil(UpdateManager.feedURL(environment: [:], override: "not a url", isDevelopmentBuild: false))
+    }
+
     func testManualCheckFailureIsVisibleWithoutPublishingErrorDetails() {
         let manager = makeManager()
         manager.handleManualCheckStarted()
         XCTAssertEqual(manager.manualCheckStatus, .checking)
+        XCTAssertEqual(manager.phase, .checking)
         manager.handleError("private network error detail")
         XCTAssertEqual(manager.manualCheckStatus, .failed)
         XCTAssertEqual(manager.phase, .idle)
@@ -173,10 +270,10 @@ final class UpdateManagerTests: XCTestCase {
 
     func testInstallationErrorRequiresExplicitRetry() {
         let manager = makeManager()
-        _ = manager.handleUpdateFound(version: "1.0.1", releasePage: nil, informationOnly: false)
+        _ = found(manager, version: "1.0.1")
         manager.handleInstallRequested()
         manager.handleError("download failed")
-        XCTAssertEqual(manager.phase, .failed(version: "1.0.1"))
-        XCTAssertEqual(manager.handleUpdateFound(version: "1.0.1", releasePage: nil, informationOnly: false), .dismiss)
+        XCTAssertEqual(manager.phase, .failed(message: UpdateManager.failureMessageKey))
+        XCTAssertEqual(found(manager, version: "1.0.1"), .dismiss)
     }
 }

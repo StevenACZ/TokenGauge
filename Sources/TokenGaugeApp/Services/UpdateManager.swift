@@ -11,10 +11,24 @@ final class UpdateManager: ObservableObject {
 
     enum Phase: Equatable {
         case idle
+        case checking
         case available(version: String)
-        case downloading(fraction: Double?)
+        case downloading(version: String, fraction: Double?)
+        case extracting(version: String, fraction: Double?)
+        case readyToInstall(version: String, deferred: Bool)
+        case installing(version: String)
+        case failed(message: String)
+    }
+
+    enum Stage: Equatable {
+        case notDownloaded
+        case downloaded
         case installing
-        case failed(version: String)
+    }
+
+    struct FoundDecision: Equatable {
+        let choice: SPUUserUpdateChoice
+        let phase: Phase
     }
 
     enum ManualCheckStatus: Equatable {
@@ -25,6 +39,9 @@ final class UpdateManager: ObservableObject {
     }
 
     static let autoCheckDefaultsKey = "autoUpdateCheckEnabled"
+    nonisolated static let feedOverrideDefaultsKey = "updateFeedURLOverride"
+    static let progressPublishInterval: TimeInterval = 0.05
+    static let failureMessageKey = "updates.failed"
 
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var releasePageURL: URL?
@@ -34,9 +51,15 @@ final class UpdateManager: ObservableObject {
     let isDevelopmentBuild =
         Bundle.main.object(forInfoDictionaryKey: "TokenGaugeDevelopmentBuild") as? Bool ?? true
     var available: Bool {
-        !isDevelopmentBuild || Self.qaFeedURL(environment: ProcessInfo.processInfo.environment) != nil
+        !isDevelopmentBuild
+            || Self.feedURL(
+                environment: ProcessInfo.processInfo.environment,
+                override: defaults.string(forKey: Self.feedOverrideDefaultsKey),
+                isDevelopmentBuild: isDevelopmentBuild
+            ) != nil
     }
     private let defaults: UserDefaults
+    private let now: () -> Date
     private let log = Logger(subsystem: "com.stevenacz.TokenGauge", category: "updates")
 
     private var updater: SPUUpdater?
@@ -44,15 +67,19 @@ final class UpdateManager: ObservableObject {
     private var updaterDelegate: UpdaterDelegate?
 
     private var installRequested = false
+    private var resumeInstallRequested = false
+    private var readyReply: ((SPUUserUpdateChoice) -> Void)?
     private var pendingVersion: String?
     private var pendingIsInformationOnly = false
     private var expectedDownloadBytes: UInt64 = 0
     private var receivedDownloadBytes: UInt64 = 0
+    private var lastProgressPublish = Date.distantPast
     private var manualCheckPending = false
     private var manualCheckResetTask: Task<Void, Never>?
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, now: @escaping () -> Date = Date.init) {
         self.defaults = defaults
+        self.now = now
         if defaults.object(forKey: Self.autoCheckDefaultsKey) == nil {
             autoCheckEnabled = true
         } else {
@@ -68,6 +95,39 @@ final class UpdateManager: ObservableObject {
             url.user == nil, url.password == nil
         else { return nil }
         return raw
+    }
+
+    nonisolated static func feedURL(
+        environment: [String: String],
+        override: String?,
+        isDevelopmentBuild: Bool
+    ) -> String? {
+        if isDevelopmentBuild, let qa = qaFeedURL(environment: environment) { return qa }
+        if let override, let url = URL(string: override), url.scheme == "http" || url.scheme == "https" {
+            return override
+        }
+        return nil
+    }
+
+    nonisolated static func decideUpdateFound(
+        version: String,
+        stage: Stage,
+        installRequested: Bool,
+        informationOnly: Bool
+    ) -> FoundDecision {
+        if informationOnly {
+            return FoundDecision(choice: .dismiss, phase: .available(version: version))
+        }
+        if installRequested {
+            let phase: Phase =
+                stage == .notDownloaded
+                ? .downloading(version: version, fraction: nil) : .installing(version: version)
+            return FoundDecision(choice: .install, phase: phase)
+        }
+        if stage == .downloaded {
+            return FoundDecision(choice: .dismiss, phase: .readyToInstall(version: version, deferred: true))
+        }
+        return FoundDecision(choice: .dismiss, phase: .available(version: version))
     }
 
     func start() {
@@ -115,6 +175,39 @@ final class UpdateManager: ObservableObject {
         updater.checkForUpdates()
     }
 
+    func installReadyUpdate() {
+        guard case .readyToInstall(let version, let deferred) = phase else { return }
+        guard !deferred else {
+            resumeDeferredInstall()
+            return
+        }
+        installRequested = false
+        resumeInstallRequested = false
+        phase = .installing(version: version)
+        let reply = readyReply
+        readyReply = nil
+        reply?(.install)
+    }
+
+    func deferReadyUpdate() {
+        guard case .readyToInstall(let version, false) = phase else { return }
+        installRequested = false
+        resumeInstallRequested = false
+        let reply = readyReply
+        readyReply = nil
+        reply?(.dismiss)
+        phase = .readyToInstall(version: version, deferred: true)
+    }
+
+    func resumeDeferredInstall() {
+        guard case .readyToInstall(let version, true) = phase else { return }
+        resumeInstallRequested = true
+        installRequested = true
+        phase = .installing(version: version)
+        guard let updater, updater.sessionInProgress == false else { return }
+        updater.checkForUpdates()
+    }
+
     func checkForUpdatesManually() {
         guard available else { return }
         guard let updater else {
@@ -131,6 +224,7 @@ final class UpdateManager: ObservableObject {
         manualCheckResetTask?.cancel()
         manualCheckPending = true
         manualCheckStatus = .checking
+        if phase == .idle { phase = .checking }
     }
 
     func openReleasePage() {
@@ -140,31 +234,32 @@ final class UpdateManager: ObservableObject {
 
     func handleInstallRequested() {
         installRequested = true
-        phase = .downloading(fraction: nil)
+        phase = .downloading(version: pendingVersion ?? "", fraction: nil)
     }
 
     func handleUpdateFound(
         version: String,
         releasePage: URL?,
-        informationOnly: Bool
+        informationOnly: Bool,
+        stage: Stage = .notDownloaded
     ) -> SPUUserUpdateChoice {
         pendingVersion = version
         pendingIsInformationOnly = informationOnly
         releasePageURL = releasePage
         finishManualCheck(status: .idle)
 
-        if installRequested && !informationOnly {
-            return .install
-        }
-        installRequested = false
-        phase = .available(version: version)
-        return .dismiss
+        let decision = Self.decideUpdateFound(
+            version: version, stage: stage, installRequested: installRequested, informationOnly: informationOnly)
+        installRequested = decision.choice == .install
+        phase = decision.phase
+        return decision.choice
     }
 
     func handleDownloadInitiated() {
         expectedDownloadBytes = 0
         receivedDownloadBytes = 0
-        phase = .downloading(fraction: nil)
+        lastProgressPublish = .distantPast
+        phase = .downloading(version: pendingVersion ?? "", fraction: nil)
     }
 
     func handleDownloadExpectedLength(_ length: UInt64) {
@@ -175,24 +270,40 @@ final class UpdateManager: ObservableObject {
         receivedDownloadBytes += bytes
         guard expectedDownloadBytes > 0 else { return }
         let fraction = min(1.0, Double(receivedDownloadBytes) / Double(expectedDownloadBytes))
-        phase = .downloading(fraction: fraction)
+        publish(.downloading(version: pendingVersion ?? "", fraction: fraction), force: fraction >= 1)
     }
 
     func handleExtractionStarted() {
-        phase = .installing
+        lastProgressPublish = .distantPast
+        phase = .extracting(version: pendingVersion ?? "", fraction: nil)
     }
 
-    func handleReadyToInstall() -> SPUUserUpdateChoice {
-        phase = .installing
-        return .install
+    func handleExtractionProgress(_ progress: Double) {
+        let fraction = min(1.0, max(0.0, progress))
+        publish(.extracting(version: pendingVersion ?? "", fraction: fraction), force: fraction >= 1)
+    }
+
+    func handleReadyToInstall(reply: @escaping (SPUUserUpdateChoice) -> Void) {
+        let version = pendingVersion ?? ""
+        if resumeInstallRequested || installRequested {
+            installRequested = false
+            resumeInstallRequested = false
+            phase = .installing(version: version)
+            reply(.install)
+            return
+        }
+        readyReply = reply
+        phase = .readyToInstall(version: version, deferred: false)
     }
 
     func handleInstalling() {
-        phase = .installing
+        phase = .installing(version: pendingVersion ?? "")
     }
 
     func handleNotFound() {
         installRequested = false
+        resumeInstallRequested = false
+        readyReply = nil
         pendingVersion = nil
         pendingIsInformationOnly = false
         releasePageURL = nil
@@ -202,24 +313,35 @@ final class UpdateManager: ObservableObject {
 
     func handleError(_ message: String) {
         finishManualCheck(status: .failed)
-        if installRequested, let pendingVersion {
+        readyReply = nil
+        if installRequested || resumeInstallRequested {
             log.error("Update install failed")
-            phase = .failed(version: pendingVersion)
+            phase = .failed(message: Self.failureMessageKey)
         } else {
             log.debug("Update check failed silently")
             phase = pendingVersion.map { .available(version: $0) } ?? .idle
         }
         installRequested = false
+        resumeInstallRequested = false
     }
 
     func handleDismissInstallation() {
         installRequested = false
+        resumeInstallRequested = false
+        readyReply = nil
         switch phase {
-        case .downloading, .installing:
+        case .downloading, .extracting, .installing:
             phase = pendingVersion.map { .available(version: $0) } ?? .idle
-        case .idle, .available, .failed:
+        case .idle, .checking, .available, .readyToInstall, .failed:
             break
         }
+    }
+
+    private func publish(_ next: Phase, force: Bool) {
+        let instant = now()
+        guard force || instant.timeIntervalSince(lastProgressPublish) >= Self.progressPublishInterval else { return }
+        lastProgressPublish = instant
+        phase = next
     }
 
     private func finishManualCheck(status: ManualCheckStatus) {
@@ -261,7 +383,8 @@ private final class Driver: NSObject, SPUUserDriver {
         let choice = manager.handleUpdateFound(
             version: appcastItem.displayVersionString,
             releasePage: appcastItem.infoURL,
-            informationOnly: appcastItem.isInformationOnlyUpdate
+            informationOnly: appcastItem.isInformationOnlyUpdate,
+            stage: Self.stage(state.stage)
         )
         reply(choice)
     }
@@ -296,10 +419,12 @@ private final class Driver: NSObject, SPUUserDriver {
         manager.handleExtractionStarted()
     }
 
-    func showExtractionReceivedProgress(_ progress: Double) {}
+    func showExtractionReceivedProgress(_ progress: Double) {
+        manager.handleExtractionProgress(progress)
+    }
 
     func showReady(toInstallAndRelaunch reply: @escaping (SPUUserUpdateChoice) -> Void) {
-        reply(manager.handleReadyToInstall())
+        manager.handleReadyToInstall(reply: reply)
     }
 
     func showInstallingUpdate(
@@ -316,14 +441,23 @@ private final class Driver: NSObject, SPUUserDriver {
     func dismissUpdateInstallation() {
         manager.handleDismissInstallation()
     }
+
+    private static func stage(_ stage: SPUUserUpdateStage) -> UpdateManager.Stage {
+        switch stage {
+        case .downloaded: return .downloaded
+        case .installing: return .installing
+        default: return .notDownloaded
+        }
+    }
 }
 
 private final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
 
     nonisolated func feedURLString(for updater: SPUUpdater) -> String? {
-        guard Bundle.main.object(forInfoDictionaryKey: "TokenGaugeDevelopmentBuild") as? Bool == true else {
-            return nil
-        }
-        return UpdateManager.qaFeedURL(environment: ProcessInfo.processInfo.environment)
+        UpdateManager.feedURL(
+            environment: ProcessInfo.processInfo.environment,
+            override: UserDefaults.standard.string(forKey: UpdateManager.feedOverrideDefaultsKey),
+            isDevelopmentBuild: Bundle.main.object(forInfoDictionaryKey: "TokenGaugeDevelopmentBuild") as? Bool ?? true
+        )
     }
 }

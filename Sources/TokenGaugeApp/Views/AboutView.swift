@@ -78,21 +78,8 @@ struct UpdateActionView: View {
                 case .idle:
                     Button("updates.check".localized) { updates.checkForUpdatesManually() }
                 }
-            case .available(let version):
-                Button("updates.install".localized(version)) { updates.installPendingUpdate() }
-            case .downloading(let fraction):
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("updates.downloading".localized)
-                    if let fraction {
-                        ProgressView(value: fraction)
-                    } else {
-                        ProgressView().controlSize(.small)
-                    }
-                }
-            case .installing:
-                Label("updates.installing".localized, systemImage: "arrow.down.circle")
-            case .failed:
-                Button("updates.retry".localized) { updates.installPendingUpdate() }
+            default:
+                UpdateBannerView(updates: updates)
             }
         }.font(.callout).frame(maxWidth: .infinity, alignment: .center)
     }
