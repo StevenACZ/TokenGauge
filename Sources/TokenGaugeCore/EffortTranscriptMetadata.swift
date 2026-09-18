@@ -3,6 +3,7 @@ import Foundation
 struct EffortTranscriptMetadata: Decodable {
     let type: String?
     let timestamp: String?
+    let uuid: String?
     let perTurnEffort: String?
     let effort: String?
     let payload: Payload?
@@ -40,18 +41,19 @@ struct EffortTranscriptMetadata: Decodable {
         }
     }
 
+    private static let efforts: Set<String> = [
+        "none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra", "auto",
+    ]
+    private static let modelCharacters = CharacterSet(
+        charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
+
     static func normalizedEffort(_ raw: String?) -> String {
         let value = raw?.lowercased() ?? "unknown"
-        return ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra", "auto"].contains(value)
-            ? value : "unknown"
+        return efforts.contains(value) ? value : "unknown"
     }
 
     static func normalizedModel(_ raw: String?) -> String {
-        guard let raw, !raw.isEmpty, raw.count <= 100,
-            raw.unicodeScalars.allSatisfy({
-                CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
-                    .contains($0)
-            })
+        guard let raw, !raw.isEmpty, raw.count <= 100, raw.unicodeScalars.allSatisfy(modelCharacters.contains)
         else { return "unknown" }
         return raw
     }
