@@ -166,6 +166,12 @@
 "history.equal_use" = "Equal recorded usage for both providers";
 "history.weekends" = "Saturdays and Sundays";
 "history.period" = "History period";
+"history.streak" = "Streak %1$@ d · best %2$@ d";
+"history.streak_current" = "Current streak: %@ d";
+"history.streak_longest" = "Longest streak: %@ d";
+"history.share" = "%@ of the day's total";
+"history.no_activity" = "No recorded activity";
+"history.close" = "Close";
 "pace.last_value" = "Last ≈ %@ pp/h";
 "pace.info_title" = "Weekly usage pace";
 "pace.info_explanation" = "Estimates how quickly you use this allowance. For example, 5 pp/h means going from 80% to 75% remaining in one hour.";

@@ -166,6 +166,12 @@
 "history.equal_use" = "Mismo uso registrado en ambos proveedores";
 "history.weekends" = "Sábados y domingos";
 "history.period" = "Periodo del historial";
+"history.streak" = "Racha %1$@ d · mejor %2$@ d";
+"history.streak_current" = "Racha actual: %@ d";
+"history.streak_longest" = "Mejor racha: %@ d";
+"history.share" = "%@ del total del día";
+"history.no_activity" = "Sin actividad registrada";
+"history.close" = "Cerrar";
 "pace.last_value" = "Último ≈ %@ pp/h";
 "pace.info_title" = "Ritmo de uso semanal";
 "pace.info_explanation" = "Estima qué tan rápido consumes esta cuota. Por ejemplo, 5 pp/h equivale a pasar de 80% a 75% libre en una hora.";

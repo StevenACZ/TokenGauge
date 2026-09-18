@@ -166,6 +166,26 @@ public enum UsageHistoryStore {
         return rows
     }
 
+    public static func usageDays(
+        provider: UsageProvider? = nil,
+        at url: URL = UsagePaths.history()
+    ) throws -> Set<String> {
+        let handle = try open(url)
+        defer { sqlite3_close(handle) }
+        try prepareSchema(handle)
+        let sql = """
+            SELECT day FROM daily_totals
+            WHERE tokens > 0 AND (?1 IS NULL OR provider = ?1);
+            """
+        var days: Set<String> = []
+        try query(handle, sql) { statement in
+            bind(statement, 1, provider?.rawValue)
+        } each: { statement in
+            days.insert(text(statement, 0))
+        }
+        return days
+    }
+
     public static func quotaRows(
         provider: UsageProvider? = nil,
         since: Date? = nil,

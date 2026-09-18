@@ -191,6 +191,25 @@ final class UsageHistoryStoreTests: XCTestCase {
         XCTAssertEqual(sqlite3_exec(db, sql, nil, nil, nil), SQLITE_OK)
     }
 
+    func testUsageDaysReportOnlyDaysWithRecordedTokens() throws {
+        try UsageHistoryStore.record(
+            ProviderUsageSnapshot(
+                provider: .codex, windows: [],
+                dailyUsage: [
+                    DailyTokenUsage(day: "2026-09-15", tokens: 120), DailyTokenUsage(day: "2026-09-16", tokens: 0),
+                ],
+                summary: nil, availableResetCredits: nil, creditBalance: nil,
+                capturedAt: Date(timeIntervalSince1970: 1_787_000_000)),
+            at: database)
+        try UsageHistoryStore.record(
+            claudeSnapshot(buckets: [bucket(day: "2026-09-17", hour: 0, model: "claude-fable-5", tokens: 40)]),
+            at: database)
+
+        XCTAssertEqual(try UsageHistoryStore.usageDays(provider: .codex, at: database), ["2026-09-15"])
+        XCTAssertEqual(try UsageHistoryStore.usageDays(provider: .claude, at: database), ["2026-09-17"])
+        XCTAssertEqual(try UsageHistoryStore.usageDays(at: database), ["2026-09-15", "2026-09-17"])
+    }
+
     private func claudeSnapshot(
         used: Double = 44,
         capturedAt: Date = Date(timeIntervalSince1970: 1_787_000_400),

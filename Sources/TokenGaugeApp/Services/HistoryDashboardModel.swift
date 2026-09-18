@@ -34,10 +34,30 @@ struct HistoryCalendarDay: Identifiable, Equatable, Sendable {
     }
 }
 
+struct HistoryDaySelection: Equatable, Sendable {
+    var dayKey: String
+    var isPinned: Bool
+    var anchor: CGRect?
+}
+
+struct HistoryUsageDays: Equatable, Sendable {
+    var claude: Set<String> = []
+    var codex: Set<String> = []
+    var any: Set<String> = []
+
+    func days(for providers: [UsageProvider]) -> Set<String> {
+        if providers == [.claude] { return claude }
+        if providers == [.codex] { return codex }
+        return any
+    }
+}
+
 @MainActor
 final class HistoryDashboardModel: ObservableObject {
     @Published var offset = 0
     @Published var selectedDayKey: String?
+    @Published var daySelection: HistoryDaySelection?
+    @Published private(set) var usageDays = HistoryUsageDays()
     @Published private(set) var days: [HistoryCalendarDay] = []
     @Published private(set) var isLoading = false
     @Published private(set) var loadedMode: HistoryMode?
@@ -67,6 +87,7 @@ final class HistoryDashboardModel: ObservableObject {
                 }
             }
             days = Self.makeDays(interval: interval, tokens: rows, efforts: previewEfforts)
+            usageDays = Self.usageDays(tokens: rows)
             loadedMode = mode
             periodStart = interval.start
             periodEnd = interval.end
@@ -90,6 +111,32 @@ final class HistoryDashboardModel: ObservableObject {
         guard direction < 0 ? canGoBack : canGoForward else { return }
         offset = min(0, offset + direction)
         selectedDayKey = nil
+    }
+
+    func streak(for providers: [UsageProvider]) -> (current: Int, longest: Int) {
+        HistoryAnalytics.streaks(usageDays: usageDays.days(for: providers), today: Self.dayKey(Date()))
+    }
+
+    func showDayCard(_ dayKey: String, anchor: CGRect?) {
+        guard daySelection?.isPinned != true else { return }
+        daySelection = HistoryDaySelection(dayKey: dayKey, isPinned: false, anchor: anchor)
+    }
+
+    func hideDayCard() {
+        guard daySelection?.isPinned != true else { return }
+        daySelection = nil
+    }
+
+    func pinDayCard(_ dayKey: String, anchor: CGRect?) {
+        if let current = daySelection, current.isPinned, current.dayKey == dayKey {
+            daySelection = nil
+            return
+        }
+        daySelection = HistoryDaySelection(dayKey: dayKey, isPinned: true, anchor: anchor)
+    }
+
+    func dismissDayCard() {
+        daySelection = nil
     }
 
     func pace(provider: UsageProvider, window: QuotaWindow, capturedAt: Date?) -> QuotaPace? {
@@ -151,7 +198,7 @@ final class HistoryDashboardModel: ObservableObject {
                 }
                 result = ReadResult(
                     days: Self.makeDays(interval: interval, tokens: rows, efforts: previewEfforts),
-                    latest: [], retained: [], first: rows.map(\.day).min())
+                    latest: [], retained: [], first: rows.map(\.day).min(), usage: Self.usageDays(tokens: rows))
             } else {
                 result = try await Task.detached(priority: .utility) {
                     let tokens = try UsageHistoryStore.tokenRows(since: first, through: last)
@@ -163,7 +210,11 @@ final class HistoryDashboardModel: ObservableObject {
                             accountFingerprint: accountFingerprint),
                         retained: try UsageHistoryStore.recentPaces(
                             for: paceKeys, activeOnly: true, before: now, accountFingerprint: accountFingerprint),
-                        first: try UsageHistoryStore.bounds().firstDay)
+                        first: try UsageHistoryStore.bounds().firstDay,
+                        usage: HistoryUsageDays(
+                            claude: try UsageHistoryStore.usageDays(provider: .claude),
+                            codex: try UsageHistoryStore.usageDays(provider: .codex),
+                            any: try UsageHistoryStore.usageDays()))
                 }.value
             }
             guard !Task.isCancelled, generation == request else { return }
@@ -176,6 +227,7 @@ final class HistoryDashboardModel: ObservableObject {
             periodEnd = interval.end
             firstRecordedDay = result.first
             days = result.days
+            usageDays = result.usage
             loadedMode = mode
             paces = Dictionary(uniqueKeysWithValues: result.latest.map { ($0.key.id, $0.pace) })
             paceActivity = Dictionary(uniqueKeysWithValues: result.latest.map { ($0.key.id, $0.isActive) })
@@ -251,6 +303,13 @@ final class HistoryDashboardModel: ObservableObject {
         return result
     }
 
+    nonisolated static func usageDays(tokens: [HistoryTokenRow]) -> HistoryUsageDays {
+        let used = tokens.filter { $0.tokens > 0 }
+        let claude = Set(used.filter { $0.provider == .claude }.map(\.day))
+        let codex = Set(used.filter { $0.provider == .codex }.map(\.day))
+        return HistoryUsageDays(claude: claude, codex: codex, any: claude.union(codex))
+    }
+
     nonisolated private static func sum(_ values: [Int]) -> Int {
         values.reduce(0) { partial, value in
             let addition = partial.addingReportingOverflow(value)
@@ -263,5 +322,6 @@ final class HistoryDashboardModel: ObservableObject {
         let latest: [HistoryPaceRow]
         let retained: [HistoryPaceRow]
         let first: String?
+        let usage: HistoryUsageDays
     }
 }

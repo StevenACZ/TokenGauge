@@ -35,6 +35,34 @@ public enum HistoryAnalytics {
         return abs(left.timeIntervalSince(right)) <= 1
     }
 
+    public static func streaks(usageDays: Set<String>, today: String, calendar: Calendar = .current)
+        -> (current: Int, longest: Int)
+    {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        let ordinals = Set(
+            usageDays.compactMap { formatter.date(from: $0) }
+                .compactMap { calendar.ordinality(of: .day, in: .era, for: $0) })
+        var longest = 0
+        for start in ordinals where !ordinals.contains(start - 1) {
+            var length = 1
+            while ordinals.contains(start + length) { length += 1 }
+            longest = max(longest, length)
+        }
+        var current = 0
+        if let reference = formatter.date(from: today).flatMap({ calendar.ordinality(of: .day, in: .era, for: $0) }) {
+            var cursor = ordinals.contains(reference) ? reference : reference - 1
+            while ordinals.contains(cursor) {
+                current += 1
+                cursor -= 1
+            }
+        }
+        return (current, longest)
+    }
+
     public static func pace(
         rows: [HistoryQuotaRow],
         provider: UsageProvider,
