@@ -314,7 +314,7 @@ final class UpdateManager: ObservableObject {
 
     func handleReadyToInstall(reply: @escaping (SPUUserUpdateChoice) -> Void) {
         let version = pendingVersion ?? ""
-        if resumeInstallRequested || installRequested {
+        if resumeInstallRequested {
             installRequested = false
             resumeInstallRequested = false
             deferredVersion = nil
@@ -322,6 +322,7 @@ final class UpdateManager: ObservableObject {
             reply(.install)
             return
         }
+        installRequested = false
         readyReply = reply
         phase = .readyToInstall(version: version, deferred: false)
     }
