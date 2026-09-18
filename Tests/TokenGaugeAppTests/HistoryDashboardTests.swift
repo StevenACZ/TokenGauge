@@ -170,6 +170,42 @@ final class HistoryDashboardTests: XCTestCase {
         XCTAssertEqual(model.days.last?.tokens(for: .codex), 20)
     }
 
+    func testPinnedDayCardSurvivesHoverAndUnpinsOnTheSameCell() {
+        let model = HistoryDashboardModel()
+        model.showDayCard("2026-09-16", anchor: CGRect(x: 10, y: 10, width: 9, height: 9))
+        XCTAssertEqual(model.daySelection?.dayKey, "2026-09-16")
+        XCTAssertEqual(model.daySelection?.isPinned, false)
+        model.pinDayCard("2026-09-17", anchor: CGRect(x: 20, y: 10, width: 9, height: 9))
+        XCTAssertEqual(model.daySelection?.isPinned, true)
+        model.showDayCard("2026-09-15", anchor: nil)
+        model.hideDayCard()
+        XCTAssertEqual(model.daySelection?.dayKey, "2026-09-17")
+        model.pinDayCard("2026-09-17", anchor: CGRect(x: 20, y: 10, width: 9, height: 9))
+        XCTAssertNil(model.daySelection)
+    }
+
+    func testStreakFollowsTheDisplayedProviders() async {
+        let model = HistoryDashboardModel()
+        let today = HistoryDashboardModel.dayKey(Date())
+        let yesterday = HistoryDashboardModel.dayKey(Date().addingTimeInterval(-86_400))
+        await model.load(
+            mode: .recent, revision: 1,
+            previewSnapshots: [
+                ProviderUsageSnapshot(
+                    provider: .codex, windows: [],
+                    dailyUsage: [DailyTokenUsage(day: today, tokens: 10), DailyTokenUsage(day: yesterday, tokens: 10)],
+                    summary: nil, availableResetCredits: nil, creditBalance: nil, capturedAt: Date()),
+                ProviderUsageSnapshot(
+                    provider: .claude, windows: [],
+                    dailyUsage: [DailyTokenUsage(day: today, tokens: 5)],
+                    summary: nil, availableResetCredits: nil, creditBalance: nil, capturedAt: Date()),
+            ])
+        XCTAssertEqual(model.streak(for: [.codex]).current, 2)
+        XCTAssertEqual(model.streak(for: [.claude]).current, 1)
+        XCTAssertEqual(model.streak(for: [.codex, .claude]).current, 2)
+        XCTAssertEqual(model.streak(for: [.codex, .claude]).longest, 2)
+    }
+
     func testCalendarDominanceUsesOnlyVisibleRecordedProviders() {
         func day(_ totals: [UsageProvider: Int]) -> HistoryCalendarDay {
             HistoryCalendarDay(id: "2026-09-12", date: Date(), totals: totals, efforts: [])

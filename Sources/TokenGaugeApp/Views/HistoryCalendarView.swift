@@ -8,6 +8,11 @@ struct HistoryCalendarView: NSViewRepresentable {
     let selectedDayKey: String?
     let focusID: String
     var hoverEnabled = true
+    var accent: Color = Color(nsColor: .labelColor)
+    var pinnedDayKey: String?
+    var onHoverCard: @MainActor (String?, CGRect?) -> Void = { _, _ in }
+    var onPinCard: @MainActor (String, CGRect?) -> Void = { _, _ in }
+    var onExitCalendar: @MainActor () -> Void = {}
     let onSelect: @MainActor (String) -> Void
 
     func makeNSView(context: Context) -> HistoryCalendarScrollView {
@@ -57,7 +62,6 @@ final class HistoryCalendarScrollView: NSScrollView {
         } else if oldPadding != calendar.sidePadding {
             contentView.scroll(to: NSPoint(x: contentView.bounds.minX + calendar.sidePadding - oldPadding, y: 0))
         }
-        calendar.updateTooltips()
         reflectScrolledClipView(contentView)
     }
 
@@ -77,11 +81,16 @@ final class HistoryCalendarCanvas: NSView {
     private var days: [HistoryCalendarDay] = []
     private var providers: [UsageProvider] = []
     private var selected: String?
+    private var pinned: String?
     private var hoverEnabled = true
     private var onSelect: (@MainActor (String) -> Void)?
+    private var onHoverCard: (@MainActor (String?, CGRect?) -> Void)?
+    private var onPinCard: (@MainActor (String, CGRect?) -> Void)?
+    private var onExitCalendar: (@MainActor () -> Void)?
+    private var hoverIndex: Int?
+    private var hoverWork: DispatchWorkItem?
     private var locale = Locale.current
     private var today = Calendar.current.startOfDay(for: Date())
-    private var maximum = 1
     private var tracking: NSTrackingArea?
     private var lastMousePosition: NSPoint?
     private var elements: [HistoryCalendarAccessibilityDay] = []
@@ -89,11 +98,12 @@ final class HistoryCalendarCanvas: NSView {
     private var monthLayout = HistoryMonthLayout(days: [])
     private var months: [(HistoryMonthLayout.Section, String)] = []
     private var fills: [[NSColor]] = []
-    var sidePadding: CGFloat = 0 { didSet { if sidePadding != oldValue { tooltipsDirty = true; needsDisplay = true } } }
-    private var tooltipsDirty = true
+    private var minorities: [NSColor?] = []
+    var sidePadding: CGFloat = 0 { didSet { if sidePadding != oldValue { needsDisplay = true } } }
     var gridWidth: CGFloat { max(9, monthLayout.gridWidth) }
     override var isFlipped: Bool { true }
-    private var accent: NSColor { NSColor(providers == [.claude] ? Theme.claude : Theme.codex) }
+    private var accentColor = Color(nsColor: .labelColor)
+    private var accent: NSColor { NSColor(accentColor) }
     var focusIndex: Int? {
         days.firstIndex { Calendar.current.isDate($0.date, inSameDayAs: today) }
             ?? days.lastIndex { $0.date <= today && $0.total(for: providers) != nil }
@@ -102,11 +112,16 @@ final class HistoryCalendarCanvas: NSView {
 
     func update(_ value: HistoryCalendarView) {
         onSelect = value.onSelect
+        onHoverCard = value.onHoverCard
+        onPinCard = value.onPinCard
+        onExitCalendar = value.onExitCalendar
         hoverEnabled = value.hoverEnabled
+        pinned = value.pinnedDayKey
         let language = Locale(identifier: LocalizationManager.shared.language.rawValue)
         let newToday = Calendar.current.startOfDay(for: Date())
         let changed =
             providers != value.providers || locale != language || today != newToday
+            || accentColor != value.accent
             || days.count != value.days.count
             || !zip(days, value.days).allSatisfy { $0.id == $1.id && $0.date == $1.date && $0.totals == $1.totals }
         let selectionChanged = selected != value.selectedDayKey
@@ -115,30 +130,51 @@ final class HistoryCalendarCanvas: NSView {
         if changed {
             days = value.days
             providers = value.providers
+            accentColor = value.accent
             locale = language
             today = newToday
-            maximum = max(1, days.compactMap { $0.total(for: providers) }.max() ?? 0)
             monthLayout = HistoryMonthLayout(days: days)
             descriptions = days.map(description)
             months = monthLayout.sections.map {
                 ($0, $0.date.formatted(.dateTime.month(.wide).locale(locale)).capitalized(with: locale))
             }
+            let thresholds = HistoryIntensity.thresholds(totals: days.compactMap { $0.total(for: providers) })
             fills = days.map { day in
-                let opacity = 0.25 + 0.75 * Double(day.total(for: providers) ?? 0) / Double(maximum)
+                let opacity = HistoryIntensity.opacity(total: day.total(for: providers) ?? 0, thresholds: thresholds)
                 return day.dominantProviders(for: providers).map { provider in
-                    NSColor(provider == .codex ? Theme.codex : Theme.claude).withAlphaComponent(opacity)
+                    color(provider).withAlphaComponent(opacity)
                 }
+            }
+            minorities = days.map { day in
+                let leaders = day.dominantProviders(for: providers)
+                guard leaders.count == 1, let leader = leaders.first, let total = day.total(for: providers), total > 0,
+                    let minority = providers.first(where: { $0 != leader }),
+                    Double(day.tokens(for: minority) ?? 0) >= HistoryIntensity.minorityShare * Double(total)
+                else { return nil }
+                return color(minority).withAlphaComponent(
+                    HistoryIntensity.opacity(total: total, thresholds: thresholds))
             }
             elements = days.indices.map { HistoryCalendarAccessibilityDay(canvas: self, index: $0) }
             setAccessibilityElement(false)
             setAccessibilityChildren(elements)
-            tooltipsDirty = true
         }
         needsDisplay = true
     }
 
     func cellRect(_ index: Int) -> NSRect {
         monthLayout.cellRect(index).offsetBy(dx: sidePadding, dy: 0)
+    }
+
+    func panelRect(_ index: Int) -> CGRect? {
+        guard let root = window?.contentView else { return nil }
+        let rect = convert(cellRect(index), to: root)
+        return root.isFlipped
+            ? rect
+            : CGRect(x: rect.minX, y: root.bounds.height - rect.maxY, width: rect.width, height: rect.height)
+    }
+
+    private func color(_ provider: UsageProvider) -> NSColor {
+        NSColor(provider == .codex ? Theme.codex : Theme.claude)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -191,6 +227,15 @@ final class HistoryCalendarCanvas: NSView {
                             width: rect.width / CGFloat(colors.count), height: rect.height
                         ).fill()
                     }
+                    if let minority = minorities[index] {
+                        minority.setFill()
+                        let corner = NSBezierPath()
+                        corner.move(to: NSPoint(x: rect.maxX, y: rect.maxY - rect.height * 0.4))
+                        corner.line(to: NSPoint(x: rect.maxX, y: rect.maxY))
+                        corner.line(to: NSPoint(x: rect.maxX - rect.width * 0.4, y: rect.maxY))
+                        corner.close()
+                        corner.fill()
+                    }
                     NSGraphicsContext.restoreGraphicsState()
                 } else {
                     NSColor.labelColor.withAlphaComponent(0.08).setFill()
@@ -231,22 +276,61 @@ final class HistoryCalendarCanvas: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let tracking { removeTrackingArea(tracking) }
-        let area = NSTrackingArea(rect: .zero, options: [.mouseMoved, .activeAlways, .inVisibleRect], owner: self)
+        let area = NSTrackingArea(
+            rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self)
         addTrackingArea(area)
         tracking = area
     }
 
+    var trackingOptions: NSTrackingArea.Options { tracking?.options ?? [] }
+
     override func mouseMoved(with event: NSEvent) {
         let position = window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
         defer { lastMousePosition = position }
-        guard hoverEnabled, position != lastMousePosition,
+        guard hoverEnabled, position != lastMousePosition, pinned == nil,
             let index = index(at: convert(event.locationInWindow, from: nil))
         else { return }
+        scheduleHoverCard(index)
         select(index)
     }
 
+    override func mouseExited(with event: NSEvent) {
+        cancelHoverCard()
+        guard pinned == nil else { return }
+        onExitCalendar?()
+    }
+
     override func mouseDown(with event: NSEvent) {
-        if let index = index(at: convert(event.locationInWindow, from: nil)) { select(index) }
+        guard let index = index(at: convert(event.locationInWindow, from: nil)), days.indices.contains(index),
+            days[index].date <= today
+        else { return }
+        cancelHoverCard()
+        hoverIndex = index
+        select(index)
+        onPinCard?(days[index].id, panelRect(index))
+    }
+
+    private func scheduleHoverCard(_ index: Int) {
+        guard hoverIndex != index else { return }
+        cancelHoverCard()
+        hoverIndex = index
+        guard days.indices.contains(index), days[index].date <= today else { return }
+        let key = days[index].id
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.hoverIndex == index else { return }
+                self.onHoverCard?(key, self.panelRect(index))
+            }
+        }
+        hoverWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: work)
+    }
+
+    private func cancelHoverCard() {
+        hoverWork?.cancel()
+        hoverWork = nil
+        hoverIndex = nil
+        onHoverCard?(nil, nil)
     }
 
     private func index(at point: NSPoint) -> Int? {
@@ -256,19 +340,6 @@ final class HistoryCalendarCanvas: NSView {
     func select(_ index: Int) {
         guard days.indices.contains(index), days[index].date <= today, days[index].id != selected else { return }
         onSelect?(days[index].id)
-    }
-
-    @objc func view(
-        _ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?
-    ) -> String {
-        index(at: point).map { descriptions[$0] } ?? ""
-    }
-
-    func updateTooltips() {
-        guard tooltipsDirty else { return }
-        removeAllToolTips()
-        for index in days.indices { addToolTip(cellRect(index), owner: self, userData: nil) }
-        tooltipsDirty = false
     }
 
     private func description(_ day: HistoryCalendarDay) -> String {
