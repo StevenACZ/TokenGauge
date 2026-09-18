@@ -21,26 +21,42 @@ public struct EffortUsageRecord: Codable, Equatable, Sendable {
         self.tokens = tokens
     }
 
+    private static let hexCharacters = CharacterSet(charactersIn: "0123456789abcdefABCDEF")
+    private static let identifierCharacters = CharacterSet(
+        charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
+    private static let efforts: Set<String> = [
+        "unknown", "minimal", "low", "medium", "high", "xhigh", "max", "ultra", "none", "auto",
+    ]
+    private static let utcCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }()
+
     var isValid: Bool {
-        let hex = CharacterSet(charactersIn: "0123456789abcdefABCDEF")
-        let identifier = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
-        let efforts: Set<String> = [
-            "unknown", "minimal", "low", "medium", "high", "xhigh", "max", "ultra", "none", "auto",
-        ]
-        guard id.utf8.count == 64, id.unicodeScalars.allSatisfy(hex.contains),
-            !model.isEmpty, model.utf8.count <= 128, model.unicodeScalars.allSatisfy(identifier.contains),
-            efforts.contains(effort), tokens >= 0,
+        guard id.utf8.count == 64, id.unicodeScalars.allSatisfy(Self.hexCharacters.contains),
+            !model.isEmpty, model.utf8.count <= 128,
+            model.unicodeScalars.allSatisfy(Self.identifierCharacters.contains),
+            Self.efforts.contains(effort), tokens >= 0,
             recordedAt.timeIntervalSince1970.isFinite,
             (0...253_402_300_799).contains(recordedAt.timeIntervalSince1970),
-            day.utf8.count == 10, day.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil
+            Self.isDayFormat(day)
         else { return false }
         let parts = day.split(separator: "-").compactMap { Int($0) }
         guard parts.count == 3, (1970...9999).contains(parts[0]) else { return false }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let components = DateComponents(year: parts[0], month: parts[1], day: parts[2])
-        guard let date = calendar.date(from: components) else { return false }
-        return calendar.dateComponents([.year, .month, .day], from: date) == components
+        guard let date = Self.utcCalendar.date(from: components) else { return false }
+        return Self.utcCalendar.dateComponents([.year, .month, .day], from: date) == components
+    }
+
+    private static func isDayFormat(_ day: String) -> Bool {
+        let bytes = Array(day.utf8)
+        guard bytes.count == 10 else { return false }
+        for (index, byte) in bytes.enumerated() {
+            let expected: ClosedRange<UInt8> = index == 4 || index == 7 ? 0x2D...0x2D : 0x30...0x39
+            guard expected.contains(byte) else { return false }
+        }
+        return true
     }
 }
 

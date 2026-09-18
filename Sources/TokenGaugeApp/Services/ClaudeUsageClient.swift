@@ -178,7 +178,7 @@ struct ClaudeUsageClient: Sendable {
 
     static func historyBuckets(
         executable: URL,
-        arguments: [String] = ["--history"],
+        arguments: [String] = ["--collect"],
         timeout: TimeInterval = 20,
         workingDirectory: URL
     ) throws -> [ModelTokenBucket] {
@@ -196,11 +196,14 @@ struct ClaudeUsageClient: Sendable {
         guard result.exitCode == 0 else {
             throw UsageDataError.processFailed("History helper exited with status \(result.exitCode)")
         }
+        let collection: CaptureCollection
         do {
-            return try JSONDecoder().decode([ModelTokenBucket].self, from: result.standardOutput)
+            collection = try JSONDecoder().decode(CaptureCollection.self, from: result.standardOutput)
         } catch {
             throw UsageDataError.invalidPayload
         }
+        EffortHistoryClient.markRecorded(by: collection)
+        return collection.buckets
     }
 
     private func resolveCaptureExecutable() -> URL? {

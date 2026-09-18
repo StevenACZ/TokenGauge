@@ -7,70 +7,44 @@ public enum ClaudeHistoryScanner {
         now: Date = Date(),
         calendar: Calendar = .current
     ) throws -> [ModelTokenBucket] {
-        guard days > 0 else { return [] }
-        let start = calendar.startOfDay(for: calendar.date(byAdding: .day, value: -(days - 1), to: now) ?? now)
-        let keys: [URLResourceKey] = [.isRegularFileKey, .contentModificationDateKey]
-        guard
-            let enumerator = FileManager.default.enumerator(
-                at: projectsRoot,
-                includingPropertiesForKeys: keys,
-                options: [.skipsHiddenFiles]
-            )
-        else { return [] }
+        try TranscriptScanner.scan(
+            claudeProjects: projectsRoot, codexSessions: nil, stateURL: nil, now: now, calendar: calendar,
+            historyDays: days, effortDays: 0
+        ).buckets
+    }
 
-        let fractionalFormatter = ISO8601DateFormatter()
-        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let standardFormatter = ISO8601DateFormatter()
-        let decoder = JSONDecoder()
-        var messages: [String: (day: String, hour: Date, model: String, tokens: Int)] = [:]
+    static func entry(from metadata: EffortTranscriptMetadata, at date: Date) -> ScanEntry? {
+        guard metadata.type == "assistant", let message = metadata.message, let usage = message.usage,
+            let key = message.id ?? metadata.uuid, let tokens = usage.claudeTotal, tokens > 0
+        else { return nil }
+        let time = date.timeIntervalSince1970
+        return ScanEntry(
+            id: EffortUsageScanner.hash(provider: .claude, identifier: key), firstAt: time, peakAt: time,
+            tokens: tokens, model: normalizedModel(message.model),
+            effortModel: EffortTranscriptMetadata.normalizedModel(message.model),
+            effort: EffortTranscriptMetadata.normalizedEffort(metadata.perTurnEffort ?? metadata.effort),
+            eligible: message.id?.isEmpty == false)
+    }
 
-        for case let fileURL as URL in enumerator {
-            guard fileURL.pathExtension == "jsonl" else { continue }
-            let values = try fileURL.resourceValues(forKeys: Set(keys))
-            guard values.isRegularFile == true, (values.contentModificationDate ?? .distantPast) >= start else {
-                continue
-            }
-
-            try JSONLReader.read(fileURL) { line in
-                autoreleasepool {
-                    guard
-                        let record = try? decoder.decode(ClaudeTranscriptRecord.self, from: line),
-                        record.type == "assistant",
-                        let message = record.message,
-                        let usage = message.usage,
-                        let timestamp = record.timestamp,
-                        let date = fractionalFormatter.date(from: timestamp) ?? standardFormatter.date(from: timestamp),
-                        date >= start,
-                        date <= now.addingTimeInterval(300),
-                        let messageID = message.id ?? record.uuid
-                    else { return }
-
-                    let tokens =
-                        max(usage.inputTokens ?? 0, 0)
-                        + max(usage.outputTokens ?? 0, 0)
-                        + max(usage.cacheCreationInputTokens ?? 0, 0)
-                        + max(usage.cacheReadInputTokens ?? 0, 0)
-                    guard tokens > 0 else { return }
-                    let model = normalizedModel(message.model)
-                    let day = dayString(date, calendar: calendar)
-                    let hour = hourStart(date)
-                    if let current = messages[messageID], current.tokens >= tokens {
-                        return
-                    }
-                    messages[messageID] = (day, hour, model, tokens)
-                }
-            }
+    static func buckets(
+        _ entries: some Sequence<ScanEntry>, start: Date, now: Date, calendar: Calendar
+    ) -> [ModelTokenBucket] {
+        let earliest = start.timeIntervalSince1970
+        let latest = now.timeIntervalSince1970 + 300
+        var totals: [String: ModelTokenBucket] = [:]
+        let ordered = entries.filter { $0.peakAt >= earliest && $0.peakAt <= latest }.sorted {
+            $0.peakAt == $1.peakAt ? $0.id < $1.id : $0.peakAt < $1.peakAt
         }
-
-        var totals: [ModelTokenBucket.ID: ModelTokenBucket] = [:]
-        for message in messages.values {
-            let key = "\(message.model)-\(message.hour.timeIntervalSince1970)"
-            let merged = (totals[key]?.tokens ?? 0) + message.tokens
+        for entry in ordered {
+            let hour = hourStart(entry.peakAt)
+            let key = "\(entry.model)-\(hour.timeIntervalSince1970)"
+            let current = totals[key]
             totals[key] = ModelTokenBucket(
-                day: message.day,
-                hourStart: message.hour,
-                model: message.model,
-                tokens: merged
+                day: current?.day
+                    ?? TranscriptScanner.dayString(Date(timeIntervalSince1970: entry.peakAt), calendar: calendar),
+                hourStart: hour,
+                model: entry.model,
+                tokens: (current?.tokens ?? 0) + entry.tokens
             )
         }
         return totals.values.sorted { left, right in
@@ -84,87 +58,7 @@ public enum ClaudeHistoryScanner {
         return raw
     }
 
-    private static func hourStart(_ date: Date) -> Date {
-        Date(timeIntervalSince1970: (date.timeIntervalSince1970 / 3600).rounded(.down) * 3600)
-    }
-
-    private static func dayString(_ date: Date, calendar: Calendar) -> String {
-        let components = calendar.dateComponents([.year, .month, .day], from: date)
-        return String(
-            format: "%04d-%02d-%02d",
-            components.year ?? 0,
-            components.month ?? 0,
-            components.day ?? 0
-        )
-    }
-}
-
-private struct ClaudeTranscriptRecord: Decodable {
-    let type: String?
-    let timestamp: String?
-    let uuid: String?
-    let message: ClaudeTranscriptMessage?
-}
-
-private struct ClaudeTranscriptMessage: Decodable {
-    let id: String?
-    let model: String?
-    let usage: ClaudeTranscriptUsage?
-}
-
-private struct ClaudeTranscriptUsage: Decodable {
-    let inputTokens: Int?
-    let outputTokens: Int?
-    let cacheCreationInputTokens: Int?
-    let cacheReadInputTokens: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case inputTokens = "input_tokens"
-        case outputTokens = "output_tokens"
-        case cacheCreationInputTokens = "cache_creation_input_tokens"
-        case cacheReadInputTokens = "cache_read_input_tokens"
-    }
-}
-
-private enum JSONLReader {
-    private static let maximumLineBytes = 1_048_576
-
-    static func read(_ url: URL, lineHandler: (Data) -> Void) throws {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
-        var buffer = Data()
-        var discardingLongLine = false
-
-        while true {
-            let chunk = try handle.read(upToCount: 65_536) ?? Data()
-            if chunk.isEmpty {
-                if !discardingLongLine, !buffer.isEmpty { lineHandler(buffer) }
-                return
-            }
-
-            var segmentStart = chunk.startIndex
-            while segmentStart < chunk.endIndex,
-                let newline = chunk[segmentStart...].firstIndex(of: 0x0A)
-            {
-                let segment = chunk[segmentStart..<newline]
-                if !discardingLongLine, buffer.count + segment.count <= maximumLineBytes {
-                    buffer.append(contentsOf: segment)
-                    if !buffer.isEmpty { lineHandler(buffer) }
-                }
-                buffer.removeAll(keepingCapacity: false)
-                discardingLongLine = false
-                segmentStart = chunk.index(after: newline)
-            }
-
-            guard segmentStart < chunk.endIndex else { continue }
-            if discardingLongLine { continue }
-            let tail = chunk[segmentStart...]
-            if buffer.count + tail.count > maximumLineBytes {
-                buffer.removeAll(keepingCapacity: false)
-                discardingLongLine = true
-            } else {
-                buffer.append(contentsOf: tail)
-            }
-        }
+    private static func hourStart(_ time: TimeInterval) -> Date {
+        Date(timeIntervalSince1970: (time / 3600).rounded(.down) * 3600)
     }
 }

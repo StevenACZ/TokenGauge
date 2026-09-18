@@ -13,7 +13,7 @@ final class ClaudeHistoryProcessTests: XCTestCase {
                 model: "claude-synthetic", tokens: index + 1
             )
         }
-        let payload = try JSONEncoder().encode(buckets)
+        let payload = try JSONEncoder().encode(CaptureCollection(buckets: buckets, effortRecords: 2000))
         XCTAssertGreaterThan(payload.count, 131_072)
         let file = temporaryFile()
         defer { try? FileManager.default.removeItem(at: file) }
@@ -25,6 +25,25 @@ final class ClaudeHistoryProcessTests: XCTestCase {
             workingDirectory: workingDirectory()
         )
         XCTAssertEqual(actual, buckets)
+    }
+
+    func testCollectReceiptSkipsTheEffortHelperOnce() throws {
+        let sibling = try XCTUnwrap(Bundle.main.executableURL).deletingLastPathComponent()
+            .appending(path: "TokenGaugeCapture")
+        try XCTSkipIf(FileManager.default.isExecutableFile(atPath: sibling.path))
+        let home = workingDirectory()
+        _ = try? EffortHistoryClient.collect(homeDirectory: home)
+
+        XCTAssertEqual(try run(#"printf '{"buckets":[],"effortRecords":3}'"#), [])
+        XCTAssertNoThrow(try EffortHistoryClient.collect(homeDirectory: home))
+        XCTAssertThrowsError(try EffortHistoryClient.collect(homeDirectory: home)) { error in
+            XCTAssertEqual(error as? UsageDataError, .executableNotFound)
+        }
+
+        XCTAssertEqual(try run(#"printf '{"buckets":[]}'"#), [])
+        XCTAssertThrowsError(try EffortHistoryClient.collect(homeDirectory: home)) { error in
+            XCTAssertEqual(error as? UsageDataError, .executableNotFound)
+        }
     }
 
     func testFailedHelperDoesNotExposeStderr() {
