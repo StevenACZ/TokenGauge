@@ -21,7 +21,7 @@ final class LocalizationManager: ObservableObject {
 
     @Published var language: AppLanguage {
         didSet {
-            UserDefaults.standard.set(language.rawValue, forKey: "appLanguage")
+            UserDefaults.standard.set(language.rawValue, forKey: AppPreferences.Key.appLanguage)
             bundle = Self.bundle(for: language)
         }
     }
@@ -29,7 +29,7 @@ final class LocalizationManager: ObservableObject {
     @Published private(set) var bundle: Bundle
 
     private init() {
-        let stored = UserDefaults.standard.string(forKey: "appLanguage")
+        let stored = UserDefaults.standard.string(forKey: AppPreferences.Key.appLanguage)
         let language = AppLanguage(rawValue: stored ?? "") ?? AppLanguage.preferred(from: Locale.preferredLanguages)
         self.language = language
         bundle = Self.bundle(for: language)
