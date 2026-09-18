@@ -7,6 +7,7 @@ public struct ClaudeAccountIdentity: Equatable, Sendable {
     public let emailAddress: String?
     public let displayName: String?
     public let organizationName: String?
+    public let fingerprint: String
 
     public init(
         accountUuid: String,
@@ -18,14 +19,7 @@ public struct ClaudeAccountIdentity: Equatable, Sendable {
         self.emailAddress = emailAddress
         self.displayName = displayName
         self.organizationName = organizationName
-    }
-
-    public var fingerprint: String {
-        let hex = Array("0123456789abcdef".utf8)
-        return String(
-            decoding: SHA256.hash(data: Data(accountUuid.utf8)).flatMap {
-                [hex[Int($0 >> 4)], hex[Int($0 & 15)]]
-            }, as: UTF8.self)
+        fingerprint = Hex.string(SHA256.hash(data: Data(accountUuid.utf8)))
     }
 
     public static func isCompatible(stored: String?, current: String?) -> Bool {

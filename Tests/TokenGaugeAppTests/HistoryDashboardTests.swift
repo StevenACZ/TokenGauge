@@ -50,6 +50,24 @@ final class HistoryDashboardTests: XCTestCase {
         XCTAssertNil(days.first { $0.id == "2026-09-10" }?.tokens(for: .codex))
     }
 
+    func testHiddenProviderCannotAffectScopedTotalsOrDominance() throws {
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 7))!
+        let interval = HistoryDashboardModel.interval(mode: .recent, offset: 0, now: now, calendar: calendar)
+        let days = HistoryDashboardModel.makeDays(
+            interval: interval,
+            tokens: [
+                HistoryTokenRow(day: "2026-09-07", provider: .claude, model: "all", tokens: 50),
+                HistoryTokenRow(day: "2026-09-07", provider: .codex, model: "all", tokens: 9_000_000),
+            ], efforts: [], calendar: calendar)
+        let day = try XCTUnwrap(days.last)
+        XCTAssertEqual(day.id, "2026-09-07")
+        XCTAssertEqual(day.total(for: [.claude]), 50)
+        XCTAssertEqual(day.total(for: [.codex]), 9_000_000)
+        XCTAssertEqual(day.total(for: [.claude, .codex]), 9_000_050)
+        XCTAssertEqual(day.dominantProviders(for: [.claude]), [.claude])
+        XCTAssertEqual(day.dominantProviders(for: [.codex, .claude]), [.codex])
+    }
+
     func testEffortOnlyHistoryHasAUsableObservedTotal() {
         let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 12))!
         let interval = HistoryDashboardModel.interval(mode: .recent, offset: 0, now: now, calendar: calendar)
