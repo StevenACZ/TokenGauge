@@ -150,6 +150,7 @@ struct PopoverView: View {
                     claudeMenuBarSource: store.claudeMenuBarSource,
                     claudeAutomaticRecovery: store.claudeAutomaticRecovery,
                     showHourlyPace: store.showHourlyPace,
+                    stretchesHeight: store.displayMode == .unified && store.panelStyle == .rings,
                     accountLabel: store.claudeAccountLabel,
                     paces: paces(for: provider), previousPaces: previousPaces(for: provider)
                 )
@@ -193,8 +194,7 @@ struct PopoverView: View {
         let cells = min(count, 3)
         return max(
             Theme.Layout.minimumRingCardWidth,
-            cells * Theme.Layout.quotaRingCellWidth + (cells - 1) * Theme.Layout.quotaRingSpacing
-                + Theme.Layout.cardPadding * 2)
+            cells * Theme.Layout.quotaRingCellWidth + Theme.Layout.cardPadding * 2)
     }
 
     private var ringUnifiedWidth: CGFloat {
