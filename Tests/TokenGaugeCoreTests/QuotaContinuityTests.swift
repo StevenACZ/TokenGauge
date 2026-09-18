@@ -77,9 +77,51 @@ final class QuotaContinuityTests: XCTestCase {
         XCTAssertEqual(try UsageHistoryStore.quotaRows(at: database).last?.continuityStartedAt, instant(0))
     }
 
+    func testDifferentAccountFingerprintsNeverFormOnePace() throws {
+        try record(0, used: 10, fingerprint: "account-a")
+        try record(15, used: 11, fingerprint: "account-a")
+        try record(30, used: 12, fingerprint: "account-a")
+        XCTAssertNotNil(try pace(at: 30))
+
+        try record(45, used: 20, fingerprint: "account-b")
+        try record(60, used: 21, fingerprint: "account-b")
+        XCTAssertEqual(try UsageHistoryStore.quotaRows(at: database).last?.continuityStartedAt, instant(45))
+        XCTAssertNil(try pace(at: 60))
+
+        try record(75, used: 22, fingerprint: "account-b")
+        XCTAssertNotNil(try pace(at: 75))
+    }
+
+    func testLegacyRowsBreakOnceWhenAFingerprintAppearsAndThenRebuild() throws {
+        try record(0, used: 10)
+        try record(15, used: 11)
+        try record(30, used: 12)
+        XCTAssertNotNil(try pace(at: 30))
+
+        try record(45, used: 13, fingerprint: "account-a")
+        XCTAssertEqual(try UsageHistoryStore.quotaRows(at: database).last?.continuityStartedAt, instant(45))
+        XCTAssertNil(try pace(at: 45))
+
+        try record(60, used: 14, fingerprint: "account-a")
+        try record(75, used: 15, fingerprint: "account-a")
+        XCTAssertEqual(try UsageHistoryStore.quotaRows(at: database).last?.continuityStartedAt, instant(45))
+        XCTAssertNotNil(try pace(at: 75))
+    }
+
+    func testAlwaysUnknownIdentityKeepsOneContinuousPace() throws {
+        try record(0, used: 10)
+        try record(15, used: 11)
+        try record(30, used: 12)
+        XCTAssertEqual(try UsageHistoryStore.quotaRows(at: database).last?.continuityStartedAt, instant(0))
+        let result = try XCTUnwrap(pace(at: 30))
+        XCTAssertEqual(result.observedMinutes, 30)
+    }
+
     private func instant(_ minutes: Double) -> Date { base.addingTimeInterval(minutes * 60) }
 
-    private func record(_ minutes: Double, used: Double, reset: Date? = nil) throws {
+    private func record(
+        _ minutes: Double, used: Double, reset: Date? = nil, fingerprint: String? = nil
+    ) throws {
         let snapshot = ProviderUsageSnapshot(
             provider: .claude,
             windows: [
@@ -89,7 +131,8 @@ final class QuotaContinuityTests: XCTestCase {
             ],
             dailyUsage: [], summary: nil, availableResetCredits: nil, creditBalance: nil,
             capturedAt: instant(minutes), activityReadSucceeded: false)
-        try UsageHistoryStore.record(snapshot, at: database, now: instant(minutes))
+        try UsageHistoryStore.record(
+            snapshot, at: database, now: instant(minutes), accountFingerprint: fingerprint)
     }
 
     private func pace(at minutes: Double) throws -> QuotaPace? {

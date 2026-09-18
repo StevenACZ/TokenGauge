@@ -25,7 +25,10 @@ enum TokenGaugeCapture {
             return
         }
         let data = FileHandle.standardInput.readDataToEndOfFile()
-        guard let snapshot = try? ClaudeUsageParser.capture(from: data) else { return }
+        guard
+            let snapshot = try? ClaudeUsageParser.capture(
+                from: data, accountFingerprint: ClaudeAccountIdentityReader.current()?.fingerprint)
+        else { return }
         try SecureMetricStore.write(snapshot, to: UsagePaths.claudeCapture())
     }
 }

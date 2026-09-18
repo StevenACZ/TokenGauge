@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import TokenGaugeCore
 
 enum ClaudeRecoveryProcess {
     static func run(
@@ -19,6 +20,13 @@ enum ClaudeRecoveryProcess {
         shouldContinue: () -> Bool = { true }, recovered: () -> Bool
     ) -> Bool {
         guard timeout.isFinite, timeout > 0 else { return false }
+        let workingDirectory = UsagePaths.recoveryWorkingDirectory(homeDirectory: homeDirectory)
+        do {
+            try FileManager.default.createDirectory(
+                at: workingDirectory, withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
+        } catch { return false }
         var master: Int32 = -1
         var slave: Int32 = -1
         guard openpty(&master, &slave, nil, nil, nil) == 0 else { return false }
@@ -35,7 +43,7 @@ enum ClaudeRecoveryProcess {
         defer { posix_spawnattr_destroy(&attributes) }
         guard posix_spawnattr_setpgroup(&attributes, 0) == 0,
             posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_CLOEXEC_DEFAULT)) == 0,
-            posix_spawn_file_actions_addchdir_np(&actions, homeDirectory.path) == 0,
+            posix_spawn_file_actions_addchdir_np(&actions, workingDirectory.path) == 0,
             posix_spawn_file_actions_addclose(&actions, master) == 0
         else { return false }
         for descriptor in [STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO] {

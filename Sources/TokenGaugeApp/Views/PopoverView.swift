@@ -53,7 +53,8 @@ struct PopoverView: View {
                     }
                 }
                 await history.load(
-                    mode: store.historyMode, revision: store.historyRevision, previewSnapshots: preview, paceKeys: keys)
+                    mode: store.historyMode, revision: store.historyRevision, previewSnapshots: preview,
+                    paceKeys: keys, accountFingerprint: store.claudeAccountFingerprint)
             }
     }
 
@@ -149,6 +150,7 @@ struct PopoverView: View {
                     claudeMenuBarSource: store.claudeMenuBarSource,
                     claudeAutomaticRecovery: store.claudeAutomaticRecovery,
                     showHourlyPace: store.showHourlyPace,
+                    accountLabel: store.claudeAccountLabel,
                     paces: paces(for: provider), previousPaces: previousPaces(for: provider)
                 )
                 .frame(width: ringCardWidth(for: provider))

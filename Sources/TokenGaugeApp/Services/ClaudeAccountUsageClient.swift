@@ -32,8 +32,8 @@ struct ClaudeAccountUsageClient: Sendable {
         return URLSession(configuration: configuration)
     }()
 
-    func fetch(now: Date = Date()) throws -> ClaudeAccountSnapshot {
-        guard let token = ClaudeOAuthTokenReader.read() else {
+    func fetch(now: Date = Date(), identity: ClaudeAccountIdentity?) throws -> ClaudeAccountSnapshot {
+        guard let token = ClaudeOAuthTokenReader.read(accountUuid: identity?.accountUuid) else {
             throw ClaudeAccountUsageError.authenticationRequired
         }
         guard !token.isExpired else { throw ClaudeAccountUsageError.credentialExpired }
@@ -49,14 +49,17 @@ struct ClaudeAccountUsageClient: Sendable {
             outcome = try send(request)
         } catch ClaudeAccountUsageError.authenticationRequired {
             ClaudeOAuthTokenReader.invalidate()
-            guard let fresh = ClaudeOAuthTokenReader.read(), !fresh.isExpired, fresh.value != token.value else {
+            guard let fresh = ClaudeOAuthTokenReader.read(accountUuid: identity?.accountUuid), !fresh.isExpired,
+                fresh.value != token.value
+            else {
                 throw ClaudeAccountUsageError.authenticationRequired
             }
             request.setValue("Bearer \(fresh.value)", forHTTPHeaderField: "Authorization")
             outcome = try send(request)
         }
         let windows = try Self.parseWindows(outcome)
-        let snapshot = ClaudeAccountSnapshot(capturedAt: now, windows: windows)
+        let snapshot = ClaudeAccountSnapshot(
+            capturedAt: now, windows: windows, accountFingerprint: identity?.fingerprint)
         if !windows.isEmpty {
             try? SecureMetricStore.write(snapshot, to: UsagePaths.claudeAccountCache(homeDirectory: homeDirectory))
         }
@@ -76,11 +79,13 @@ struct ClaudeAccountUsageClient: Sendable {
         }
     }
 
-    func cached() -> ClaudeAccountSnapshot? {
-        try? SecureMetricStore.read(
+    func cached(identity: ClaudeAccountIdentity?) -> ClaudeAccountSnapshot? {
+        let snapshot = try? SecureMetricStore.read(
             ClaudeAccountSnapshot.self,
             from: UsagePaths.claudeAccountCache(homeDirectory: homeDirectory)
         )
+        guard let snapshot, snapshot.belongs(to: identity?.fingerprint) else { return nil }
+        return snapshot
     }
 
     private func send(_ request: URLRequest) throws -> Data {

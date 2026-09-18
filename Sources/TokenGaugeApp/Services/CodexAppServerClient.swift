@@ -25,7 +25,8 @@ struct CodexAppServerClient: Sendable {
             arguments: ["app-server", "--stdio"],
             input: Data(input.utf8),
             requiredResponseIDs: [2, 3, 4],
-            timeout: 8
+            timeout: 8,
+            workingDirectory: UsagePaths.recoveryWorkingDirectory(homeDirectory: homeDirectory)
         )
         guard result.exitCode == 0 else {
             throw UsageDataError.processFailed("Codex app-server exited with status \(result.exitCode)")
@@ -78,13 +79,19 @@ enum ProcessRunner {
         arguments: [String],
         input: Data,
         requiredResponseIDs: Set<Int>,
-        timeout: TimeInterval
+        timeout: TimeInterval,
+        workingDirectory: URL
     ) throws -> ProcessResult {
+        try FileManager.default.createDirectory(
+            at: workingDirectory, withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
         let process = Process()
         let inputPipe = Pipe()
         let outputPipe = Pipe()
         process.executableURL = executable
         process.arguments = arguments
+        process.currentDirectoryURL = workingDirectory
         var environment = ProcessInfo.processInfo.environment
         let inheritedPath = environment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
         environment["PATH"] = executable.deletingLastPathComponent().path + ":" + inheritedPath

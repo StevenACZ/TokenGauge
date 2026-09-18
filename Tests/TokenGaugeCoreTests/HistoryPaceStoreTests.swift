@@ -128,9 +128,34 @@ final class HistoryPaceStoreTests: XCTestCase {
         XCTAssertTrue(try UsageHistoryStore.paceRows(at: database).isEmpty)
     }
 
+    func testPaceReadsOnlyReturnRowsOfTheCurrentAccount() throws {
+        try record(0, 10)
+        try record(15, 12)
+        try record(30, 14)
+        for (minute, used) in [(45, 20.0), (60, 24), (75, 28)] {
+            try record(Double(minute), used, fingerprint: "account-a")
+        }
+
+        let legacyRows = try UsageHistoryStore.paceRows(at: database)
+        let accountRows = try UsageHistoryStore.paceRows(accountFingerprint: "account-a", at: database)
+        XCTAssertFalse(legacyRows.isEmpty)
+        XCTAssertFalse(accountRows.isEmpty)
+        XCTAssertTrue(legacyRows.allSatisfy { $0.pace.sampledAt <= instant(30) })
+        XCTAssertTrue(accountRows.allSatisfy { $0.pace.sampledAt > instant(30) })
+        XCTAssertTrue(try UsageHistoryStore.paceRows(accountFingerprint: "account-b", at: database).isEmpty)
+        XCTAssertTrue(
+            try UsageHistoryStore.recentPaces(for: [key], accountFingerprint: "account-b", at: database).isEmpty)
+        XCTAssertEqual(
+            try UsageHistoryStore.recentPaces(for: [key], accountFingerprint: "account-a", at: database)
+                .map { $0.pace.sampledAt },
+            accountRows.map { $0.pace.sampledAt }.reversed())
+    }
+
     private func instant(_ minutes: Double) -> Date { base.addingTimeInterval(minutes * 60) }
 
-    private func record(_ minutes: Double, _ used: Double, jitter: Double = 0, archive: Bool = true) throws {
+    private func record(
+        _ minutes: Double, _ used: Double, jitter: Double = 0, archive: Bool = true, fingerprint: String? = nil
+    ) throws {
         let snapshot = ProviderUsageSnapshot(
             provider: .claude,
             windows: [
@@ -139,6 +164,7 @@ final class HistoryPaceStoreTests: XCTestCase {
                     durationMinutes: 10_080, displayName: "Fable")
             ], dailyUsage: [], summary: nil,
             availableResetCredits: nil, creditBalance: nil, capturedAt: instant(minutes), activityReadSucceeded: false)
-        try UsageHistoryStore.record(snapshot, at: database, now: instant(minutes), recordQuota: archive)
+        try UsageHistoryStore.record(
+            snapshot, at: database, now: instant(minutes), recordQuota: archive, accountFingerprint: fingerprint)
     }
 }

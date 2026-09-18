@@ -3,10 +3,16 @@ import Foundation
 public struct ClaudeAccountSnapshot: Codable, Equatable, Sendable {
     public let capturedAt: Date
     public let windows: [QuotaWindow]
+    public let accountFingerprint: String?
 
-    public init(capturedAt: Date, windows: [QuotaWindow]) {
+    public init(capturedAt: Date, windows: [QuotaWindow], accountFingerprint: String? = nil) {
         self.capturedAt = capturedAt
         self.windows = windows
+        self.accountFingerprint = accountFingerprint
+    }
+
+    public func belongs(to fingerprint: String?) -> Bool {
+        ClaudeAccountIdentity.isCompatible(stored: accountFingerprint, current: fingerprint)
     }
 }
 

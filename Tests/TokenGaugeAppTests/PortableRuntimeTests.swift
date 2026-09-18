@@ -90,10 +90,16 @@ final class PortableRuntimeTests: XCTestCase {
         XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - start, 2)
     }
 
+    private func workingDirectory() -> URL {
+        let url = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        addTeardownBlock { try? FileManager.default.removeItem(at: url) }
+        return url
+    }
+
     private func run(_ script: String, input: String = "", timeout: TimeInterval = 2) throws -> ProcessResult {
         try ProcessRunner.run(
             executable: URL(filePath: "/bin/sh"), arguments: ["-c", script], input: Data(input.utf8),
-            requiredResponseIDs: [3, 4], timeout: timeout
+            requiredResponseIDs: [3, 4], timeout: timeout, workingDirectory: workingDirectory()
         )
     }
 }

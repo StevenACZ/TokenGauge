@@ -175,3 +175,4 @@
 "pace.info_method" = "Calculated over at least 30 observed minutes within the last hour. Resets and long gaps are excluded.";
 "pace.info_retention" = "When no new usage is recorded, the last active pace stays available with its date. Measurements are stored only on this Mac.";
 "pace.info_saved" = "Showing the last measurement with usage while waiting for new data.";
+"account.current" = "Account: %@";

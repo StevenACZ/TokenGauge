@@ -21,7 +21,8 @@ final class ClaudeHistoryProcessTests: XCTestCase {
         let actual = try ClaudeUsageClient.historyBuckets(
             executable: URL(filePath: "/bin/sh"),
             arguments: ["-c", "/usr/bin/head -c 131072 /dev/zero >&2; /bin/cat \"$1\"", "history-test", file.path],
-            timeout: 3
+            timeout: 3,
+            workingDirectory: workingDirectory()
         )
         XCTAssertEqual(actual, buckets)
     }
@@ -49,7 +50,8 @@ final class ClaudeHistoryProcessTests: XCTestCase {
                     "-c", "trap '' TERM; printf '%s' $$ > \"$1\"; printf 'private' >&2; while :; do :; done",
                     "history-test", pidFile.path,
                 ],
-                timeout: 0.2
+                timeout: 0.2,
+                workingDirectory: workingDirectory()
             )
         ) { error in
             XCTAssertEqual(error as? UsageDataError, .timedOut)
@@ -62,8 +64,15 @@ final class ClaudeHistoryProcessTests: XCTestCase {
 
     private func run(_ script: String) throws -> [ModelTokenBucket] {
         try ClaudeUsageClient.historyBuckets(
-            executable: URL(filePath: "/bin/sh"), arguments: ["-c", script], timeout: 2
+            executable: URL(filePath: "/bin/sh"), arguments: ["-c", script], timeout: 2,
+            workingDirectory: workingDirectory()
         )
+    }
+
+    private func workingDirectory() -> URL {
+        let url = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        addTeardownBlock { try? FileManager.default.removeItem(at: url) }
+        return url
     }
 
     private func temporaryFile() -> URL {

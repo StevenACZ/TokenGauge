@@ -12,6 +12,7 @@ struct ProviderCard: View {
     var claudeMenuBarSource: ClaudeMenuBarSource = .automatic
     var claudeAutomaticRecovery = false
     var showHourlyPace = false
+    var accountLabel: String?
     var paces: [String: QuotaPace] = [:]
     var previousPaces: [String: QuotaPace] = [:]
 
@@ -144,6 +145,17 @@ struct ProviderCard: View {
             Text(statusSubtitle)
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .layoutPriority(2)
+            if provider == .claude, let account = accountLabel, !account.isEmpty {
+                Text(account)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .layoutPriority(-1)
+                    .accessibilityLabel("account.current".localized(account))
+            }
             if !showsTitle { Spacer(minLength: 4) }
             if state.status == .ready, let credits = state.snapshot?.availableResetCredits, credits > 0 {
                 Text(UsageFormatters.resetCredits(credits))
