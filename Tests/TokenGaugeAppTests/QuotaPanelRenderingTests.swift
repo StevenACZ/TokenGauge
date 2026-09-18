@@ -59,7 +59,7 @@ final class QuotaPanelRenderingTests: XCTestCase {
         for language in AppLanguage.allCases {
             LocalizationManager.shared.language = language
             for count in [2, 3] {
-                let width = CGFloat(count) * Theme.Layout.quotaRingCellWidth + Theme.Layout.cardPadding * 2
+                let width = QuotaRingLayout.minimumGridWidth(windows: count) + Theme.Layout.cardPadding * 2
                 let card = ProviderCard(
                     provider: .claude, state: state(count: count), panelStyle: .rings, showProviderTitle: true)
                 let bitmap = try render(card.frame(width: width), maximumHeight: 220)
@@ -130,14 +130,14 @@ final class QuotaPanelRenderingTests: XCTestCase {
             provider: .claude, state: state(count: 3), panelStyle: .rings, showProviderTitle: true)
         let rows = try render(card.frame(width: cardWidth), maximumHeight: Theme.Layout.maximumPanelHeight)
         let grid = try render(
-            card.frame(width: Theme.Layout.quotaRingCellWidth * 3 + Theme.Layout.cardPadding * 2),
+            card.frame(width: QuotaRingLayout.minimumGridWidth(windows: 3) + Theme.Layout.cardPadding * 2),
             maximumHeight: Theme.Layout.maximumPanelHeight)
         XCTAssertGreaterThan(rows.size.height, grid.size.height)
     }
 
     func testUnifiedRingCardsShareOneHeight() throws {
         let available = Theme.Layout.ringUnifiedWidth - Theme.Layout.panelPadding * 2 - Theme.Layout.quotaRingSpacing
-        let balanced = Theme.Layout.quotaRingCellWidth * 4 + Theme.Layout.cardPadding * 4
+        let balanced = QuotaRingLayout.minimumGridWidth(windows: 2) * 2 + Theme.Layout.cardPadding * 4
         let matrix: [(Int, Int, CGFloat, CGFloat)] = [
             (1, 3, Theme.Layout.minimumRingCardWidth, available - Theme.Layout.minimumRingCardWidth),
             (2, 2, balanced / 2, balanced / 2),

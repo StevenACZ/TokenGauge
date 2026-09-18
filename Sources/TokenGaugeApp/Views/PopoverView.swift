@@ -191,17 +191,12 @@ struct PopoverView: View {
     }
 
     private func minimumRingWidth(_ count: CGFloat) -> CGFloat {
-        let cells = min(count, 3)
-        return max(
-            Theme.Layout.minimumRingCardWidth,
-            cells * Theme.Layout.quotaRingCellWidth + Theme.Layout.cardPadding * 2)
+        QuotaRingLayout.minimumCardWidth(cells: Int(count))
     }
 
     private var ringUnifiedWidth: CGFloat {
-        let content =
-            minimumRingWidth(ringWindowCount(.codex)) + minimumRingWidth(ringWindowCount(.claude))
-            + Theme.Layout.panelPadding * 2 + Theme.Layout.quotaRingSpacing
-        return min(max(content, Theme.Layout.minimumRingUnifiedWidth), Theme.Layout.ringUnifiedWidth)
+        QuotaRingLayout.unifiedPanelWidth(
+            codexCells: Int(ringWindowCount(.codex)), claudeCells: Int(ringWindowCount(.claude)))
     }
 
     private func ringCardWidth(for provider: UsageProvider) -> CGFloat? {

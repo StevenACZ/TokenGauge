@@ -172,7 +172,18 @@ final class ScreenshotTests: XCTestCase {
         let fitted = try render(
             PopoverView(store: store, showSettings: {}, showAbout: {}),
             to: output.appendingPathComponent("rings-current.png"))
-        XCTAssertEqual(fitted.width, Theme.Layout.minimumRingUnifiedWidth)
+        let visibleWindows = { (provider: UsageProvider) -> Int in
+            max(
+                1,
+                WindowVisibility.visible(
+                    store.state(for: provider).snapshot?.windows ?? [], provider: provider,
+                    showLunaReserve: store.showLunaReserve, hiddenClaudeWindows: store.hiddenClaudeWindows
+                ).count)
+        }
+        XCTAssertEqual(
+            fitted.width,
+            QuotaRingLayout.unifiedPanelWidth(
+                codexCells: visibleWindows(.codex), claudeCells: visibleWindows(.claude)))
 
     }
 

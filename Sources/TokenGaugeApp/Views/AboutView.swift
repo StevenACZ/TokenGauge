@@ -62,25 +62,43 @@ struct AboutView: View {
 }
 
 struct UpdateActionView: View {
-    @ObservedObject private var updates = UpdateManager.shared
+    @ObservedObject var updates: UpdateManager
+
+    init(updates: UpdateManager = .shared) {
+        self.updates = updates
+    }
 
     var body: some View {
         Group {
             switch updates.phase {
             case .idle:
-                switch updates.manualCheckStatus {
-                case .checking:
-                    Label("updates.checking".localized, systemImage: "clock")
-                case .upToDate:
-                    Label("updates.current".localized, systemImage: "checkmark.circle")
-                case .failed:
-                    Button("updates.check_failed".localized) { updates.checkForUpdatesManually() }
-                case .idle:
-                    Button("updates.check".localized) { updates.checkForUpdatesManually() }
+                checkControl
+            case .available:
+                Button("updates.download".localized) { updates.installPendingUpdate() }
+                    .buttonStyle(.borderedProminent)
+            case .readyToInstall(let version, true):
+                VStack(spacing: 8) {
+                    Button("updates.install_version".localized(version)) { updates.resumeDeferredInstall() }
+                        .buttonStyle(.borderedProminent)
+                    checkControl
                 }
-            default:
+            case .checking, .downloading, .extracting, .installing, .readyToInstall, .failed:
                 UpdateBannerView(updates: updates)
             }
         }.font(.callout).frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    @ViewBuilder
+    private var checkControl: some View {
+        switch updates.manualCheckStatus {
+        case .checking:
+            Label("updates.checking".localized, systemImage: "clock")
+        case .upToDate:
+            Label("updates.current".localized, systemImage: "checkmark.circle")
+        case .failed:
+            Button("updates.check_failed".localized) { updates.checkForUpdatesManually() }
+        case .idle:
+            Button("updates.check".localized) { updates.checkForUpdatesManually() }
+        }
     }
 }

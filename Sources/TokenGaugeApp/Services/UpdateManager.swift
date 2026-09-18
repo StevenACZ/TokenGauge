@@ -40,6 +40,7 @@ final class UpdateManager: ObservableObject {
 
     static let autoCheckDefaultsKey = "autoUpdateCheckEnabled"
     nonisolated static let feedOverrideDefaultsKey = "updateFeedURLOverride"
+    static let deferredVersionDefaultsKey = "deferredUpdateVersion"
     static let progressPublishInterval: TimeInterval = 0.05
     static let failureMessageKey = "updates.failed"
 
@@ -103,7 +104,7 @@ final class UpdateManager: ObservableObject {
         isDevelopmentBuild: Bool
     ) -> String? {
         if isDevelopmentBuild, let qa = qaFeedURL(environment: environment) { return qa }
-        if let override, let url = URL(string: override), url.scheme == "http" || url.scheme == "https" {
+        if let override, let url = URL(string: override), url.scheme == "https" {
             return override
         }
         return nil
@@ -156,6 +157,8 @@ final class UpdateManager: ObservableObject {
         self.driver = driver
         self.updaterDelegate = updaterDelegate
         self.updater = updater
+
+        if deferredVersion != nil { updater.checkForUpdatesInBackground() }
     }
 
     func setAutoCheckEnabled(_ enabled: Bool) {
@@ -183,6 +186,7 @@ final class UpdateManager: ObservableObject {
         }
         installRequested = false
         resumeInstallRequested = false
+        deferredVersion = nil
         phase = .installing(version: version)
         let reply = readyReply
         readyReply = nil
@@ -196,6 +200,7 @@ final class UpdateManager: ObservableObject {
         let reply = readyReply
         readyReply = nil
         reply?(.dismiss)
+        deferredVersion = version
         phase = .readyToInstall(version: version, deferred: true)
     }
 
@@ -213,6 +218,7 @@ final class UpdateManager: ObservableObject {
         guard let updater else {
             handleManualCheckStarted()
             finishManualCheck(status: .failed)
+            phase = idleOrPendingPhase
             return
         }
         guard updater.sessionInProgress == false else { return }
@@ -251,6 +257,7 @@ final class UpdateManager: ObservableObject {
         let decision = Self.decideUpdateFound(
             version: version, stage: stage, installRequested: installRequested, informationOnly: informationOnly)
         installRequested = decision.choice == .install
+        deferredVersion = decision.phase == .readyToInstall(version: version, deferred: true) ? version : nil
         phase = decision.phase
         return decision.choice
     }
@@ -275,6 +282,9 @@ final class UpdateManager: ObservableObject {
 
     func handleExtractionStarted() {
         lastProgressPublish = .distantPast
+        if case .downloading(let version, let fraction) = phase, fraction != 1 {
+            phase = .downloading(version: version, fraction: 1)
+        }
         phase = .extracting(version: pendingVersion ?? "", fraction: nil)
     }
 
@@ -288,6 +298,7 @@ final class UpdateManager: ObservableObject {
         if resumeInstallRequested || installRequested {
             installRequested = false
             resumeInstallRequested = false
+            deferredVersion = nil
             phase = .installing(version: version)
             reply(.install)
             return
@@ -307,6 +318,7 @@ final class UpdateManager: ObservableObject {
         pendingVersion = nil
         pendingIsInformationOnly = false
         releasePageURL = nil
+        deferredVersion = nil
         phase = .idle
         finishManualCheck(status: .upToDate)
     }
@@ -319,7 +331,7 @@ final class UpdateManager: ObservableObject {
             phase = .failed(message: Self.failureMessageKey)
         } else {
             log.debug("Update check failed silently")
-            phase = pendingVersion.map { .available(version: $0) } ?? .idle
+            phase = idleOrPendingPhase
         }
         installRequested = false
         resumeInstallRequested = false
@@ -330,10 +342,25 @@ final class UpdateManager: ObservableObject {
         resumeInstallRequested = false
         readyReply = nil
         switch phase {
-        case .downloading, .extracting, .installing:
-            phase = pendingVersion.map { .available(version: $0) } ?? .idle
-        case .idle, .checking, .available, .readyToInstall, .failed:
+        case .checking, .downloading, .extracting, .installing:
+            phase = idleOrPendingPhase
+        case .idle, .available, .readyToInstall, .failed:
             break
+        }
+    }
+
+    private var idleOrPendingPhase: Phase {
+        pendingVersion.map { .available(version: $0) } ?? .idle
+    }
+
+    private var deferredVersion: String? {
+        get { defaults.string(forKey: Self.deferredVersionDefaultsKey) }
+        set {
+            if let newValue {
+                defaults.set(newValue, forKey: Self.deferredVersionDefaultsKey)
+            } else {
+                defaults.removeObject(forKey: Self.deferredVersionDefaultsKey)
+            }
         }
     }
 
