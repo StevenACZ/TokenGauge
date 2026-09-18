@@ -23,7 +23,7 @@ struct PopoverView: View {
             wrappedValue: history ?? HistoryDashboardModel(previewSnapshots: preview, mode: store.historyMode))
     }
 
-    private var providerMaxHeight: CGFloat {
+    var providerMaxHeight: CGFloat {
         let height: CGFloat =
             store.panelStyle == .rings
             ? Theme.Layout.ringProviderMaxHeight
@@ -31,7 +31,7 @@ struct PopoverView: View {
         return height - (updates.phase == .idle ? 0 : UpdateBannerView.height(for: updates.phase))
     }
 
-    private var panelWidth: CGFloat {
+    var panelWidth: CGFloat {
         let unified = store.displayMode == .unified
         switch store.panelStyle {
         case .standard: return unified ? Theme.Layout.unifiedPanelWidth : Theme.Layout.panelWidth
@@ -131,7 +131,7 @@ struct PopoverView: View {
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
-    private var providerContent: some View {
+    var providerContent: some View {
         let layout =
             store.panelStyle == .compact
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))

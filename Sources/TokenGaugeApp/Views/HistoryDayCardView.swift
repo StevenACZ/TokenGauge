@@ -126,7 +126,7 @@ struct HistoryDayCardView: View {
             if !chips.isEmpty {
                 HStack(spacing: 4) {
                     ForEach(chips, id: \.self) { model in
-                        Text(model).font(.system(size: 9)).lineLimit(1)
+                        Text(model).font(.system(size: 10)).lineLimit(1)
                             .padding(.horizontal, 5).padding(.vertical, 2)
                             .background(Capsule().fill(color(provider).opacity(0.12)))
                     }

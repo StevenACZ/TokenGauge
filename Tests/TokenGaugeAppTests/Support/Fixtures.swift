@@ -22,11 +22,29 @@ enum Fixture {
         windows: [QuotaWindow] = [],
         dailyUsage: [DailyTokenUsage] = [],
         availableResetCredits: Int? = nil,
-        capturedAt: Date? = Date()
+        capturedAt: Date? = Date(),
+        modelBuckets: [ModelTokenBucket] = []
     ) -> ProviderUsageSnapshot {
         ProviderUsageSnapshot(
             provider: provider, windows: windows, dailyUsage: dailyUsage, summary: nil,
-            availableResetCredits: availableResetCredits, creditBalance: nil, capturedAt: capturedAt)
+            availableResetCredits: availableResetCredits, creditBalance: nil, capturedAt: capturedAt,
+            modelBuckets: modelBuckets)
+    }
+
+    static func modelBuckets(_ tokens: [(String, Int)], at hourStart: Date = Date().addingTimeInterval(-1_800))
+        -> [ModelTokenBucket]
+    {
+        tokens.map { model, amount in
+            ModelTokenBucket(
+                day: UsageStore.dayKey(for: hourStart, calendar: .current), hourStart: hourStart, model: model,
+                tokens: amount)
+        }
+    }
+
+    static func pace(_ pointsPerHour: Double, resetsAt: Date?) -> QuotaPace {
+        QuotaPace(
+            pointsPerHour: pointsPerHour, observedMinutes: 45, sampledAt: Date().addingTimeInterval(-600),
+            resetsAt: resetsAt, lastUsedPercentage: 15.6)
     }
 
     @MainActor
