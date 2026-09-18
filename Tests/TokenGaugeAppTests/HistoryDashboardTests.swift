@@ -298,6 +298,65 @@ final class HistoryDashboardTests: XCTestCase {
         XCTAssertTrue(day([:]).dominantProviders(for: [.codex, .claude]).isEmpty)
     }
 
+    func testSecondLoadWithTheSameInputsServesTheCacheWithoutReadingTheStore() async throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let model = HistoryDashboardModel(historyURL: directory.appending(path: "usage-history.sqlite"))
+        await model.load(mode: .recent, revision: 1)
+        XCTAssertFalse(model.loadFailed)
+        let reads = UsageHistoryStore.entryCount
+        XCTAssertGreaterThan(reads, 0)
+
+        await model.load(mode: .recent, revision: 1)
+        XCTAssertFalse(model.loadFailed)
+        XCTAssertEqual(UsageHistoryStore.entryCount, reads)
+
+        await model.load(mode: .recent, revision: 2)
+        XCTAssertGreaterThan(UsageHistoryStore.entryCount, reads)
+    }
+
+    func testClosingThePopoverDropsTheDaySelection() {
+        let model = HistoryDashboardModel()
+        model.selectedDayKey = "2026-09-15"
+        model.pinDayCard("2026-09-17", anchor: anchor(x: 20, bounds: CGRect(x: 0, y: 0, width: 300, height: 200)))
+        XCTAssertEqual(model.daySelection?.isPinned, true)
+
+        model.popoverDidClose()
+        XCTAssertNil(model.daySelection)
+        XCTAssertNil(model.selectedDayKey)
+    }
+
+    func testDayKeyMatchesTheFormatterAcrossTimeZones() {
+        for seconds in [-5 * 3600, 13 * 3600] {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(secondsFromGMT: seconds)!
+            let formatter = DateFormatter()
+            formatter.calendar = calendar
+            formatter.timeZone = calendar.timeZone
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyy-MM-dd"
+            let probes = [
+                DateComponents(year: 2026, month: 1, day: 1, hour: 0),
+                DateComponents(year: 2026, month: 1, day: 1, hour: 23, minute: 59),
+                DateComponents(year: 2024, month: 2, day: 29, hour: 12),
+                DateComponents(year: 2026, month: 3, day: 7, hour: 3),
+                DateComponents(year: 2026, month: 9, day: 18, hour: 17),
+                DateComponents(year: 2026, month: 10, day: 31, hour: 23),
+                DateComponents(year: 2026, month: 12, day: 31, hour: 22, minute: 30),
+                DateComponents(year: 1999, month: 7, day: 4, hour: 6),
+                DateComponents(year: 2000, month: 2, day: 28, hour: 1),
+                DateComponents(year: 2035, month: 11, day: 9, hour: 15),
+            ]
+            for components in probes {
+                let date = calendar.date(from: components)!
+                XCTAssertEqual(
+                    HistoryDashboardModel.dayKey(date, calendar: calendar), formatter.string(from: date),
+                    "\(components) @ \(seconds)")
+            }
+        }
+    }
+
     func testPreviewStoresDoNotReadOrCollectLiveHistory() {
         let name = "TokenGauge.history-preview.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!

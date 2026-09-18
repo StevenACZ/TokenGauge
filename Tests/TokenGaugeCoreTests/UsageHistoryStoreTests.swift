@@ -210,6 +210,30 @@ final class UsageHistoryStoreTests: XCTestCase {
         XCTAssertEqual(try UsageHistoryStore.usageDays(at: database), ["2026-09-15", "2026-09-17"])
     }
 
+    func testUsageDaysByProviderReturnsEveryProviderInOneRead() throws {
+        try UsageHistoryStore.record(
+            ProviderUsageSnapshot(
+                provider: .codex, windows: [],
+                dailyUsage: [
+                    DailyTokenUsage(day: "2026-09-15", tokens: 120), DailyTokenUsage(day: "2026-09-16", tokens: 0),
+                    DailyTokenUsage(day: "2026-09-17", tokens: 80),
+                ],
+                summary: nil, availableResetCredits: nil, creditBalance: nil,
+                capturedAt: Date(timeIntervalSince1970: 1_787_000_000)),
+            at: database)
+        try UsageHistoryStore.record(
+            claudeSnapshot(buckets: [bucket(day: "2026-09-17", hour: 0, model: "claude-fable-5", tokens: 40)]),
+            at: database)
+
+        let entries = UsageHistoryStore.entryCount
+        let days = try UsageHistoryStore.usageDaysByProvider(at: database)
+        XCTAssertEqual(UsageHistoryStore.entryCount, entries + 1)
+        XCTAssertEqual(days[.codex], ["2026-09-15", "2026-09-17"])
+        XCTAssertEqual(days[.claude], ["2026-09-17"])
+        XCTAssertEqual(days[.codex], try UsageHistoryStore.usageDays(provider: .codex, at: database))
+        XCTAssertEqual(days[.claude], try UsageHistoryStore.usageDays(provider: .claude, at: database))
+    }
+
     func testSchemaIsPreparedOncePerProcessAndPath() throws {
         try UsageHistoryStore.record(claudeSnapshot(), at: database)
         try UsageHistoryStore.record(claudeSnapshot(used: 60), at: database)

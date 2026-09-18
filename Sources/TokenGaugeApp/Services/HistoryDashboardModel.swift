@@ -180,6 +180,11 @@ final class HistoryDashboardModel: ObservableObject {
         daySelection = nil
     }
 
+    func popoverDidClose() {
+        daySelection = nil
+        selectedDayKey = nil
+    }
+
     func pace(provider: UsageProvider, window: QuotaWindow, capturedAt: Date?) -> QuotaPace? {
         let key = provider.rawValue + ":" + window.id
         guard let current = Self.usablePace(paces[key], for: window, capturedAt: capturedAt)
@@ -247,6 +252,7 @@ final class HistoryDashboardModel: ObservableObject {
                 result = try await Task.detached(priority: .utility) {
                     let tokens = try UsageHistoryStore.tokenRows(since: first, through: last, at: url)
                     let efforts = try UsageHistoryStore.effortRows(since: first, through: last, at: url)
+                    let usage = try UsageHistoryStore.usageDaysByProvider(at: url)
                     return ReadResult(
                         days: Self.makeDays(interval: interval, tokens: tokens, efforts: efforts),
                         latest: try UsageHistoryStore.recentPaces(
@@ -256,9 +262,7 @@ final class HistoryDashboardModel: ObservableObject {
                             for: paceKeys, activeOnly: true, before: now, accountFingerprint: accountFingerprint,
                             at: url),
                         first: try UsageHistoryStore.bounds(at: url).firstDay,
-                        usage: HistoryUsageDays(
-                            claude: try UsageHistoryStore.usageDays(provider: .claude, at: url),
-                            codex: try UsageHistoryStore.usageDays(provider: .codex, at: url)),
+                        usage: HistoryUsageDays(claude: usage[.claude] ?? [], codex: usage[.codex] ?? []),
                         today: today)
                 }.value
             }
@@ -313,16 +317,8 @@ final class HistoryDashboardModel: ObservableObject {
     }
 
     nonisolated static func dayKey(_ date: Date, calendar: Calendar = .current) -> String {
-        dayFormatter(calendar: calendar).string(from: date)
-    }
-
-    nonisolated private static func dayFormatter(calendar: Calendar) -> DateFormatter {
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04ld-%02ld-%02ld", components.year ?? 0, components.month ?? 0, components.day ?? 0)
     }
 
     nonisolated static func makeDays(
@@ -330,11 +326,10 @@ final class HistoryDashboardModel: ObservableObject {
     ) -> [HistoryCalendarDay] {
         let tokenDays = Dictionary(grouping: tokens, by: \.day)
         let effortDays = Dictionary(grouping: efforts, by: \.day)
-        let formatter = dayFormatter(calendar: calendar)
         var date = interval.start
         var result: [HistoryCalendarDay] = []
         while date < interval.end {
-            let key = formatter.string(from: date)
+            let key = dayKey(date, calendar: calendar)
             var totals: [UsageProvider: Int] = [:]
             for provider in UsageProvider.allCases {
                 let rows = (tokenDays[key] ?? []).filter { $0.provider == provider && $0.tokens >= 0 }
