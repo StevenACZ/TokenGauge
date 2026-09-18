@@ -51,7 +51,8 @@ public enum TranscriptScanner {
         guard let readStart = [historyStart, effortStart].compactMap({ $0?.timeIntervalSince1970 }).min() else {
             return Result(buckets: [], effortRecords: [], bytesRead: 0)
         }
-        let previous = stateURL.flatMap { ScanState.load(from: $0, windowStart: readStart) }
+        let loaded = stateURL.flatMap { ScanState.load(from: $0, windowStart: readStart) }
+        let previous = loaded?.state
         var state = ScanState(version: ScanState.currentVersion, windowStart: readStart, files: [:])
         var recentCodexDirectories: Set<String> = []
         var roots: [(provider: UsageProvider, url: URL, wanted: (URL, TimeInterval) -> Bool)] = []
@@ -75,6 +76,7 @@ public enum TranscriptScanner {
 
         let parser = TranscriptLineParser()
         var bytesRead = 0
+        var written = loaded?.encoded
         for root in roots {
             for (file, attributes) in candidateFiles(root: root.url, wanted: root.wanted) {
                 let key = file.path
@@ -84,6 +86,7 @@ public enum TranscriptScanner {
                 bytesRead += scanned.bytesRead
                 state.files[key] = scanned.file
             }
+            if let stateURL { persist(state, to: stateURL, encoded: &written) }
         }
 
         let historyCutoff = historyStart?.timeIntervalSince1970
@@ -107,9 +110,7 @@ public enum TranscriptScanner {
             }
         }
 
-        if let stateURL {
-            try? SecureMetricStore.write(state, to: stateURL)
-        }
+        if let stateURL { persist(state, to: stateURL, encoded: &written) }
         return Result(
             buckets: historyStart.map {
                 ClaudeHistoryScanner.buckets(historyEntries.values, start: $0, now: now, calendar: calendar)
@@ -120,8 +121,14 @@ public enum TranscriptScanner {
             bytesRead: bytesRead)
     }
 
+    private static func persist(_ state: ScanState, to url: URL, encoded: inout Data?) {
+        guard let data = try? JSONEncoder.tokenGauge.encode(state), data != encoded else { return }
+        try? SecureMetricStore.write(state, to: url)
+        encoded = data
+    }
+
     private static func dayDirectory(_ url: URL) -> String {
-        url.pathComponents.suffix(3).joined(separator: "/")
+        url.standardizedFileURL.path
     }
 
     static func dayString(_ date: Date, calendar: Calendar) -> String {
@@ -174,7 +181,9 @@ public enum TranscriptScanner {
         var entries: [String: ScanEntry] = [:]
         var context: CodexTurnContext?
         var offset = 0
-        if let reusable, attributes.size > reusable.size, attributes.modified >= reusable.modified {
+        if let reusable, attributes.size > reusable.size, attributes.modified >= reusable.modified,
+            ((try? JSONLReader.anchor(url, endingAt: reusable.offset)) ?? nil) == reusable.anchor
+        {
             entries = Dictionary(reusable.entries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             context = reusable.context
             offset = reusable.offset
@@ -212,7 +221,8 @@ public enum TranscriptScanner {
         }
         let file = ScanFile(
             provider: provider, size: attributes.size, modified: attributes.modified, created: attributes.created,
-            offset: progress.committedOffset, context: context, entries: kept)
+            offset: progress.committedOffset, anchor: try JSONLReader.anchor(url, endingAt: progress.committedOffset),
+            context: context, entries: kept)
         return (file, progress.bytesRead)
     }
 }
@@ -238,17 +248,18 @@ struct TranscriptLineParser {
 }
 
 struct ScanState: Codable {
-    static let currentVersion = 1
+    static let currentVersion = 2
 
     var version: Int
     var windowStart: TimeInterval
     var files: [String: ScanFile]
 
-    static func load(from url: URL, windowStart: TimeInterval) -> ScanState? {
-        guard let state = try? SecureMetricStore.read(ScanState.self, from: url), state.version == currentVersion,
-            state.windowStart <= windowStart
+    static func load(from url: URL, windowStart: TimeInterval) -> (state: ScanState, encoded: Data)? {
+        guard let encoded = try? Data(contentsOf: url),
+            let state = try? JSONDecoder.tokenGauge.decode(ScanState.self, from: encoded),
+            state.version == currentVersion, state.windowStart <= windowStart
         else { return nil }
-        return state
+        return (state, encoded)
     }
 }
 
@@ -258,6 +269,7 @@ struct ScanFile: Codable {
     var modified: TimeInterval
     var created: TimeInterval
     var offset: Int
+    var anchor: String?
     var context: CodexTurnContext?
     var entries: [ScanEntry]
 }

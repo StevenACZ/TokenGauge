@@ -227,12 +227,11 @@ extension UsageHistoryStore {
             return try write(url, body)
         }
         let connection = try SQLiteConnection.open(url, readOnly: true)
+        defer { connection.close() }
         recordEntry(readOnly: connection.isReadOnly)
         if try schemaVersion(connection) < Schema.version {
-            connection.close()
             return try write(url, body)
         }
-        defer { connection.close() }
         return try body(connection)
     }
 

@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import SQLite3
 import XCTest
@@ -263,6 +264,31 @@ final class UsageHistoryStoreTests: XCTestCase {
 
         try UsageHistoryStore.record(claudeSnapshot(used: 70), at: database)
         XCTAssertEqual(UsageHistoryStore.lastEntryWasReadOnly, false)
+    }
+
+    func testThrowingSchemaCheckClosesTheReadOnlyHandle() throws {
+        try UsageHistoryStore.record(claudeSnapshot(), at: database)
+        _ = try UsageHistoryStore.quotaRows(at: database)
+
+        try Data(repeating: 0x5A, count: 8_192).write(to: database)
+        let descriptors = openDescriptors(for: database.path)
+        for _ in 0..<5 {
+            XCTAssertThrowsError(try UsageHistoryStore.quotaRows(at: database))
+        }
+        XCTAssertEqual(openDescriptors(for: database.path), descriptors)
+    }
+
+    private func openDescriptors(for path: String) -> Int {
+        let target = URL(filePath: path).standardizedFileURL.path
+        let entries = (try? FileManager.default.contentsOfDirectory(atPath: "/dev/fd")) ?? []
+        return entries.reduce(into: 0) { count, entry in
+            guard let descriptor = Int32(entry) else { return }
+            var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
+            guard fcntl(descriptor, F_GETPATH, &buffer) != -1,
+                URL(filePath: String(cString: buffer)).standardizedFileURL.path == target
+            else { return }
+            count += 1
+        }
     }
 
     private func claudeSnapshot(
