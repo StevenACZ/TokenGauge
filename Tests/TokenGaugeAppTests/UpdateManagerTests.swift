@@ -162,6 +162,42 @@ final class UpdateManagerTests: XCTestCase {
         XCTAssertEqual(manager.phase, .installing(version: "9.9.9"))
     }
 
+    func testDownloadRequestedFromTheBannerStopsAtReadyToInstall() {
+        let defaults = makeDefaults()
+        let manager = makeManager(defaults: defaults)
+        _ = found(manager, version: "1.4.0")
+        manager.handleInstallRequested()
+        XCTAssertEqual(found(manager, version: "1.4.0"), .install)
+
+        manager.handleDownloadInitiated()
+        manager.handleDownloadExpectedLength(1_000)
+        manager.handleDownloadReceived(bytes: 1_000)
+        manager.handleExtractionStarted()
+        manager.handleExtractionProgress(1.0)
+
+        var choices: [SPUUserUpdateChoice] = []
+        manager.handleReadyToInstall { choices.append($0) }
+
+        XCTAssertEqual(manager.phase, .readyToInstall(version: "1.4.0", deferred: false))
+        XCTAssertTrue(choices.isEmpty)
+
+        manager.deferReadyUpdate()
+        XCTAssertEqual(choices, [.dismiss])
+        XCTAssertEqual(manager.phase, .readyToInstall(version: "1.4.0", deferred: true))
+        XCTAssertEqual(defaults.string(forKey: UpdateManager.deferredVersionDefaultsKey), "1.4.0")
+
+        let session = FakeUpdaterSession(sessionInProgress: false)
+        manager.setSession(session)
+        manager.resumeDeferredInstall()
+        XCTAssertEqual(session.checks, 1)
+        XCTAssertEqual(found(manager, version: "1.4.0", stage: .downloaded), .install)
+
+        manager.handleReadyToInstall { choices.append($0) }
+        XCTAssertEqual(choices, [.dismiss, .install])
+        XCTAssertEqual(manager.phase, .installing(version: "1.4.0"))
+        XCTAssertNil(defaults.string(forKey: UpdateManager.deferredVersionDefaultsKey))
+    }
+
     func testDownloadedStageWithoutInstallIntentSurfacesTheDeferredRow() {
         XCTAssertEqual(
             UpdateManager.decideUpdateFound(
