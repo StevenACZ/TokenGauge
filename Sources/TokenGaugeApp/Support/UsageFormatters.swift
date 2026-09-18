@@ -2,14 +2,15 @@ import Foundation
 import TokenGaugeCore
 
 enum UsageFormatters {
+    private static let integer = IntegerFormatStyle<Int>.number
+    private static let smallDecimal = FloatingPointFormatStyle<Double>.number.precision(.fractionLength(1))
+    private static let largeDecimal = FloatingPointFormatStyle<Double>.number.precision(.fractionLength(0...1))
+
     static func percentage(_ value: Double) -> String {
         "\(Int(value.rounded()))%"
     }
 
     static func tokens(_ value: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 1
         if value >= 1_000_000_000 {
             return "\(decimal(Double(value) / 1_000_000_000))B"
         }
@@ -19,7 +20,7 @@ enum UsageFormatters {
         if value >= 1_000 {
             return "\(decimal(Double(value) / 1_000))K"
         }
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        return value.formatted(integer)
     }
 
     @MainActor static func reset(
@@ -53,20 +54,13 @@ enum UsageFormatters {
     }
 
     @MainActor private static func span(_ interval: TimeInterval, units: NSCalendar.Unit) -> String? {
-        let formatter = DateComponentsFormatter()
-        formatter.calendar?.locale = Locale(identifier: LocalizationManager.shared.language.rawValue)
-        formatter.unitsStyle = .abbreviated
-        formatter.maximumUnitCount = 1
+        let formatter = LocalizedFormatters.current.span
         formatter.allowedUnits = units
         return formatter.string(from: max(interval, 60))
     }
 
     @MainActor private static func clock(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: LocalizationManager.shared.language.rawValue)
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+        LocalizedFormatters.current.clock.string(from: date)
     }
 
     @MainActor static func resetCredits(_ count: Int) -> String {
@@ -77,10 +71,7 @@ enum UsageFormatters {
         guard let date else { return "updated.never".localized }
         let age = Date().timeIntervalSince(date)
         guard age >= 10 else { return "updated.now".localized }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: LocalizationManager.shared.language.rawValue)
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: date, relativeTo: Date())
+        return LocalizedFormatters.current.relative.localizedString(for: date, relativeTo: Date())
     }
 
     @MainActor static func windowName(_ window: QuotaWindow) -> String {
@@ -119,10 +110,37 @@ enum UsageFormatters {
     }
 
     private static func decimal(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 1
-        formatter.minimumFractionDigits = value < 10 ? 1 : 0
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.1f", value)
+        value.formatted(value < 10 ? smallDecimal : largeDecimal)
+    }
+}
+
+@MainActor
+private struct LocalizedFormatters {
+    let span: DateComponentsFormatter
+    let clock: DateFormatter
+    let relative: RelativeDateTimeFormatter
+
+    private static var cache: [AppLanguage: LocalizedFormatters] = [:]
+
+    static var current: LocalizedFormatters {
+        let language = LocalizationManager.shared.language
+        if let formatters = cache[language] { return formatters }
+        let formatters = LocalizedFormatters(locale: Locale(identifier: language.rawValue))
+        cache[language] = formatters
+        return formatters
+    }
+
+    private init(locale: Locale) {
+        span = DateComponentsFormatter()
+        span.calendar?.locale = locale
+        span.unitsStyle = .abbreviated
+        span.maximumUnitCount = 1
+        clock = DateFormatter()
+        clock.locale = locale
+        clock.dateStyle = .none
+        clock.timeStyle = .short
+        relative = RelativeDateTimeFormatter()
+        relative.locale = locale
+        relative.unitsStyle = .short
     }
 }

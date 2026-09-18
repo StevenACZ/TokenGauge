@@ -7,7 +7,7 @@ struct SettingsView: View {
     @ObservedObject var launchAtLogin: LaunchAtLoginManager
     @ObservedObject private var localization = LocalizationManager.shared
     @ObservedObject private var updates = UpdateManager.shared
-    @AppStorage("codexExecutablePath") private var codexExecutablePath = ""
+    @AppStorage(AppPreferences.Key.codexExecutablePath) private var codexExecutablePath = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {

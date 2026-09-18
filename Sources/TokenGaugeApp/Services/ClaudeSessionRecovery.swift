@@ -1,21 +1,23 @@
 import Foundation
 import TokenGaugeCore
+import os
 
-final class ClaudeSessionRecovery: @unchecked Sendable {
+final class ClaudeSessionRecovery: Sendable {
     static let shared = ClaudeSessionRecovery()
 
-    private let lock = NSLock()
-    private let defaults: UserDefaults
-    private var running = false
+    private struct State {
+        var running = false
+        let preferences: AppPreferences
+    }
+
+    private let state: OSAllocatedUnfairLock<State>
 
     init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
+        state = OSAllocatedUnfairLock(uncheckedState: State(preferences: AppPreferences(defaults: defaults)))
     }
 
     var isRunning: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return running
+        state.withLock { $0.running }
     }
 
     func attempt(homeDirectory: URL, authorization: ClaudeRecoveryAuthorization) -> Bool {
@@ -34,23 +36,22 @@ final class ClaudeSessionRecovery: @unchecked Sendable {
     }
 
     func attempt(now: Date, run: () -> Bool) -> Bool {
-        lock.lock()
-        let nextAttempt = defaults.object(forKey: "claudeRecoveryNextAttempt") as? Date ?? .distantPast
-        guard !running, now >= nextAttempt else {
-            lock.unlock()
-            return false
+        let failures: Int? = state.withLock { state in
+            let nextAttempt = state.preferences.claudeRecoveryNextAttempt ?? .distantPast
+            guard !state.running, now >= nextAttempt else { return nil }
+            state.running = true
+            let failures = min(max(state.preferences.claudeRecoveryFailures, 0), 2)
+            let delay: TimeInterval = [300, 900, 3600][failures]
+            state.preferences.claudeRecoveryNextAttempt = now.addingTimeInterval(delay)
+            return failures
         }
-        running = true
-        let failures = min(max(defaults.integer(forKey: "claudeRecoveryFailures"), 0), 2)
-        let delay: TimeInterval = [300, 900, 3600][failures]
-        defaults.set(now.addingTimeInterval(delay), forKey: "claudeRecoveryNextAttempt")
-        lock.unlock()
+        guard let failures else { return false }
 
         let recovered = run()
-        lock.lock()
-        defaults.set(recovered ? 0 : failures + 1, forKey: "claudeRecoveryFailures")
-        running = false
-        lock.unlock()
+        state.withLock { state in
+            state.preferences.claudeRecoveryFailures = recovered ? 0 : failures + 1
+            state.running = false
+        }
         return recovered
     }
 
@@ -65,23 +66,18 @@ final class ClaudeSessionRecovery: @unchecked Sendable {
     }
 }
 
-final class ClaudeRecoveryAuthorization: @unchecked Sendable {
-    private let lock = NSLock()
-    private var allowed: Bool
+final class ClaudeRecoveryAuthorization: Sendable {
+    private let allowed: OSAllocatedUnfairLock<Bool>
 
     init(allowed: Bool = false) {
-        self.allowed = allowed
+        self.allowed = OSAllocatedUnfairLock(initialState: allowed)
     }
 
     var isAllowed: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return allowed
+        allowed.withLock { $0 }
     }
 
     func setAllowed(_ value: Bool) {
-        lock.lock()
-        allowed = value
-        lock.unlock()
+        allowed.withLock { $0 = value }
     }
 }
