@@ -30,6 +30,13 @@ public struct QuotaWindow: Codable, Equatable, Identifiable, Sendable {
         100 - usedPercentage
     }
 
+    public static func displayOrder(_ left: QuotaWindow, _ right: QuotaWindow) -> Bool {
+        let leftDuration = left.durationMinutes ?? Int.max
+        let rightDuration = right.durationMinutes ?? Int.max
+        if leftDuration != rightDuration { return leftDuration < rightDuration }
+        return left.id < right.id
+    }
+
     public var startsAt: Date? {
         guard let resetsAt, let durationMinutes else { return nil }
         return resetsAt.addingTimeInterval(-Double(durationMinutes) * 60)
@@ -156,12 +163,7 @@ public struct ProviderUsageSnapshot: Codable, Equatable, Sendable {
     }
 
     public var longestWindow: QuotaWindow? {
-        windows.max { left, right in
-            let leftDuration = left.durationMinutes ?? 0
-            let rightDuration = right.durationMinutes ?? 0
-            if leftDuration != rightDuration { return leftDuration < rightDuration }
-            return left.usedPercentage < right.usedPercentage
-        }
+        windows.max(by: QuotaWindow.displayOrder)
     }
 }
 

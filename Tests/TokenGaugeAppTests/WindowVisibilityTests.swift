@@ -7,9 +7,10 @@ import XCTest
 final class WindowVisibilityTests: XCTestCase {
     func testCodexKeepsOnlyTheWeeklyMainlineWindow() {
         let windows = [
-            window(id: "codex_bengalfox.primary", duration: 300, name: "GPT-5.3-Codex-Spark"),
-            window(id: "codex.primary", duration: 10_080, name: nil),
-            window(id: "codex_bengalfox.secondary", duration: 10_080, name: "GPT-5.3-Codex-Spark"),
+            Fixture.window(id: "codex_bengalfox.primary", durationMinutes: 300, displayName: "GPT-5.3-Codex-Spark"),
+            Fixture.window(id: "codex.primary", durationMinutes: 10_080),
+            Fixture.window(
+                id: "codex_bengalfox.secondary", durationMinutes: 10_080, displayName: "GPT-5.3-Codex-Spark"),
         ]
 
         let visible = WindowVisibility.visible(windows, provider: .codex)
@@ -19,8 +20,8 @@ final class WindowVisibilityTests: XCTestCase {
 
     func testCodexFallsBackToMainlineWindowsWhenNoWeeklyExists() {
         let windows = [
-            window(id: "codex.primary", duration: 300, name: nil),
-            window(id: "codex_spark.primary", duration: 300, name: "Spark"),
+            Fixture.window(id: "codex.primary", durationMinutes: 300),
+            Fixture.window(id: "codex_spark.primary", durationMinutes: 300, displayName: "Spark"),
         ]
 
         XCTAssertEqual(WindowVisibility.visible(windows, provider: .codex).map(\.id), ["codex.primary"])
@@ -28,8 +29,8 @@ final class WindowVisibilityTests: XCTestCase {
 
     func testClaudeKeepsEveryOfficialWindow() {
         let windows = [
-            window(id: "five_hour", duration: 300, name: nil),
-            window(id: "seven_day", duration: 10_080, name: nil),
+            Fixture.window(id: "five_hour", durationMinutes: 300),
+            Fixture.window(id: "seven_day", durationMinutes: 10_080),
         ]
 
         XCTAssertEqual(WindowVisibility.visible(windows, provider: .claude).map(\.id), ["five_hour", "seven_day"])
@@ -55,10 +56,6 @@ final class WindowVisibilityTests: XCTestCase {
 
         XCTAssertEqual(chips.map(\.displayName), ["Opus", "Fable"])
         XCTAssertEqual(chips.map(\.tokens), [400, 100])
-    }
-
-    private func window(id: String, duration: Int, name: String?) -> QuotaWindow {
-        QuotaWindow(id: id, usedPercentage: 10, resetsAt: nil, durationMinutes: duration, displayName: name)
     }
 
     private func bucket(hour: Date, model: String, tokens: Int) -> ModelTokenBucket {

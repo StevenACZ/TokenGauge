@@ -8,10 +8,7 @@ import XCTest
 @MainActor
 final class QuotaPanelRenderingTests: XCTestCase {
     func testNewStylesRenderOneTwoAndThreeWindowsAtSupportedWidths() throws {
-        let originalLanguage = LocalizationManager.shared.language
-        defer { LocalizationManager.shared.language = originalLanguage }
-        for language in AppLanguage.allCases {
-            LocalizationManager.shared.language = language
+        try withEachLanguage { _ in
             for style in [QuotaPanelStyle.compact, .rings] {
                 for count in 1...3 {
                     for width: CGFloat in style == .rings ? [240, 334] : [334, 414] {
@@ -27,10 +24,7 @@ final class QuotaPanelRenderingTests: XCTestCase {
     }
 
     func testCompactOneAndTwoWindowCardsStayBelowCombinedHeightBudget() throws {
-        let originalLanguage = LocalizationManager.shared.language
-        defer { LocalizationManager.shared.language = originalLanguage }
-        for language in AppLanguage.allCases {
-            LocalizationManager.shared.language = language
+        try withEachLanguage { _ in
             var combinedHeight: CGFloat = Theme.Layout.sectionSpacing
             for count in 1...2 {
                 let card = ProviderCard(
@@ -54,10 +48,7 @@ final class QuotaPanelRenderingTests: XCTestCase {
     }
 
     func testProportionalRingWidthsKeepTwoAndThreeWindowsOnOneRow() throws {
-        let originalLanguage = LocalizationManager.shared.language
-        defer { LocalizationManager.shared.language = originalLanguage }
-        for language in AppLanguage.allCases {
-            LocalizationManager.shared.language = language
+        try withEachLanguage { _ in
             for count in [2, 3] {
                 let width = CGFloat(count) * Theme.Layout.quotaRingCellWidth + Theme.Layout.cardPadding * 2
                 let card = ProviderCard(
@@ -100,11 +91,8 @@ final class QuotaPanelRenderingTests: XCTestCase {
     }
 
     func testAdaptiveRingCardsRenderEveryWindowCountWithinThePanelHeight() throws {
-        let originalLanguage = LocalizationManager.shared.language
-        defer { LocalizationManager.shared.language = originalLanguage }
         let width = Theme.Layout.ringPanelWidth - Theme.Layout.panelPadding * 2
-        for language in AppLanguage.allCases {
-            LocalizationManager.shared.language = language
+        try withEachLanguage { _ in
             for count in 1...3 {
                 let claude = ProviderCard(
                     provider: .claude, state: state(count: count), panelStyle: .rings, showProviderTitle: true,
@@ -183,48 +171,33 @@ final class QuotaPanelRenderingTests: XCTestCase {
 
     private func state(count: Int, status: ProviderStatus = .ready) -> ProviderViewState {
         let windows = [
-            QuotaWindow(
+            Fixture.window(
                 id: "five_hour", usedPercentage: 2, resetsAt: Date().addingTimeInterval(7200),
-                durationMinutes: 300, displayName: nil),
-            QuotaWindow(
+                durationMinutes: 300),
+            Fixture.window(
                 id: "seven_day", usedPercentage: 25, resetsAt: Date().addingTimeInterval(172800),
-                durationMinutes: 10080, displayName: nil),
-            QuotaWindow(
+                durationMinutes: 10080),
+            Fixture.window(
                 id: "seven_day_fable", usedPercentage: 88, resetsAt: Date().addingTimeInterval(172800),
                 durationMinutes: 10080, displayName: "Fable"),
         ]
-        let snapshot = ProviderUsageSnapshot(
-            provider: .claude, windows: Array(windows.prefix(count)), dailyUsage: [], summary: nil,
-            availableResetCredits: 2, creditBalance: nil, capturedAt: Date().addingTimeInterval(-600))
+        let snapshot = Fixture.snapshot(
+            .claude, windows: Array(windows.prefix(count)), availableResetCredits: 2,
+            capturedAt: Date().addingTimeInterval(-600))
         return ProviderViewState(snapshot: snapshot, status: status, isRefreshing: false)
     }
 
     private func codexState(count: Int, status: ProviderStatus = .ready) -> ProviderViewState {
         let windows = [
-            QuotaWindow(
+            Fixture.window(
                 id: "codex.weekly", usedPercentage: 41, resetsAt: Date().addingTimeInterval(172800),
-                durationMinutes: 10080, displayName: nil),
-            QuotaWindow(
+                durationMinutes: 10080),
+            Fixture.window(
                 id: "base_model_inference.weekly", usedPercentage: 12,
                 resetsAt: Date().addingTimeInterval(172800), durationMinutes: 10080, displayName: "gpt-reserve"),
         ]
-        let snapshot = ProviderUsageSnapshot(
-            provider: .codex, windows: Array(windows.prefix(count)), dailyUsage: [], summary: nil,
-            availableResetCredits: nil, creditBalance: nil, capturedAt: Date().addingTimeInterval(-600))
+        let snapshot = Fixture.snapshot(
+            .codex, windows: Array(windows.prefix(count)), capturedAt: Date().addingTimeInterval(-600))
         return ProviderViewState(snapshot: snapshot, status: status, isRefreshing: false)
-    }
-
-    private func render(_ content: some View, maximumHeight: CGFloat) throws -> NSBitmapImageRep {
-        let view = NSHostingView(rootView: content.environment(\.quotaAnimationsEnabled, false))
-        let size = view.fittingSize
-        XCTAssertLessThanOrEqual(size.height, maximumHeight)
-        view.frame = NSRect(origin: .zero, size: size)
-        let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
-        window.contentView = view
-        defer { window.contentView = nil }
-        view.layoutSubtreeIfNeeded()
-        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-        view.cacheDisplay(in: view.bounds, to: bitmap)
-        return bitmap
     }
 }

@@ -61,12 +61,7 @@ public enum CodexUsageParser {
                 unique[window.id] = window
             }
         }
-        return unique.values.sorted { left, right in
-            let leftDuration = left.durationMinutes ?? Int.max
-            let rightDuration = right.durationMinutes ?? Int.max
-            if leftDuration != rightDuration { return leftDuration < rightDuration }
-            return left.id < right.id
-        }
+        return unique.values.sorted(by: QuotaWindow.displayOrder)
     }
 
     private static func windows(from bucket: [String: Any], bucketID: String) -> [QuotaWindow] {
