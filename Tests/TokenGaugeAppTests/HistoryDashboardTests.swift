@@ -172,16 +172,77 @@ final class HistoryDashboardTests: XCTestCase {
 
     func testPinnedDayCardSurvivesHoverAndUnpinsOnTheSameCell() {
         let model = HistoryDashboardModel()
-        model.showDayCard("2026-09-16", anchor: CGRect(x: 10, y: 10, width: 9, height: 9))
+        let bounds = CGRect(x: -20, y: -300, width: 560, height: 700)
+        model.showDayCard("2026-09-16", anchor: anchor(x: 10, bounds: bounds))
         XCTAssertEqual(model.daySelection?.dayKey, "2026-09-16")
         XCTAssertEqual(model.daySelection?.isPinned, false)
-        model.pinDayCard("2026-09-17", anchor: CGRect(x: 20, y: 10, width: 9, height: 9))
+        model.pinDayCard("2026-09-17", anchor: anchor(x: 20, bounds: bounds))
         XCTAssertEqual(model.daySelection?.isPinned, true)
+        XCTAssertEqual(model.daySelection?.anchor?.bounds, bounds)
         model.showDayCard("2026-09-15", anchor: nil)
         model.hideDayCard()
         XCTAssertEqual(model.daySelection?.dayKey, "2026-09-17")
-        model.pinDayCard("2026-09-17", anchor: CGRect(x: 20, y: 10, width: 9, height: 9))
+        model.pinDayCard("2026-09-17", anchor: anchor(x: 20, bounds: bounds))
         XCTAssertNil(model.daySelection)
+        model.dismissDayCard()
+        XCTAssertNil(model.daySelection)
+    }
+
+    func testStreakCacheMatchesDirectComputationForEveryScope() async {
+        let model = HistoryDashboardModel()
+        let keys = (0..<5).map { HistoryDashboardModel.dayKey(Date().addingTimeInterval(-86_400 * Double($0))) }
+        await model.load(
+            mode: .recent, revision: 1,
+            previewSnapshots: [
+                ProviderUsageSnapshot(
+                    provider: .codex, windows: [],
+                    dailyUsage: [DailyTokenUsage(day: keys[1], tokens: 10), DailyTokenUsage(day: keys[2], tokens: 10)],
+                    summary: nil, availableResetCredits: nil, creditBalance: nil, capturedAt: Date()),
+                ProviderUsageSnapshot(
+                    provider: .claude, windows: [],
+                    dailyUsage: [DailyTokenUsage(day: keys[0], tokens: 5), DailyTokenUsage(day: keys[4], tokens: 5)],
+                    summary: nil, availableResetCredits: nil, creditBalance: nil, capturedAt: Date()),
+            ])
+        XCTAssertEqual(model.usageDays.any, model.usageDays.claude.union(model.usageDays.codex))
+        for providers in [[UsageProvider.codex], [.claude], [.codex, .claude]] {
+            let direct = HistoryAnalytics.streaks(usageDays: model.usageDays.days(for: providers), today: keys[0])
+            XCTAssertEqual(model.streak(for: providers).current, direct.current, "\(providers)")
+            XCTAssertEqual(model.streak(for: providers).longest, direct.longest, "\(providers)")
+        }
+        XCTAssertEqual(model.streak(for: [.codex]).current, 2)
+        XCTAssertEqual(model.streak(for: [.claude]).current, 1)
+        XCTAssertEqual(model.streak(for: [.codex, .claude]).current, 3)
+    }
+
+    func testFailedLoadClearsDaysUsageDaysAndStreaks() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let blocker = directory.appendingPathComponent("blocker")
+        try Data().write(to: blocker)
+        let model = HistoryDashboardModel(historyURL: blocker.appendingPathComponent("history.sqlite"))
+        let today = HistoryDashboardModel.dayKey(Date())
+        await model.load(
+            mode: .recent, revision: 1,
+            previewSnapshots: [
+                ProviderUsageSnapshot(
+                    provider: .codex, windows: [], dailyUsage: [DailyTokenUsage(day: today, tokens: 10)],
+                    summary: nil, availableResetCredits: nil, creditBalance: nil, capturedAt: Date())
+            ])
+        XCTAssertEqual(model.streak(for: [.codex]).current, 1)
+        XCTAssertFalse(model.usageDays.codex.isEmpty)
+        await model.load(mode: .recent, revision: 2)
+        XCTAssertTrue(model.loadFailed)
+        XCTAssertFalse(model.isLoading)
+        XCTAssertTrue(model.days.isEmpty)
+        XCTAssertTrue(model.paces.isEmpty)
+        XCTAssertEqual(model.usageDays, HistoryUsageDays())
+        XCTAssertEqual(model.streaks, HistoryStreaks())
+        XCTAssertEqual(model.streak(for: [.codex]), HistoryStreak())
+    }
+
+    private func anchor(x: CGFloat, bounds: CGRect) -> HistoryDayCardAnchor {
+        HistoryDayCardAnchor(cell: CGRect(x: x, y: 10, width: 9, height: 9), bounds: bounds)
     }
 
     func testStreakFollowsTheDisplayedProviders() async {

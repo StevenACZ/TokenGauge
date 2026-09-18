@@ -8,9 +8,30 @@ enum HistoryDayCardPlacement {
     static func origin(anchor: CGRect, cardSize: CGSize, bounds: CGRect) -> CGPoint {
         let below = anchor.maxY + spacing
         let above = anchor.minY - spacing - cardSize.height
-        let y = below + cardSize.height <= bounds.maxY ? below : max(bounds.minY, above)
+        let y: CGFloat
+        if below + cardSize.height <= bounds.maxY {
+            y = below
+        } else if above >= bounds.minY {
+            y = above
+        } else {
+            y = max(bounds.minY, min(below, bounds.maxY - cardSize.height))
+        }
         let trailing = max(bounds.minX, bounds.maxX - cardSize.width)
         return CGPoint(x: min(max(bounds.minX, anchor.midX - cardSize.width / 2), trailing), y: y)
+    }
+
+    static func percentages(_ values: [Int]) -> [Int] {
+        let total = values.reduce(0) { $0 &+ $1 }
+        guard total > 0 else { return values.map { _ in 0 } }
+        let exact = values.map { Double($0) * 100 / Double(total) }
+        var result = exact.map { Int($0.rounded(.down)) }
+        let order = exact.indices.sorted { left, right in
+            let leftRemainder = exact[left] - Double(result[left])
+            let rightRemainder = exact[right] - Double(result[right])
+            return leftRemainder == rightRemainder ? left < right : leftRemainder > rightRemainder
+        }
+        for index in order.prefix(max(0, 100 - result.reduce(0, +))) { result[index] += 1 }
+        return result
     }
 }
 
@@ -33,9 +54,10 @@ struct HistoryDayCardView: View {
             if rows.isEmpty {
                 Text("history.no_activity".localized).font(.system(size: 10)).foregroundStyle(.secondary)
             } else {
+                let percentages = HistoryDayCardPlacement.percentages(rows.map { day.tokens(for: $0) ?? 0 })
                 VStack(alignment: .leading, spacing: 8) {
-                    ForEach(rows, id: \.self) { provider in
-                        providerRow(provider)
+                    ForEach(Array(rows.enumerated()), id: \.element) { index, provider in
+                        providerRow(provider, percentage: percentages[index])
                     }
                 }
             }
@@ -76,10 +98,10 @@ struct HistoryDayCardView: View {
         }
     }
 
-    private func providerRow(_ provider: UsageProvider) -> some View {
+    private func providerRow(_ provider: UsageProvider, percentage: Int) -> some View {
         let tokens = day.tokens(for: provider) ?? 0
         let share = total > 0 ? Double(tokens) / Double(total) : 0
-        let percentage = (share * 100).rounded().formatted(.number.locale(locale)) + " %"
+        let percentage = percentage.formatted(.number.locale(locale)) + " %"
         return VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
                 ProviderLogo(provider: provider, size: 16)

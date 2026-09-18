@@ -10,9 +10,11 @@ struct HistoryCalendarView: NSViewRepresentable {
     var hoverEnabled = true
     var accent: Color = Color(nsColor: .labelColor)
     var pinnedDayKey: String?
-    var onHoverCard: @MainActor (String?, CGRect?) -> Void = { _, _ in }
-    var onPinCard: @MainActor (String, CGRect?) -> Void = { _, _ in }
+    var pinSafeFrames: [CGRect] = []
+    var onHoverCard: @MainActor (String?, HistoryDayCardAnchor?) -> Void = { _, _ in }
+    var onPinCard: @MainActor (String, HistoryDayCardAnchor?) -> Void = { _, _ in }
     var onExitCalendar: @MainActor () -> Void = {}
+    var onDismissCard: @MainActor () -> Void = {}
     let onSelect: @MainActor (String) -> Void
 
     func makeNSView(context: Context) -> HistoryCalendarScrollView {
@@ -66,6 +68,7 @@ final class HistoryCalendarScrollView: NSScrollView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        calendar.scrollDidMove()
         let delta =
             abs(event.scrollingDeltaX) >= abs(event.scrollingDeltaY)
             ? event.scrollingDeltaX : event.scrollingDeltaY
@@ -84,11 +87,14 @@ final class HistoryCalendarCanvas: NSView {
     private var pinned: String?
     private var hoverEnabled = true
     private var onSelect: (@MainActor (String) -> Void)?
-    private var onHoverCard: (@MainActor (String?, CGRect?) -> Void)?
-    private var onPinCard: (@MainActor (String, CGRect?) -> Void)?
+    private var onHoverCard: (@MainActor (String?, HistoryDayCardAnchor?) -> Void)?
+    private var onPinCard: (@MainActor (String, HistoryDayCardAnchor?) -> Void)?
     private var onExitCalendar: (@MainActor () -> Void)?
+    private var onDismissCard: (@MainActor () -> Void)?
     private var hoverIndex: Int?
     private var hoverWork: DispatchWorkItem?
+    private var pinSafeFrames: [CGRect] = []
+    private var pinMonitor: Any?
     private var locale = Locale.current
     private var today = Calendar.current.startOfDay(for: Date())
     private var tracking: NSTrackingArea?
@@ -110,13 +116,23 @@ final class HistoryCalendarCanvas: NSView {
             ?? days.lastIndex { $0.date <= today }
     }
 
+    deinit {
+        MainActor.assumeIsolated {
+            hoverWork?.cancel()
+            if let pinMonitor { NSEvent.removeMonitor(pinMonitor) }
+        }
+    }
+
     func update(_ value: HistoryCalendarView) {
         onSelect = value.onSelect
         onHoverCard = value.onHoverCard
         onPinCard = value.onPinCard
         onExitCalendar = value.onExitCalendar
+        onDismissCard = value.onDismissCard
         hoverEnabled = value.hoverEnabled
         pinned = value.pinnedDayKey
+        pinSafeFrames = value.pinSafeFrames
+        updatePinMonitor()
         let language = Locale(identifier: LocalizationManager.shared.language.rawValue)
         let newToday = Calendar.current.startOfDay(for: Date())
         let changed =
@@ -165,12 +181,22 @@ final class HistoryCalendarCanvas: NSView {
         monthLayout.cellRect(index).offsetBy(dx: sidePadding, dy: 0)
     }
 
-    func panelRect(_ index: Int) -> CGRect? {
-        guard let root = window?.contentView else { return nil }
-        let rect = convert(cellRect(index), to: root)
-        return root.isFlipped
+    func cardAnchor(_ index: Int) -> HistoryDayCardAnchor? {
+        guard let scroll = enclosingScrollView, let root = window?.contentView else { return nil }
+        return HistoryDayCardAnchor(
+            cell: localRect(convert(cellRect(index), to: scroll), in: scroll),
+            bounds: localRect(scroll.convert(root.bounds, from: root), in: scroll))
+    }
+
+    private func localRect(_ rect: NSRect, in view: NSView) -> CGRect {
+        view.isFlipped
             ? rect
-            : CGRect(x: rect.minX, y: root.bounds.height - rect.maxY, width: rect.width, height: rect.height)
+            : CGRect(x: rect.minX, y: view.bounds.height - rect.maxY, width: rect.width, height: rect.height)
+    }
+
+    private func localPoint(_ locationInWindow: NSPoint, in view: NSView) -> CGPoint {
+        let point = view.convert(locationInWindow, from: nil)
+        return view.isFlipped ? point : CGPoint(x: point.x, y: view.bounds.height - point.y)
     }
 
     private func color(_ provider: UsageProvider) -> NSColor {
@@ -271,6 +297,8 @@ final class HistoryCalendarCanvas: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         lastMousePosition = NSEvent.mouseLocation
+        if window == nil { cancelHoverTimer() }
+        updatePinMonitor()
     }
 
     override func updateTrackingAreas() {
@@ -287,9 +315,11 @@ final class HistoryCalendarCanvas: NSView {
     override func mouseMoved(with event: NSEvent) {
         let position = window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
         defer { lastMousePosition = position }
-        guard hoverEnabled, position != lastMousePosition, pinned == nil,
-            let index = index(at: convert(event.locationInWindow, from: nil))
-        else { return }
+        guard hoverEnabled, position != lastMousePosition, pinned == nil else { return }
+        guard let index = index(at: convert(event.locationInWindow, from: nil)) else {
+            if hoverIndex != nil { cancelHoverCard() }
+            return
+        }
         scheduleHoverCard(index)
         select(index)
     }
@@ -303,11 +333,48 @@ final class HistoryCalendarCanvas: NSView {
     override func mouseDown(with event: NSEvent) {
         guard let index = index(at: convert(event.locationInWindow, from: nil)), days.indices.contains(index),
             days[index].date <= today
-        else { return }
+        else {
+            onDismissCard?()
+            cancelHoverCard()
+            return
+        }
         cancelHoverCard()
         hoverIndex = index
         select(index)
-        onPinCard?(days[index].id, panelRect(index))
+        onPinCard?(days[index].id, cardAnchor(index))
+    }
+
+    func scrollDidMove() {
+        onDismissCard?()
+        cancelHoverCard()
+    }
+
+    private func updatePinMonitor() {
+        guard pinned != nil, window != nil else {
+            if let pinMonitor { NSEvent.removeMonitor(pinMonitor) }
+            pinMonitor = nil
+            return
+        }
+        guard pinMonitor == nil else { return }
+        pinMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .keyDown]) { [weak self] event in
+            MainActor.assumeIsolated { self?.passesPinnedEvent(event) ?? true } ? event : nil
+        }
+    }
+
+    func passesPinnedEvent(_ event: NSEvent) -> Bool {
+        if event.type == .keyDown {
+            guard event.keyCode == 53 else { return true }
+            onDismissCard?()
+            return false
+        }
+        if event.window === window, let scroll = enclosingScrollView {
+            let point = localPoint(event.locationInWindow, in: scroll)
+            if scroll.bounds.contains(point) || pinSafeFrames.contains(where: { $0.contains(point) }) {
+                return true
+            }
+        }
+        onDismissCard?()
+        return true
     }
 
     private func scheduleHoverCard(_ index: Int) {
@@ -319,17 +386,21 @@ final class HistoryCalendarCanvas: NSView {
         let work = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
                 guard let self, self.hoverIndex == index else { return }
-                self.onHoverCard?(key, self.panelRect(index))
+                self.onHoverCard?(key, self.cardAnchor(index))
             }
         }
         hoverWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: work)
     }
 
-    private func cancelHoverCard() {
+    private func cancelHoverTimer() {
         hoverWork?.cancel()
         hoverWork = nil
         hoverIndex = nil
+    }
+
+    private func cancelHoverCard() {
+        cancelHoverTimer()
         onHoverCard?(nil, nil)
     }
 
