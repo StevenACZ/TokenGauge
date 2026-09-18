@@ -63,6 +63,42 @@ final class UpdateBannerRenderingTests: XCTestCase {
             try actionHeight(phase: .installing(version: "1.4.0")), UpdateBannerView.compactHeight, accuracy: 1)
     }
 
+    func testDeferredBannerKeepsTheReadyTitle() throws {
+        let ready = try bannerBitmap(phase: .readyToInstall(version: "1.4.0", deferred: false))
+        let deferred = try bannerBitmap(phase: .readyToInstall(version: "1.4.0", deferred: true))
+        let checking = try bannerBitmap(phase: .checking)
+
+        XCTAssertTrue(leadingHalfMatches(ready, deferred))
+        XCTAssertFalse(leadingHalfMatches(checking, deferred))
+    }
+
+    private func bannerBitmap(phase: UpdateManager.Phase) throws -> NSBitmapImageRep {
+        let manager = try makeManager(phase: phase)
+        return try render(
+            UpdateBannerView(updates: manager).frame(width: Theme.Layout.panelWidth)
+                .environment(\.colorScheme, .light).background(Color.white))
+    }
+
+    private func leadingHalfMatches(_ lhs: NSBitmapImageRep, _ rhs: NSBitmapImageRep) -> Bool {
+        guard lhs.pixelsWide == rhs.pixelsWide, lhs.pixelsHigh == rhs.pixelsHigh else { return false }
+        let width = lhs.pixelsWide / 2
+        var different = 0
+        for row in 0..<lhs.pixelsHigh {
+            for column in 0..<width {
+                let left = lhs.colorAt(x: column, y: row)?.usingColorSpace(.deviceRGB)
+                let right = rhs.colorAt(x: column, y: row)?.usingColorSpace(.deviceRGB)
+                guard let left, let right else { return false }
+                if abs(left.redComponent - right.redComponent) > 0.1
+                    || abs(left.greenComponent - right.greenComponent) > 0.1
+                    || abs(left.blueComponent - right.blueComponent) > 0.1
+                {
+                    different += 1
+                }
+            }
+        }
+        return different * 100 < width * lhs.pixelsHigh
+    }
+
     private func actionHeight(phase: UpdateManager.Phase) throws -> CGFloat {
         let manager = try makeManager(phase: phase)
         let view = NSHostingView(

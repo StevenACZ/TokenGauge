@@ -46,8 +46,8 @@ struct UpdateBannerView: View {
                     fraction: fraction)
             case .readyToInstall(let version, let deferred):
                 if deferred {
-                    row(title: nil, icon: "arrow.down.circle.fill") {
-                        action("updates.install_version".localized(version)) { updates.resumeDeferredInstall() }
+                    row(title: "updates.banner_ready".localized(version), icon: "arrow.down.circle.fill") {
+                        action("updates.install_now".localized) { updates.resumeDeferredInstall() }
                     }
                 } else {
                     row(title: "updates.banner_ready".localized(version), icon: "arrow.down.circle.fill") {
@@ -69,12 +69,12 @@ struct UpdateBannerView: View {
         .id(localization.language)
     }
 
-    private func row(title: String?, icon: String) -> some View {
+    private func row(title: String, icon: String) -> some View {
         row(title: title, icon: icon) { EmptyView() }
     }
 
     private func row(
-        title: String?,
+        title: String,
         icon: String,
         @ViewBuilder trailing: () -> some View
     ) -> some View {
@@ -83,9 +83,7 @@ struct UpdateBannerView: View {
                 .font(.system(size: 13))
                 .foregroundStyle(Color.accentColor)
                 .accessibilityHidden(true)
-            if let title {
-                Text(title).font(.system(size: 11, weight: .medium)).lineLimit(1)
-            }
+            Text(title).font(.system(size: 11, weight: .medium)).lineLimit(1)
             Spacer(minLength: 4)
             trailing()
         }
