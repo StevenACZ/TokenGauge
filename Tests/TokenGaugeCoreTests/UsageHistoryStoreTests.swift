@@ -210,6 +210,37 @@ final class UsageHistoryStoreTests: XCTestCase {
         XCTAssertEqual(try UsageHistoryStore.usageDays(at: database), ["2026-09-15", "2026-09-17"])
     }
 
+    func testSchemaIsPreparedOncePerProcessAndPath() throws {
+        try UsageHistoryStore.record(claudeSnapshot(), at: database)
+        try UsageHistoryStore.record(claudeSnapshot(used: 60), at: database)
+        _ = try UsageHistoryStore.tokenRows(at: database)
+        _ = try UsageHistoryStore.quotaRows(at: database)
+
+        XCTAssertTrue(UsageHistoryStore.preparedPaths.contains(database.path))
+        XCTAssertEqual(UsageHistoryStore.schemaPreparations(for: database.path), 1)
+
+        let other = root.appending(path: "other-history.sqlite")
+        _ = try UsageHistoryStore.bounds(at: other)
+        _ = try UsageHistoryStore.bounds(at: other)
+        XCTAssertEqual(UsageHistoryStore.schemaPreparations(for: other.path), 1)
+        XCTAssertEqual(UsageHistoryStore.schemaPreparations(for: database.path), 1)
+    }
+
+    func testReadEntriesOpenReadOnly() throws {
+        try UsageHistoryStore.record(claudeSnapshot(), at: database)
+        XCTAssertEqual(UsageHistoryStore.lastEntryWasReadOnly, false)
+
+        _ = try UsageHistoryStore.quotaRows(at: database)
+        XCTAssertEqual(UsageHistoryStore.lastEntryWasReadOnly, true)
+        _ = try UsageHistoryStore.tokenRows(at: database)
+        XCTAssertEqual(UsageHistoryStore.lastEntryWasReadOnly, true)
+        _ = try UsageHistoryStore.bounds(at: database)
+        XCTAssertEqual(UsageHistoryStore.lastEntryWasReadOnly, true)
+
+        try UsageHistoryStore.record(claudeSnapshot(used: 70), at: database)
+        XCTAssertEqual(UsageHistoryStore.lastEntryWasReadOnly, false)
+    }
+
     private func claudeSnapshot(
         used: Double = 44,
         capturedAt: Date = Date(timeIntervalSince1970: 1_787_000_400),
