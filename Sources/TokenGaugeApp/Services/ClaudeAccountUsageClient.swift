@@ -1,5 +1,6 @@
 import Foundation
 import TokenGaugeCore
+import os
 
 enum ClaudeAccountUsageError: Error, Equatable {
     case authenticationRequired
@@ -29,11 +30,24 @@ struct ClaudeAccountUsageClient: Sendable {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        configuration.timeoutIntervalForResource = 12
         return URLSession(configuration: configuration)
     }()
+    private static let log = Logger(subsystem: "com.stevenacz.TokenGauge", category: "claude-account")
 
     func fetch(now: Date = Date(), identity: ClaudeAccountIdentity?) throws -> ClaudeAccountSnapshot {
-        guard let token = ClaudeOAuthTokenReader.read(accountUuid: identity?.accountUuid) else {
+        do {
+            return try BlockingWork.waitForResult(timeout: 25) { try await fetch(now: now, identity: identity) }
+        } catch is BlockingWork.TimedOut {
+            Self.log.error("Claude usage request did not complete within its bound")
+            throw ClaudeAccountUsageError.unavailable
+        }
+    }
+
+    func fetch(now: Date = Date(), identity: ClaudeAccountIdentity?) async throws -> ClaudeAccountSnapshot {
+        let accountUuid = identity?.accountUuid
+        guard let token = try await BlockingWork.run({ ClaudeOAuthTokenReader.read(accountUuid: accountUuid) })
+        else {
             throw ClaudeAccountUsageError.authenticationRequired
         }
         guard !token.isExpired else { throw ClaudeAccountUsageError.credentialExpired }
@@ -46,34 +60,36 @@ struct ClaudeAccountUsageClient: Sendable {
 
         let outcome: Data
         do {
-            outcome = try send(request)
+            outcome = try await Self.send(request)
         } catch ClaudeAccountUsageError.authenticationRequired {
             ClaudeOAuthTokenReader.invalidate()
-            guard let fresh = ClaudeOAuthTokenReader.read(accountUuid: identity?.accountUuid), !fresh.isExpired,
-                fresh.value != token.value
-            else {
+            let refreshed = try await BlockingWork.run({ ClaudeOAuthTokenReader.read(accountUuid: accountUuid) })
+            guard let fresh = refreshed, !fresh.isExpired, fresh.value != token.value else {
                 throw ClaudeAccountUsageError.authenticationRequired
             }
             request.setValue("Bearer \(fresh.value)", forHTTPHeaderField: "Authorization")
-            outcome = try send(request)
+            outcome = try await Self.send(request)
         }
         let windows = try Self.parseWindows(outcome)
         let snapshot = ClaudeAccountSnapshot(
             capturedAt: now, windows: windows, accountFingerprint: identity?.fingerprint)
         if !windows.isEmpty {
-            try? SecureMetricStore.write(snapshot, to: UsagePaths.claudeAccountCache(homeDirectory: homeDirectory))
+            let url = UsagePaths.claudeAccountCache(homeDirectory: homeDirectory)
+            do {
+                try SecureMetricStore.write(snapshot, to: url)
+            } catch {
+                Self.log.error("Could not write the Claude account cache at \(url.path, privacy: .public)")
+            }
         }
         return snapshot
     }
 
     static func parseWindows(_ data: Data) throws -> [QuotaWindow] {
         do {
-            if let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                let limits = root["limits"] as? [Any], limits.isEmpty
-            {
-                return []
+            switch try ClaudeAccountUsageParser.parseLimits(data) {
+            case .empty: return []
+            case .windows(let windows): return windows
             }
-            return try ClaudeAccountUsageParser.parse(data)
         } catch {
             throw ClaudeAccountUsageError.unavailable
         }
@@ -88,25 +104,19 @@ struct ClaudeAccountUsageClient: Sendable {
         return snapshot
     }
 
-    private func send(_ request: URLRequest) throws -> Data {
-        let semaphore = DispatchSemaphore(value: 0)
-        nonisolated(unsafe) var payload: Data?
-        nonisolated(unsafe) var status = 0
-        let task = Self.session.dataTask(with: request) { data, response, _ in
-            payload = data
-            status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            semaphore.signal()
-        }
-        task.resume()
-        guard semaphore.wait(timeout: .now() + 12) == .success else {
-            task.cancel()
+    private static func send(_ request: URLRequest) async throws -> Data {
+        let payload: Data
+        let response: URLResponse
+        do {
+            (payload, response) = try await session.data(for: request)
+        } catch {
+            log.error("Claude usage request failed before a response arrived")
             throw ClaudeAccountUsageError.unavailable
         }
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 200 else {
+            log.error("Claude usage endpoint returned status \(status, privacy: .public)")
             throw ClaudeAccountUsageError.httpStatus(status)
-        }
-        guard let payload else {
-            throw ClaudeAccountUsageError.unavailable
         }
         return payload
     }

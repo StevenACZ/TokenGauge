@@ -1,9 +1,12 @@
 import Darwin
 import Foundation
 import TokenGaugeCore
+import os
 
 struct CodexAppServerClient: Sendable {
     let homeDirectory: URL
+
+    private static let log = Logger(subsystem: "com.stevenacz.TokenGauge", category: "codex")
 
     init(homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) {
         self.homeDirectory = homeDirectory
@@ -32,7 +35,12 @@ struct CodexAppServerClient: Sendable {
             throw UsageDataError.processFailed("Codex app-server exited with status \(result.exitCode)")
         }
         let snapshot = try CodexUsageParser.parse(result.standardOutput, capturedAt: capturedAt)
-        try? SecureMetricStore.write(snapshot, to: UsagePaths.codexCache(homeDirectory: homeDirectory))
+        let cache = UsagePaths.codexCache(homeDirectory: homeDirectory)
+        do {
+            try SecureMetricStore.write(snapshot, to: cache)
+        } catch {
+            Self.log.error("Could not write the Codex cache at \(cache.path, privacy: .public)")
+        }
         return snapshot
     }
 
@@ -110,8 +118,10 @@ enum ProcessRunner {
         let deadline = ProcessInfo.processInfo.systemUptime + timeout
         var output = Data()
         var responseIDs: Set<Int> = []
+        var scanned = 0
         var inputClosed = false
         var outputClosed = false
+        var buffer = [UInt8](repeating: 0, count: 65_536)
         let outputHandle = outputPipe.fileHandleForReading
 
         while ProcessInfo.processInfo.systemUptime < deadline {
@@ -131,15 +141,16 @@ enum ProcessRunner {
                 throw UsageDataError.processFailed("Could not read Codex app-server output")
             }
             guard ready > 0 else { continue }
-            if let chunk = readAvailableData(from: outputHandle.fileDescriptor) {
+            if let chunk = readAvailableData(from: outputHandle.fileDescriptor, into: &buffer) {
                 if chunk.isEmpty {
                     outputClosed = true
+                    responseIDs.formUnion(responseIdentifiers(in: output, from: &scanned, includingTail: true))
                 } else {
                     guard output.count + chunk.count <= 4 * 1024 * 1024 else {
                         throw UsageDataError.processFailed("Codex app-server response exceeded the size limit")
                     }
                     output.append(chunk)
-                    responseIDs.formUnion(responseIdentifiers(in: output))
+                    responseIDs.formUnion(responseIdentifiers(in: output, from: &scanned))
                 }
             }
         }
@@ -157,9 +168,14 @@ enum ProcessRunner {
         )
     }
 
-    private static func responseIdentifiers(in data: Data) -> Set<Int> {
-        Set(
-            data.split(separator: 0x0A).compactMap { line in
+    static func responseIdentifiers(in data: Data, from offset: inout Int, includingTail: Bool = false) -> Set<Int> {
+        let start = data.startIndex + offset
+        let end = includingTail ? data.endIndex : data[start...].lastIndex(of: 0x0A).map { $0 + 1 } ?? start
+        guard end > start else { return [] }
+        let lines = data[start..<end]
+        offset = end - data.startIndex
+        return Set(
+            lines.split(separator: 0x0A).compactMap { line in
                 guard
                     let object = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
                     let id = object["id"] as? NSNumber
@@ -168,11 +184,10 @@ enum ProcessRunner {
             })
     }
 
-    private static func readAvailableData(from descriptor: Int32) -> Data? {
-        var bytes = [UInt8](repeating: 0, count: 65_536)
-        let count = Darwin.read(descriptor, &bytes, bytes.count)
+    private static func readAvailableData(from descriptor: Int32, into buffer: inout [UInt8]) -> Data? {
+        let count = Darwin.read(descriptor, &buffer, buffer.count)
         guard count >= 0 else { return nil }
-        return Data(bytes.prefix(count))
+        return Data(buffer.prefix(count))
     }
 
     private static func stop(_ process: Process) {
