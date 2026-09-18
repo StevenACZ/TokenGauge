@@ -34,6 +34,29 @@ final class ClaudeAccountUsageParserTests: XCTestCase {
         )
     }
 
+    func testWindowsComeOutInDisplayOrderIncludingNilDurations() throws {
+        let input = Data(
+            """
+            {"limits": [
+              {"kind": "weekly_scoped", "percent": 56, "resets_at": null,
+               "scope": {"model": {"id": null, "display_name": "Fable"}}},
+              {"kind": "weekly_all", "percent": 38, "resets_at": null, "scope": null},
+              {"kind": "session", "percent": 13, "resets_at": null, "scope": null}
+            ]}
+            """.utf8
+        )
+
+        XCTAssertEqual(
+            try ClaudeAccountUsageParser.parse(input).map(\.id), ["five_hour", "seven_day", "seven_day_fable"])
+
+        let unbounded = QuotaWindow(
+            id: "unbounded", usedPercentage: 1, resetsAt: nil, durationMinutes: nil, displayName: nil)
+        let windows = try ClaudeAccountUsageParser.parse(input) + [unbounded]
+        XCTAssertEqual(
+            windows.sorted(by: QuotaWindow.displayOrder).map(\.id),
+            ["five_hour", "seven_day", "seven_day_fable", "unbounded"])
+    }
+
     func testSkipsScopedLimitsWithoutAModelName() throws {
         let input = Data(
             """

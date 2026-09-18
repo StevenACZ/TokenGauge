@@ -175,12 +175,13 @@ final class UsageStore: ObservableObject {
             scheduleResetRefresh()
             guard historyReadsEnabled else { return }
             let archived = (claude: claudeResult, codex: codexState)
-            await Task.detached(priority: .background) {
+            let homeDirectory = refresher.homeDirectory
+            try? await BlockingWork.run(qos: .background) {
                 Self.archive(
                     claudeResult: archived.claude, codexState: archived.codex,
                     accountFingerprint: archived.claude?.accountFingerprint)
-                try? EffortHistoryClient.collect(homeDirectory: refresher.homeDirectory)
-            }.value
+                try? EffortHistoryClient.collect(homeDirectory: homeDirectory)
+            }
             historyRevision &+= 1
         }
     }

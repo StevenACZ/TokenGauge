@@ -377,7 +377,7 @@ final class UpdateManager: ObservableObject {
         manualCheckStatus = status
         guard status != .idle else { return }
         manualCheckResetTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            try? await Task.sleep(for: .seconds(3))
             guard !Task.isCancelled else { return }
             self?.manualCheckStatus = .idle
         }

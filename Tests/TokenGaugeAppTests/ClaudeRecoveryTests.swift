@@ -5,7 +5,7 @@ import XCTest
 @testable import TokenGaugeApp
 
 final class ClaudeRecoveryTests: XCTestCase {
-    func testExpiredCredentialRecoversThenReadsEveryRealWindowAgain() throws {
+    func testExpiredCredentialRecoversThenReadsEveryRealWindowAgain() async throws {
         var reads = 0
         var recoveries = 0
         let expected = ClaudeAccountSnapshot(
@@ -13,7 +13,7 @@ final class ClaudeRecoveryTests: XCTestCase {
             windows: ["five_hour", "seven_day", "seven_day_fable"].map {
                 QuotaWindow(id: $0, usedPercentage: 88, resetsAt: nil, durationMinutes: nil, displayName: nil)
             })
-        let result = ClaudeUsageClient.readAccount(
+        let result = await ClaudeUsageClient.readAccount(
             fetch: {
                 reads += 1
                 if reads == 1 { throw ClaudeAccountUsageError.credentialExpired }
@@ -27,12 +27,12 @@ final class ClaudeRecoveryTests: XCTestCase {
         XCTAssertEqual(recoveries, 1)
     }
 
-    func testMissingRevokedDeniedAndNetworkFailuresDoNotStartClaude() {
+    func testMissingRevokedDeniedAndNetworkFailuresDoNotStartClaude() async {
         for error in [
             ClaudeAccountUsageError.authenticationRequired, .accessDenied, .unavailable,
         ] {
             var recoveries = 0
-            let result = ClaudeUsageClient.readAccount(
+            let result = await ClaudeUsageClient.readAccount(
                 fetch: { throw error },
                 recover: {
                     recoveries += 1; return true
@@ -42,9 +42,9 @@ final class ClaudeRecoveryTests: XCTestCase {
         }
     }
 
-    func testDeclinedOrFailedRecoveryDoesNotRetryAndRetainsExpiryState() {
+    func testDeclinedOrFailedRecoveryDoesNotRetryAndRetainsExpiryState() async {
         var reads = 0
-        let result = ClaudeUsageClient.readAccount(
+        let result = await ClaudeUsageClient.readAccount(
             fetch: {
                 reads += 1; throw ClaudeAccountUsageError.credentialExpired
             }, recover: { false })
@@ -54,10 +54,10 @@ final class ClaudeRecoveryTests: XCTestCase {
         XCTAssertEqual(reads, 1)
     }
 
-    func testStartupSuccessCannotMaskARejectedUsageRequestOrLoop() {
+    func testStartupSuccessCannotMaskARejectedUsageRequestOrLoop() async {
         var reads = 0
         var recoveries = 0
-        let result = ClaudeUsageClient.readAccount(
+        let result = await ClaudeUsageClient.readAccount(
             fetch: {
                 reads += 1
                 throw reads == 1 ? ClaudeAccountUsageError.credentialExpired : .authenticationRequired
