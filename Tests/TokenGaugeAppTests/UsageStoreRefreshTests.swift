@@ -116,6 +116,41 @@ final class UsageStoreRefreshTests: XCTestCase {
         }
     }
 
+    func testRefreshStaysBusyUntilTheArchiveBlockFinishes() async throws {
+        try await withDefaults { defaults in
+            let now = Date()
+            let claudeSnapshot = snapshot(.claude, now: now)
+            let fetches = OSAllocatedUnfairLock(initialState: 0)
+            let releaseArchive = DispatchSemaphore(value: 0)
+            let archiveStarted = expectation(description: "archive started")
+            let refresher = UsageRefresher(
+                homeDirectory: FileManager.default.temporaryDirectory,
+                fetchClaude: { _ in
+                    fetches.withLock { $0 += 1 }
+                    return ClaudeUsageResult(snapshot: claudeSnapshot, access: .live, lastActivityAt: now)
+                },
+                fetchCodex: { ProviderViewState(snapshot: nil, status: .unavailable, isRefreshing: false) })
+            let store = UsageStore(
+                refresher: refresher, defaults: defaults, historyReadsEnabled: true,
+                archiveWork: { _, _, _ in
+                    archiveStarted.fulfill()
+                    try? await BlockingWork.run { releaseArchive.wait() }
+                })
+
+            store.refresh(force: true)
+            await fulfillment(of: [archiveStarted], timeout: 2)
+
+            XCTAssertTrue(store.isRefreshing)
+            store.refresh(force: true)
+            XCTAssertEqual(fetches.withLock { $0 }, 1)
+
+            releaseArchive.signal()
+            try await waitUntilIdle(store)
+            XCTAssertEqual(fetches.withLock { $0 }, 1)
+            XCTAssertEqual(store.historyRevision, 1)
+        }
+    }
+
     func testDayKeyMatchesTheLegacyFormatterAndFollowsTheCalendarTimeZone() {
         let utc = calendar("UTC")
         let tokyo = calendar("Asia/Tokyo")
