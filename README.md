@@ -34,11 +34,11 @@ TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Code
 - **A readable menu bar:** independently choose percentages, mini bars, or mini rings, with Large, Medium, or Small sizing. Exact percentages remain available on hover and in the panel.
 - **Quiet by design:** optional brief transitions respect Reduce Motion; menu indicators redraw only when their data or appearance changes.
 - **Separate limits:** general weekly quota and additional provider windows stay separate. Hide Luna weekly reserve in Settings if you do not use it.
-- **Browsable activity:** rolling seven days, Monday-based weeks with previous/next navigation, or a yearly contribution calendar. Hover or select a day to inspect totals and available model/effort detail. In Unified, calendar colors show the provider with more recorded tokens, and intensity shows combined daily usage; ties use both colors. Separate month blocks and highlighted weekend rows make the year easier to scan.
+- **Browsable activity:** rolling seven days, Monday-based weeks with previous/next navigation, or a yearly calendar that always shows Codex and Claude together, whichever view you are in. Five intensity levels show how much you used that day, colored by the provider with more recorded tokens. Hold the pointer over a day or click it to pin a card with per-provider tokens, percentages, model detail, and your current and best streaks; Esc, a click outside, scrolling, or changing view closes it. Separate month blocks and highlighted weekend rows make the year easier to scan.
 - **Local history:** SQLite preserves daily totals and observed model/reasoning effort metadata after provider logs are trimmed. Missing days remain distinct from recorded zero usage.
 - **Hourly quota pace:** an optional estimate in percentage points per hour for each weekly limit, based on verified recent readings, with a short explanation and dated last-active measurement.
 - **English and Spanish:** follows your system language initially, with an explicit language choice in Settings.
-- **Native updates:** daily checks, an inline install action, and manual checks in About.
+- **Native updates:** daily checks, an in-panel banner with download progress, and manual checks in About.
 - **No telemetry, ads, or model requests.**
 
 ## Install and connect
@@ -58,7 +58,7 @@ TokenGauge is a usage viewer, not a replacement for either provider. On a Mac wi
 
 ### Updates
 
-Release builds check for updates daily. When one is available, choose **Install update** in the panel or **About TokenGauge**. Download progress appears inline, then the app relaunches. Automatic checking can be disabled in Settings; manual checks live in About. There are no separate Sparkle update windows.
+Release builds check for updates daily. When one is available, a banner appears in the panel with download and extraction progress, then offers **Install now** or **Later**. Installing relaunches the app. If you choose Later, an Install button stays in the panel and in **About TokenGauge** until you use it, including after restarting the app. Automatic checking can be disabled in Settings; a manual check is available in About whenever no update is in progress. There are no separate Sparkle update windows.
 
 Updates use [Sparkle](https://sparkle-project.org), a signed ZIP, and an EdDSA-signed appcast on GitHub Releases. Development builds stay off the public update channel.
 

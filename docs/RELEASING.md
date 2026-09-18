@@ -14,6 +14,8 @@ The release version is `CFBundleShortVersionString` in `Resources/Info.plist`. I
 4. Verify a real Sparkle update with two development builds, including a tampered ZIP rejection, retry, installation/relaunch, and preserved preferences.
 5. Update CHANGELOG.md, screenshots, and release notes. Use synthetic data for public screenshots.
 
+The incremental transcript scan keeps its resume state in `scan-state.json`, next to the history database under `~/Library/Application Support/TokenGauge`. Deleting it is safe and forces a full rescan.
+
 ## Build artifacts
 
 Prerequisites: an Apple Developer membership, an installed Developer ID Application certificate, `create-dmg`, and an existing `notarytool` Keychain profile. Signing/private-key access and public publication follow the owner’s authorization; never export credentials into the repository or logs.
