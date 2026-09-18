@@ -124,6 +124,14 @@ public enum UsageHistoryStore {
         }
     }
 
+    public static func usageDaysByProvider(
+        at url: URL = UsagePaths.history()
+    ) throws -> [UsageProvider: Set<String>] {
+        try read(url) { connection in
+            try readUsageDaysByProvider(connection)
+        }
+    }
+
     public static func quotaRows(
         provider: UsageProvider? = nil,
         since: Date? = nil,
@@ -185,6 +193,7 @@ extension UsageHistoryStore {
     struct Registry {
         var preparations: [String: Int] = [:]
         var lastEntryWasReadOnly: Bool?
+        var entries = 0
     }
 
     private static let registry = OSAllocatedUnfairLock(initialState: Registry())
@@ -199,6 +208,10 @@ extension UsageHistoryStore {
 
     static var lastEntryWasReadOnly: Bool? {
         registry.withLock { $0.lastEntryWasReadOnly }
+    }
+
+    public static var entryCount: Int {
+        registry.withLock { $0.entries }
     }
 
     static func write<T>(_ url: URL, _ body: (SQLiteConnection) throws -> T) throws -> T {
@@ -224,7 +237,10 @@ extension UsageHistoryStore {
     }
 
     private static func recordEntry(readOnly: Bool) {
-        registry.withLock { $0.lastEntryWasReadOnly = readOnly }
+        registry.withLock {
+            $0.lastEntryWasReadOnly = readOnly
+            $0.entries += 1
+        }
     }
 
     private static func isPrepared(_ path: String) -> Bool {

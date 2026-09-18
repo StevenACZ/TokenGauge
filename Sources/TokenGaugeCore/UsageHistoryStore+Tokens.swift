@@ -41,6 +41,19 @@ extension UsageHistoryStore {
         return days
     }
 
+    static func readUsageDaysByProvider(_ connection: SQLiteConnection) throws -> [UsageProvider: Set<String>] {
+        let sql = """
+            SELECT provider, day FROM daily_totals
+            WHERE tokens > 0;
+            """
+        var days: [UsageProvider: Set<String>] = [:]
+        try connection.query(sql, bindings: { _ in }) { statement in
+            guard let provider = UsageProvider(rawValue: statement.text(0)) else { return }
+            days[provider, default: []].insert(statement.text(1))
+        }
+        return days
+    }
+
     static func readBounds(_ connection: SQLiteConnection) throws -> HistoryBounds {
         var result = HistoryBounds(firstDay: nil, lastDay: nil)
         let sql = """

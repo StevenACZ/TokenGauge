@@ -16,6 +16,7 @@ final class StatusItemController: NSObject {
     private var popoverSizeObservation: NSKeyValueObservation?
     private var positioningUpdatePending = false
     private var positionedGeometry: PopoverGeometry?
+    private var history: HistoryDashboardModel?
 
     private struct PopoverGeometry: Equatable {
         let sourceWindow: NSRect
@@ -97,13 +98,21 @@ final class StatusItemController: NSObject {
             },
             showAbout: { [weak self] in
                 self?.showAbout()
-            })
+            }, history: historyModel())
         let controller = NSHostingController(rootView: view)
         controller.sizingOptions = [.preferredContentSize]
         popover.contentViewController = controller
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
         startDismissMonitors()
+    }
+
+    private func historyModel() -> HistoryDashboardModel {
+        if let history { return history }
+        let preview = store.historyReadsEnabled ? nil : [store.claude.snapshot, store.codex.snapshot].compactMap { $0 }
+        let model = HistoryDashboardModel(previewSnapshots: preview, mode: store.historyMode)
+        history = model
+        return model
     }
 
     private func schedulePopoverPositionUpdate() {
@@ -201,5 +210,6 @@ extension StatusItemController: NSPopoverDelegate {
         positionedGeometry = nil
         stopDismissMonitors()
         popover.contentViewController = nil
+        history?.popoverDidClose()
     }
 }
