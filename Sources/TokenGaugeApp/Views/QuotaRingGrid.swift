@@ -22,7 +22,7 @@ struct QuotaRingGrid: Layout {
     private func geometry(width: CGFloat, subviews: Subviews) -> (size: CGSize, frames: [CGRect]) {
         guard !subviews.isEmpty else { return (.zero, []) }
         let spacing = Theme.Layout.quotaRingSpacing
-        let columns = min(subviews.count, max(1, Int((width + spacing) / (Theme.Layout.quotaRingCellWidth + spacing))))
+        let columns = QuotaRingLayout.columns(availableWidth: width, windows: subviews.count)
         var frames: [CGRect] = []
         var y: CGFloat = 0
         for start in stride(from: 0, to: subviews.count, by: columns) {

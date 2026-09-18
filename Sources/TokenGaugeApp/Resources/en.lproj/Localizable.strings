@@ -123,6 +123,7 @@
 "status.credential_expired" = "Connection pending";
 "message.credential_expired" = "The shared session expired. Enable automatic reconnection in Settings or open Claude Code.";
 "quota.last_remaining" = "last remaining";
+"quota.last_remaining_value" = "%@ last remaining";
 "settings.claude_recovery" = "Automatic reconnection";
 "settings.claude_recovery_help" = "Allow Claude Code to start briefly in the background when its session expires. No messages or model tokens. Requires an existing Claude Code login.";
 "setup.claude_recovery_title" = "Allow automatic Claude reconnection?";

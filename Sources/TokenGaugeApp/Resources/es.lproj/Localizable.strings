@@ -123,6 +123,7 @@
 "status.credential_expired" = "Conexión pendiente";
 "message.credential_expired" = "La sesión compartida caducó. Activa la reconexión automática en Configuración o abre Claude Code.";
 "quota.last_remaining" = "último saldo";
+"quota.last_remaining_value" = "%@ último saldo";
 "settings.claude_recovery" = "Reconexión automática";
 "settings.claude_recovery_help" = "Permite iniciar Claude Code brevemente en segundo plano si su sesión caduca. Sin enviar mensajes ni consumir tokens. Requiere haber iniciado sesión en Claude Code.";
 "setup.claude_recovery_title" = "¿Permitir la reconexión automática de Claude?";
