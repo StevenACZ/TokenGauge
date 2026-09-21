@@ -9,6 +9,7 @@ struct HistoryCalendarView: NSViewRepresentable {
     let focusID: String
     var hoverEnabled = true
     var accent: Color = Color(nsColor: .labelColor)
+    var resets: [HistoryReset] = []
     var pinnedDayKey: String?
     var pinSafeFrames: [CGRect] = []
     var onHoverCard: @MainActor (String?, HistoryDayCardAnchor?) -> Void = { _, _ in }
@@ -83,6 +84,8 @@ final class HistoryCalendarScrollView: NSScrollView {
 final class HistoryCalendarCanvas: NSView {
     private var days: [HistoryCalendarDay] = []
     private var providers: [UsageProvider] = []
+    private var resets: [HistoryReset] = []
+    private var resetsByDay: [String: [HistoryReset]] = [:]
     private var selected: String?
     private var pinned: String?
     private var hoverEnabled = true
@@ -137,6 +140,7 @@ final class HistoryCalendarCanvas: NSView {
         let newToday = Calendar.current.startOfDay(for: Date())
         let changed =
             providers != value.providers || locale != language || today != newToday
+            || resets != value.resets
             || accentColor != value.accent
             || days.count != value.days.count
             || !zip(days, value.days).allSatisfy { $0.id == $1.id && $0.date == $1.date && $0.totals == $1.totals }
@@ -144,6 +148,8 @@ final class HistoryCalendarCanvas: NSView {
         selected = value.selectedDayKey
         guard changed || selectionChanged else { return }
         if changed {
+            resets = value.resets
+            resetsByDay = Dictionary(grouping: resets) { HistoryDashboardModel.dayKey($0.date) }
             days = value.days
             providers = value.providers
             accentColor = value.accent
@@ -286,6 +292,26 @@ final class HistoryCalendarCanvas: NSView {
                 NSColor.labelColor.setFill()
                 NSBezierPath(ovalIn: rect.insetBy(dx: 3, dy: 3)).fill()
             }
+            let resetProviders = providers.filter { provider in
+                (resetsByDay[day.id] ?? []).contains { $0.provider == provider }
+            }
+            if !resetProviders.isEmpty {
+                for (part, provider) in resetProviders.enumerated() {
+                    NSGraphicsContext.saveGraphicsState()
+                    NSBezierPath(
+                        rect: NSRect(
+                            x: rect.minX - 1 + CGFloat(part) * (rect.width + 2) / CGFloat(resetProviders.count),
+                            y: rect.minY - 1, width: (rect.width + 2) / CGFloat(resetProviders.count),
+                            height: rect.height + 2)
+                    ).addClip()
+                    let projected = (resetsByDay[day.id] ?? []).filter { $0.provider == provider }.allSatisfy(
+                        \.isProjected)
+                    color(provider).withAlphaComponent(projected ? 0.55 : 1).setStroke()
+                    path.lineWidth = projected ? 1.5 : 2
+                    path.stroke()
+                    NSGraphicsContext.restoreGraphicsState()
+                }
+            }
         }
     }
 
@@ -334,7 +360,7 @@ final class HistoryCalendarCanvas: NSView {
 
     override func mouseDown(with event: NSEvent) {
         guard let index = index(at: convert(event.locationInWindow, from: nil)), days.indices.contains(index),
-            days[index].date <= today
+            isEnabled(at: index)
         else {
             onDismissCard?()
             cancelHoverCard()
@@ -402,7 +428,7 @@ final class HistoryCalendarCanvas: NSView {
         guard hoverIndex != index else { return }
         cancelHoverCard()
         hoverIndex = index
-        guard days.indices.contains(index), days[index].date <= today else { return }
+        guard days.indices.contains(index), isEnabled(at: index) else { return }
         let key = days[index].id
         let work = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
@@ -430,7 +456,7 @@ final class HistoryCalendarCanvas: NSView {
     }
 
     func select(_ index: Int) {
-        guard days.indices.contains(index), days[index].date <= today, days[index].id != selected else { return }
+        guard days.indices.contains(index), isEnabled(at: index), days[index].id != selected else { return }
         onSelect?(days[index].id)
     }
 
@@ -453,11 +479,18 @@ final class HistoryCalendarCanvas: NSView {
         } else {
             usage = ""
         }
-        return prefix + date + ": " + totals + usage
+        let resetText = (resetsByDay[day.id] ?? [])
+            .map {
+                "history.weekly_reset".localized + " · " + $0.label
+                    + ($0.isProjected ? " · " + "history.projected".localized : "")
+            }.joined(separator: "\n")
+        return prefix + date + ": " + totals + usage + (resetText.isEmpty ? "" : "\n" + resetText)
     }
 
     func accessibilityLabel(at index: Int) -> String { descriptions.indices.contains(index) ? descriptions[index] : "" }
-    func isEnabled(at index: Int) -> Bool { days.indices.contains(index) && days[index].date <= today }
+    func isEnabled(at index: Int) -> Bool {
+        days.indices.contains(index) && (days[index].date <= today || resetsByDay[days[index].id] != nil)
+    }
     func isSelected(at index: Int) -> Bool { days.indices.contains(index) && days[index].id == selected }
 }
 

@@ -6,6 +6,7 @@ struct HistoryPanelView: View {
     @ObservedObject var model: HistoryDashboardModel
     @Binding var mode: HistoryMode
     let providers: [UsageProvider]
+    var resets: [HistoryReset] = []
     var compact = false
     @State private var calendarFocusRequest = 0
     @State private var showingDetails = false
@@ -26,7 +27,7 @@ struct HistoryPanelView: View {
 
     private var calendarProviders: [UsageProvider] {
         let recorded = [UsageProvider.codex, .claude].filter { provider in
-            model.days.contains { $0.tokens(for: provider) != nil }
+            model.days.contains { $0.tokens(for: provider) != nil } || resets.contains { $0.provider == provider }
         }
         return recorded.isEmpty ? [.codex, .claude] : recorded
     }
@@ -67,14 +68,12 @@ struct HistoryPanelView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                if mode == .recent {
-                    Text("history.heading".localized).font(.system(size: 11, weight: .semibold))
-                } else {
-                    navigation
+            ViewThatFits(in: .horizontal) {
+                historyToolbar(showsStreak: true)
+                VStack(alignment: .leading, spacing: 3) {
+                    historyToolbar(showsStreak: false)
+                    streakBadge
                 }
-                Spacer(minLength: 0)
-                modePicker
             }
             if model.loadFailed {
                 Text("history.load_failed".localized).font(.caption).foregroundStyle(.secondary)
@@ -91,6 +90,7 @@ struct HistoryPanelView: View {
                 }
                 .animation(motion, value: model.loadedMode)
                 .animation(motion, value: model.periodStart)
+                resetLegend
                 selectionSummary
             }
         }
@@ -100,6 +100,7 @@ struct HistoryPanelView: View {
         .onPreferenceChange(HistoryFrameKey.self) { frames = $0 }
         .onPreferenceChange(HistoryDayCardHeightKey.self) { if $0 > 0 { cardHeight = $0 } }
         .onChange(of: providers) { _, _ in dismissDayCard() }
+        .onChange(of: resets) { _, _ in dismissDayCard() }
         .onChange(of: mode) { _, newValue in
             model.offset = 0
             model.selectedDayKey = nil
@@ -118,13 +119,42 @@ struct HistoryPanelView: View {
         }
     }
 
+    private func historyToolbar(showsStreak: Bool) -> some View {
+        HStack(spacing: 8) {
+            if mode == .recent {
+                Text("history.heading".localized).font(.system(size: 11, weight: .semibold))
+                    .fixedSize()
+            } else {
+                navigation
+            }
+            Spacer(minLength: 0)
+            if showsStreak {
+                streakBadge
+                Spacer(minLength: 0)
+            }
+            modePicker
+        }
+    }
+
+    private var streakBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "flame.fill").foregroundStyle(accent)
+            Text(streakLine).foregroundStyle(.secondary)
+        }
+        .font(.system(size: 9, weight: .medium))
+        .padding(.horizontal, 7).padding(.vertical, 3)
+        .background(Capsule().fill(Color.primary.opacity(0.045)))
+        .fixedSize()
+        .accessibilityElement(children: .ignore).accessibilityLabel(streakLine)
+    }
+
     @ViewBuilder private var dayCard: some View {
         if let selection = model.daySelection, let frame = cardFrame, let panel = frames[.panel],
             let day = model.days.first(where: { $0.id == selection.dayKey })
         {
             let streak = model.streak(for: providers)
             HistoryDayCardView(
-                day: day, providers: calendarProviders,
+                day: day, providers: calendarProviders, resets: resetsOn(day),
                 isToday: Calendar.current.isDate(day.date, inSameDayAs: today),
                 isPinned: selection.isPinned, currentStreak: streak.current, longestStreak: streak.longest,
                 onClose: dismissDayCard
@@ -232,6 +262,17 @@ struct HistoryPanelView: View {
                         .font(.system(size: 9, weight: selectedID == day.id ? .semibold : .regular))
                         .foregroundStyle(selectedID == day.id ? .primary : .secondary)
                         .frame(height: 18).frame(maxWidth: .infinity)
+                        .overlay(alignment: .top) {
+                            HStack(spacing: 2) {
+                                ForEach(
+                                    providers.filter { provider in resetsOn(day).contains { $0.provider == provider } },
+                                    id: \.self
+                                ) { provider in
+                                    RoundedRectangle(cornerRadius: 1).stroke(color(provider), lineWidth: 1)
+                                        .frame(width: 4, height: 4)
+                                }
+                            }.offset(y: -3)
+                        }
                         .background {
                             if selectedID == day.id {
                                 RoundedRectangle(cornerRadius: 5).fill(accent.opacity(0.14))
@@ -245,7 +286,7 @@ struct HistoryPanelView: View {
                     .frame(maxWidth: .infinity).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(day.date > today)
+                .disabled(day.date > today && resetsOn(day).isEmpty)
                 .onContinuousHover { phase in
                     guard case .active = phase else { return }
                     let pointer = NSEvent.mouseLocation
@@ -280,7 +321,7 @@ struct HistoryPanelView: View {
                 days: model.days, providers: calendarProviders, selectedDayKey: model.selectedDay?.id,
                 focusID: "\(model.periodStart.timeIntervalSince1970):\(calendarFocusRequest)",
                 hoverEnabled: !showingDetails && !model.isLoading,
-                accent: accent, pinnedDayKey: pinnedDayKey, pinSafeFrames: pinSafeFrames,
+                accent: accent, resets: resets, pinnedDayKey: pinnedDayKey, pinSafeFrames: pinSafeFrames,
                 onHoverCard: { key, anchor in
                     guard let key else {
                         model.hideDayCard()
@@ -306,6 +347,38 @@ struct HistoryPanelView: View {
         .frame(height: Theme.Layout.historyCalendarHeight)
     }
 
+    private func resetsOn(_ day: HistoryCalendarDay) -> [HistoryReset] {
+        resets.filter { Calendar.current.isDate($0.date, inSameDayAs: day.date) }
+    }
+
+    @ViewBuilder private var resetLegend: some View {
+        if !resets.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("history.weekly_reset".localized)
+                    .font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                HStack(alignment: .top, spacing: 8) {
+                    ForEach(providers, id: \.self) { provider in
+                        if let reset = resets.first(where: { $0.provider == provider }) {
+                            HStack(spacing: 4) {
+                                RoundedRectangle(cornerRadius: 1).stroke(color(provider), lineWidth: 1.5)
+                                    .frame(width: 6, height: 6)
+                                Text(
+                                    name(provider) + " · "
+                                        + reset.date.formatted(
+                                            .dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute()
+                                                .locale(locale))
+                                )
+                                .font(.system(size: 9)).lineLimit(2)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .help("history.projection_help".localized)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private func weekdayLabel(_ weekday: Int) -> String {
         var calendar = Calendar.current
         calendar.locale = locale
@@ -313,15 +386,15 @@ struct HistoryPanelView: View {
     }
 
     @ViewBuilder private var selectionSummary: some View {
-        if let day = model.selectedDay {
+        if let selected = model.selectedDay,
+            let day = selected.date > today ? model.days.first(where: { $0.date == today }) : selected
+        {
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(day.date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated).locale(locale)))
                             .font(.system(size: 10)).foregroundStyle(.secondary)
                             .contentTransition(.opacity)
-                        Text(streakLine)
-                            .font(.system(size: 10)).foregroundStyle(.secondary)
                     }
                     todayBadge
                         .opacity(Calendar.current.isDate(day.date, inSameDayAs: today) ? 1 : 0)
@@ -420,7 +493,9 @@ struct HistoryPanelView: View {
     }
 
     private func select(_ day: HistoryCalendarDay) {
-        guard !showingDetails, !model.isLoading, day.date <= today, model.selectedDayKey != day.id else { return }
+        guard !showingDetails, !model.isLoading, (day.date <= today || !resetsOn(day).isEmpty),
+            model.selectedDayKey != day.id
+        else { return }
         withAnimation(motion) { model.selectedDayKey = day.id }
     }
 
@@ -429,7 +504,7 @@ struct HistoryPanelView: View {
         let totals = providers.map { provider in
             name(provider) + " " + (day.tokens(for: provider).map(exact) ?? "history.unknown".localized)
         }.joined(separator: " · ")
-        return date + ": " + totals
+        return date + ": " + totals + resetsOn(day).map { " · " + $0.label }.joined()
     }
 
     private var streakLine: String {

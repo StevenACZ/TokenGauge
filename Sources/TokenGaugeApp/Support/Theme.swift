@@ -17,7 +17,7 @@ enum Theme {
         static let compactPanelWidth: CGFloat = 320
         static let compactUnifiedWidth: CGFloat = 360
         static let ringPanelWidth: CGFloat = 360
-        static let ringUnifiedWidth: CGFloat = 560
+        static let ringUnifiedWidth: CGFloat = 604
         static let activityChartHeight: CGFloat = 64
         static let historyCalendarGridTop: CGFloat = 22
         static let historyCalendarHeight: CGFloat = historyCalendarGridTop + 87

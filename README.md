@@ -18,7 +18,7 @@ TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Code
 
 <details>
 <summary>Classic panels, yearly history, and Settings</summary>
-<p align="center"><img src="docs/images/history-calendar-rings.png" width="440" alt="Yearly local activity calendar beneath the ring quota panel"></p>
+<p align="center"><img src="docs/images/weekly-resets.png" width="440" alt="Weekly reset forecasts and streaks above the local activity calendar"></p>
 <p align="center"><img src="docs/images/unified.png" width="560" alt="Classic Unified panel with separate provider quotas"></p>
 <p align="center">
   <img src="docs/images/panel.png" width="340" alt="Codex view showing only Codex quota and token activity">

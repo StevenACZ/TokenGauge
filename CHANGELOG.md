@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-09-20
+
+### Added
+
+- Weekly reset dates in the activity calendar, with provider colors, local times, and expected dates for later weeks. Cancelling tracking removes that provider's forecast.
+
+### Changed
+
+- Coincident weekly quotas share a compact reset card without repeated labels or empty activity details.
+- The unified ring panel fits one Codex ring alongside three Claude quota rings.
+- Current and best streaks appear above the calendar, keeping the daily summary focused on usage.
+
+### Fixed
+
+- Automatic reconnection aligns with the other provider settings switches.
+
 ## [1.4.0] - 2026-09-18
 
 ### Added

@@ -113,6 +113,26 @@ final class ScreenshotTests: XCTestCase {
             }
         }
 
+        LocalizationManager.shared.language = .spanish
+        store.displayMode = .unified
+        store.panelStyle = .rings
+        store.historyMode = .calendar
+        store.showLunaReserve = false
+        let resetHistory = HistoryDashboardModel(previewSnapshots: snapshots, mode: .calendar, now: now)
+        try render(
+            PopoverView(store: store, showSettings: {}, showAbout: {}, history: resetHistory),
+            to: output.appendingPathComponent("weekly-resets-three-claude.png"))
+        let resetDate = now.addingTimeInterval(21 * 86400)
+        try render(
+            HistoryDayCardView(
+                day: HistoryCalendarDay(
+                    id: HistoryDashboardModel.dayKey(resetDate), date: resetDate,
+                    totals: [:], efforts: []), providers: [.codex, .claude],
+                resets: [HistoryReset(provider: .claude, date: resetDate, isProjected: true)],
+                isToday: false, isPinned: true, currentStreak: 37, longestStreak: 51, onClose: {}),
+            to: output.appendingPathComponent("weekly-reset-card.png"))
+        store.showLunaReserve = true
+
         LocalizationManager.shared.language = .english
         for historyMode in [HistoryMode.week, .calendar] {
             store.historyMode = historyMode
