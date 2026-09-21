@@ -68,14 +68,12 @@ struct HistoryPanelView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                if mode == .recent {
-                    Text("history.heading".localized).font(.system(size: 11, weight: .semibold))
-                } else {
-                    navigation
+            ViewThatFits(in: .horizontal) {
+                historyToolbar(showsStreak: true)
+                VStack(alignment: .leading, spacing: 3) {
+                    historyToolbar(showsStreak: false)
+                    streakBadge
                 }
-                Spacer(minLength: 0)
-                modePicker
             }
             if model.loadFailed {
                 Text("history.load_failed".localized).font(.caption).foregroundStyle(.secondary)
@@ -119,6 +117,35 @@ struct HistoryPanelView: View {
                     ?? model.days.last(where: { $0.total(for: calendarProviders) != nil }) ?? model.days.last)?.id
             }
         }
+    }
+
+    private func historyToolbar(showsStreak: Bool) -> some View {
+        HStack(spacing: 8) {
+            if mode == .recent {
+                Text("history.heading".localized).font(.system(size: 11, weight: .semibold))
+                    .fixedSize()
+            } else {
+                navigation
+            }
+            Spacer(minLength: 0)
+            if showsStreak {
+                streakBadge
+                Spacer(minLength: 0)
+            }
+            modePicker
+        }
+    }
+
+    private var streakBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "flame.fill").foregroundStyle(accent)
+            Text(streakLine).foregroundStyle(.secondary)
+        }
+        .font(.system(size: 9, weight: .medium))
+        .padding(.horizontal, 7).padding(.vertical, 3)
+        .background(Capsule().fill(Color.primary.opacity(0.045)))
+        .fixedSize()
+        .accessibilityElement(children: .ignore).accessibilityLabel(streakLine)
     }
 
     @ViewBuilder private var dayCard: some View {
@@ -368,8 +395,6 @@ struct HistoryPanelView: View {
                         Text(day.date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated).locale(locale)))
                             .font(.system(size: 10)).foregroundStyle(.secondary)
                             .contentTransition(.opacity)
-                        Text(streakLine)
-                            .font(.system(size: 10)).foregroundStyle(.secondary)
                     }
                     todayBadge
                         .opacity(Calendar.current.isDate(day.date, inSameDayAs: today) ? 1 : 0)

@@ -228,8 +228,13 @@ struct SettingsView: View {
             } else {
                 Divider()
                 VStack(alignment: .leading, spacing: 8) {
-                    Toggle("settings.claude_recovery".localized, isOn: $store.claudeAutomaticRecovery)
-                        .toggleStyle(.switch).controlSize(.small)
+                    HStack(spacing: 12) {
+                        Text("settings.claude_recovery".localized).font(.callout)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        Toggle("settings.claude_recovery".localized, isOn: $store.claudeAutomaticRecovery)
+                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                    }.frame(minHeight: 24)
                     Text("settings.claude_recovery_help".localized)
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
