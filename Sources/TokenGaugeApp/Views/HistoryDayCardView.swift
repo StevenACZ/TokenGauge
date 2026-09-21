@@ -38,6 +38,7 @@ enum HistoryDayCardPlacement {
 struct HistoryDayCardView: View {
     let day: HistoryCalendarDay
     let providers: [UsageProvider]
+    var resets: [HistoryReset] = []
     let isToday: Bool
     let isPinned: Bool
     let currentStreak: Int
@@ -51,7 +52,14 @@ struct HistoryDayCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
-            if rows.isEmpty {
+            ForEach(resets) { reset in
+                Text("history.reset".localized + " · " + reset.label)
+                    .font(.system(size: 10)).foregroundStyle(color(reset.provider))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if day.date > Date() {
+                EmptyView()
+            } else if rows.isEmpty {
                 Text("history.no_activity".localized).font(.system(size: 10)).foregroundStyle(.secondary)
             } else {
                 let percentages = HistoryDayCardPlacement.percentages(rows.map { day.tokens(for: $0) ?? 0 })

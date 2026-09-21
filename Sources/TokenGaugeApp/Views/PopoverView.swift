@@ -76,7 +76,7 @@ struct PopoverView: View {
             .animation(store.animateChanges && !reduceMotion ? Theme.Motion.content : nil, value: store.panelStyle)
             HistoryPanelView(
                 model: history, mode: $store.historyMode,
-                providers: store.displayMode.providers, compact: store.panelStyle != .standard)
+                providers: store.displayMode.providers, resets: upcomingResets, compact: store.panelStyle != .standard)
         }
         .padding(.horizontal, Theme.Layout.panelPadding)
         .padding(.top, 12)
@@ -85,6 +85,17 @@ struct PopoverView: View {
         .environment(\.quotaAnimationsEnabled, store.animateChanges)
         .fixedSize(horizontal: false, vertical: true)
         .id(localization.language)
+    }
+
+    private var upcomingResets: [HistoryReset] {
+        store.displayMode.providers.flatMap { provider in
+            let state = store.state(for: provider)
+            guard state.status == .ready, let snapshot = state.snapshot else { return [HistoryReset]() }
+            let windows = WindowVisibility.visible(
+                snapshot.windows, provider: provider, showLunaReserve: store.showLunaReserve,
+                hiddenClaudeWindows: store.hiddenClaudeWindows)
+            return HistoryReset.upcoming(provider: provider, windows: windows)
+        }.sorted { $0.date < $1.date }
     }
 
     private var providerPicker: some View {

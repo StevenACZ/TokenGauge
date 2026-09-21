@@ -191,3 +191,6 @@
 "pace.info_retention" = "Si no se registra consumo nuevo, conservamos el último ritmo activo con su fecha. Las mediciones se guardan solo en este Mac.";
 "pace.info_saved" = "Mostramos la última medición con consumo mientras llegan datos nuevos.";
 "account.current" = "Cuenta: %@";
+
+"history.upcoming_resets" = "Próximos reinicios semanales";
+"history.reset" = "Reinicio";
