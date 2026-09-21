@@ -12,7 +12,7 @@
 TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Codex quota you have left. Check reset times, browse weekly and yearly activity, and keep a private local history without opening a terminal.
 
 <p align="center">
-  <img src="docs/images/rings-current.png" width="440" alt="Unified ring view with Codex weekly quota, Claude session and model weekly quota">
+  <img src="docs/images/readme-year.png" width="604" alt="Annual activity calendar with weekly reset forecasts, Codex quota, and all three Claude quota rings">
 </p>
 <p align="center"><sub>App views rendered with synthetic demonstration data.</sub></p>
 
