@@ -138,7 +138,10 @@ final class PopoverLayoutTests: XCTestCase {
         let view = NSHostingView(rootView: PopoverView(store: store, showSettings: {}, showAbout: {}))
         let budget = Theme.Layout.maximumPanelHeight + UpdateBannerView.height(for: UpdateManager.shared.phase)
         XCTAssertGreaterThanOrEqual(view.fittingSize.width, Theme.Layout.compactPanelWidth, file: file, line: line)
-        XCTAssertLessThanOrEqual(view.fittingSize.width, Theme.Layout.unifiedPanelWidth, file: file, line: line)
+        XCTAssertLessThanOrEqual(
+            view.fittingSize.width,
+            store.panelStyle == .rings ? Theme.Layout.ringUnifiedWidth : Theme.Layout.unifiedPanelWidth,
+            file: file, line: line)
         XCTAssertLessThanOrEqual(
             view.fittingSize.height, budget,
             "\(LocalizationManager.shared.language.rawValue) / \(store.displayMode.rawValue) / \(store.panelStyle.rawValue) / \(UpdateManager.shared.phase)",

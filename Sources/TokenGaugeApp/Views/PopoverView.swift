@@ -87,7 +87,7 @@ struct PopoverView: View {
         .id(localization.language)
     }
 
-    private var upcomingResets: [HistoryReset] {
+    var upcomingResets: [HistoryReset] {
         store.displayMode.providers.flatMap { provider in
             let state = store.state(for: provider)
             guard state.status == .ready, let snapshot = state.snapshot else { return [HistoryReset]() }

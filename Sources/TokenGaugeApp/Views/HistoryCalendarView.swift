@@ -85,6 +85,7 @@ final class HistoryCalendarCanvas: NSView {
     private var days: [HistoryCalendarDay] = []
     private var providers: [UsageProvider] = []
     private var resets: [HistoryReset] = []
+    private var resetsByDay: [String: [HistoryReset]] = [:]
     private var selected: String?
     private var pinned: String?
     private var hoverEnabled = true
@@ -148,6 +149,7 @@ final class HistoryCalendarCanvas: NSView {
         guard changed || selectionChanged else { return }
         if changed {
             resets = value.resets
+            resetsByDay = Dictionary(grouping: resets) { HistoryDashboardModel.dayKey($0.date) }
             days = value.days
             providers = value.providers
             accentColor = value.accent
@@ -291,7 +293,7 @@ final class HistoryCalendarCanvas: NSView {
                 NSBezierPath(ovalIn: rect.insetBy(dx: 3, dy: 3)).fill()
             }
             let resetProviders = providers.filter { provider in
-                resets.contains { $0.provider == provider && Calendar.current.isDate($0.date, inSameDayAs: day.date) }
+                (resetsByDay[day.id] ?? []).contains { $0.provider == provider }
             }
             if !resetProviders.isEmpty {
                 for (part, provider) in resetProviders.enumerated() {
@@ -302,8 +304,10 @@ final class HistoryCalendarCanvas: NSView {
                             y: rect.minY - 1, width: (rect.width + 2) / CGFloat(resetProviders.count),
                             height: rect.height + 2)
                     ).addClip()
-                    color(provider).setStroke()
-                    path.lineWidth = 2
+                    let projected = (resetsByDay[day.id] ?? []).filter { $0.provider == provider }.allSatisfy(
+                        \.isProjected)
+                    color(provider).withAlphaComponent(projected ? 0.55 : 1).setStroke()
+                    path.lineWidth = projected ? 1.5 : 2
                     path.stroke()
                     NSGraphicsContext.restoreGraphicsState()
                 }
@@ -475,18 +479,17 @@ final class HistoryCalendarCanvas: NSView {
         } else {
             usage = ""
         }
-        let resetText = resets.filter { Calendar.current.isDate($0.date, inSameDayAs: day.date) }
-            .map { "history.reset".localized + " · " + $0.label }.joined(separator: "\n")
+        let resetText = (resetsByDay[day.id] ?? [])
+            .map {
+                "history.weekly_reset".localized + " · " + $0.label
+                    + ($0.isProjected ? " · " + "history.projected".localized : "")
+            }.joined(separator: "\n")
         return prefix + date + ": " + totals + usage + (resetText.isEmpty ? "" : "\n" + resetText)
     }
 
     func accessibilityLabel(at index: Int) -> String { descriptions.indices.contains(index) ? descriptions[index] : "" }
     func isEnabled(at index: Int) -> Bool {
-        days.indices.contains(index)
-            && (days[index].date <= today
-                || resets.contains {
-                    Calendar.current.isDate($0.date, inSameDayAs: days[index].date)
-                })
+        days.indices.contains(index) && (days[index].date <= today || resetsByDay[days[index].id] != nil)
     }
     func isSelected(at index: Int) -> Bool { days.indices.contains(index) && days[index].id == selected }
 }

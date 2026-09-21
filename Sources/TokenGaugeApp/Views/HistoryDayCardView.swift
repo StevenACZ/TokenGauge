@@ -52,29 +52,37 @@ struct HistoryDayCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
-            ForEach(resets) { reset in
-                Text("history.reset".localized + " · " + reset.label)
-                    .font(.system(size: 10)).foregroundStyle(color(reset.provider))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if day.date > Date() {
-                EmptyView()
-            } else if rows.isEmpty {
-                Text("history.no_activity".localized).font(.system(size: 10)).foregroundStyle(.secondary)
-            } else {
-                let percentages = HistoryDayCardPlacement.percentages(rows.map { day.tokens(for: $0) ?? 0 })
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(rows.enumerated()), id: \.element) { index, provider in
-                        providerRow(provider, percentage: percentages[index])
+            if !resets.isEmpty {
+                Text("history.weekly_reset".localized)
+                    .font(.system(size: 10)).foregroundStyle(.secondary)
+                ForEach(resets) { reset in
+                    HStack(spacing: 6) {
+                        ProviderLogo(provider: reset.provider, size: 13)
+                        Text(reset.label).font(.system(size: 11, weight: .medium))
+                        if reset.isProjected {
+                            Text("history.projected".localized).font(.system(size: 9)).foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
-            Divider()
-            Text(
-                "history.streak_current".localized(String(currentStreak)) + " · "
-                    + "history.streak_longest".localized(String(longestStreak))
-            )
-            .font(.system(size: 10)).foregroundStyle(.secondary)
+            if day.date <= Date() {
+                if rows.isEmpty {
+                    Text("history.no_activity".localized).font(.system(size: 10)).foregroundStyle(.secondary)
+                } else {
+                    let percentages = HistoryDayCardPlacement.percentages(rows.map { day.tokens(for: $0) ?? 0 })
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(Array(rows.enumerated()), id: \.element) { index, provider in
+                            providerRow(provider, percentage: percentages[index])
+                        }
+                    }
+                }
+                Divider()
+                Text(
+                    "history.streak_current".localized(String(currentStreak)) + " · "
+                        + "history.streak_longest".localized(String(longestStreak))
+                )
+                .font(.system(size: 10)).foregroundStyle(.secondary)
+            }
         }
         .padding(11)
         .frame(width: HistoryDayCardPlacement.width, alignment: .leading)
@@ -87,7 +95,7 @@ struct HistoryDayCardView: View {
 
     private var header: some View {
         HStack(spacing: 6) {
-            Text(day.date.formatted(.dateTime.weekday(.wide).day().month(.wide).year().locale(locale)))
+            Text(day.date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated).locale(locale)))
                 .font(.system(size: 11, weight: .semibold)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
             if isToday {
                 Text("history.today".localized)

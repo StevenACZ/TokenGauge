@@ -192,5 +192,6 @@
 "pace.info_saved" = "Mostramos la última medición con consumo mientras llegan datos nuevos.";
 "account.current" = "Cuenta: %@";
 
-"history.upcoming_resets" = "Próximos reinicios semanales";
-"history.reset" = "Reinicio";
+"history.weekly_reset" = "Reinicio semanal";
+"history.projected" = "Previsto";
+"history.projection_help" = "Las semanas siguientes se calculan con el horario actual. Se actualizan con cada lectura y se ocultan al cancelar el seguimiento.";

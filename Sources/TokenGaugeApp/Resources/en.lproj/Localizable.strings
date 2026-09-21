@@ -192,5 +192,6 @@
 "pace.info_saved" = "Showing the last measurement with usage while waiting for new data.";
 "account.current" = "Account: %@";
 
-"history.upcoming_resets" = "Upcoming weekly resets";
-"history.reset" = "Reset";
+"history.weekly_reset" = "Weekly reset";
+"history.projected" = "Expected";
+"history.projection_help" = "Later weeks follow the current schedule. Dates update with each reading and disappear when tracking is cancelled.";

@@ -102,6 +102,7 @@ struct HistoryPanelView: View {
         .onPreferenceChange(HistoryFrameKey.self) { frames = $0 }
         .onPreferenceChange(HistoryDayCardHeightKey.self) { if $0 > 0 { cardHeight = $0 } }
         .onChange(of: providers) { _, _ in dismissDayCard() }
+        .onChange(of: resets) { _, _ in dismissDayCard() }
         .onChange(of: mode) { _, newValue in
             model.offset = 0
             model.selectedDayKey = nil
@@ -326,7 +327,7 @@ struct HistoryPanelView: View {
     @ViewBuilder private var resetLegend: some View {
         if !resets.isEmpty {
             VStack(alignment: .leading, spacing: 3) {
-                Text("history.upcoming_resets".localized)
+                Text("history.weekly_reset".localized)
                     .font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
                 HStack(alignment: .top, spacing: 8) {
                     ForEach(providers, id: \.self) { provider in
@@ -343,7 +344,7 @@ struct HistoryPanelView: View {
                                 .font(.system(size: 9)).lineLimit(2)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .help(resets.filter { $0.provider == provider }.map(\.label).joined(separator: "\n"))
+                            .help("history.projection_help".localized)
                         }
                     }
                 }
@@ -358,7 +359,9 @@ struct HistoryPanelView: View {
     }
 
     @ViewBuilder private var selectionSummary: some View {
-        if let day = model.selectedDay {
+        if let selected = model.selectedDay,
+            let day = selected.date > today ? model.days.first(where: { $0.date == today }) : selected
+        {
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {

@@ -42,8 +42,8 @@ final class QuotaRingLayoutTests: XCTestCase {
             (individual, 3, .rows),
             (narrowCard, 1, .single),
             (narrowCard, 2, .rows),
-            (halfCard, 2, .rows),
-            (wideCard, 3, .rows),
+            (halfCard, 2, .grid(columns: 2)),
+            (wideCard, 3, .grid(columns: 3)),
             (wideCard, 2, .grid(columns: 2)),
         ]
         for (width, windows, mode) in matrix {
@@ -73,6 +73,14 @@ final class QuotaRingLayoutTests: XCTestCase {
             XCTAssertEqual(
                 QuotaRingLayout.choose(availableWidth: minimum - 1, windows: windows), .rows, "windows \(windows)")
         }
+    }
+
+    func testSingleCodexAndThreeClaudeWindowsFitACompleteGrid() {
+        let width = QuotaRingLayout.unifiedPanelWidth(codexCells: 1, claudeCells: 3)
+        let claude =
+            width - Theme.Layout.panelPadding * 2 - spacing
+            - Theme.Layout.minimumRingCardWidth - Theme.Layout.cardPadding * 2
+        XCTAssertEqual(QuotaRingLayout.choose(availableWidth: claude, windows: 3), .grid(columns: 3))
     }
 
     func testUnifiedPanelWidthStaysWithinItsBounds() {
