@@ -26,6 +26,8 @@
 "reset.tomorrow_at" = "Reinicia mañana · %@";
 "reset_credits.one" = "1 reinicio";
 "reset_credits.many" = "%d reinicios";
+"reset_credits.available_one" = "1 reinicio de límite disponible";
+"reset_credits.available_many" = "%d reinicios de límite disponibles";
 "updated.now" = "ahora";
 "updated.never" = "sin lectura";
 "model.unknown" = "Otros";

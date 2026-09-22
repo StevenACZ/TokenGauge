@@ -67,6 +67,10 @@ enum UsageFormatters {
         count == 1 ? "reset_credits.one".localized : "reset_credits.many".localized(count)
     }
 
+    @MainActor static func resetCreditsAvailable(_ count: Int) -> String {
+        count == 1 ? "reset_credits.available_one".localized : "reset_credits.available_many".localized(count)
+    }
+
     @MainActor static func lastUpdated(_ date: Date?) -> String {
         guard let date else { return "updated.never".localized }
         let age = Date().timeIntervalSince(date)

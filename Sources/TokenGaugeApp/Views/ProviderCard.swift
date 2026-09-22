@@ -152,20 +152,40 @@ struct ProviderCard: View {
         return "quota.remaining_value".localized(UsageFormatters.percentage(window.remainingPercentage))
     }
 
+    @ViewBuilder
     private var header: some View {
+        if state.status == .ready, let credits = state.snapshot?.availableResetCredits, credits > 0 {
+            ViewThatFits(in: .horizontal) {
+                headerRow(credits: credits, reservingStatus: widestFreshness)
+                VStack(alignment: .trailing, spacing: 6) {
+                    headerRow(credits: nil, reservingStatus: nil)
+                    ResetCreditsBadge(count: credits)
+                }
+            }
+        } else {
+            headerRow(credits: nil, reservingStatus: nil)
+        }
+    }
+
+    private var widestFreshness: String {
+        UsageFormatters.lastUpdated(Date().addingTimeInterval(-59 * 60))
+    }
+
+    private func headerRow(credits: Int?, reservingStatus reserved: String?) -> some View {
         let showsTitle = showProviderTitle || panelStyle == .rings
         return HStack(spacing: 5) {
             if showsTitle {
                 ProviderLogo(provider: provider, size: 13)
-                Text("provider.\(provider.rawValue)".localized).font(.system(size: 11, weight: .semibold))
+                Text("provider.\(provider.rawValue)".localized)
+                    .font(.system(size: 11, weight: .semibold))
+                    .lineLimit(1)
                 Spacer(minLength: 4)
             }
-            Circle().fill(statusColor).frame(width: 5, height: 5)
-            Text(statusSubtitle)
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .layoutPriority(2)
+            ZStack(alignment: showsTitle ? .trailing : .leading) {
+                if let reserved { freshness(reserved).hidden() }
+                freshness(statusSubtitle)
+            }
+            .layoutPriority(2)
             if provider == .claude, let account = accountLabel, !account.isEmpty {
                 Text(account)
                     .font(.system(size: 10))
@@ -176,14 +196,17 @@ struct ProviderCard: View {
                     .accessibilityLabel("account.current".localized(account))
             }
             if !showsTitle { Spacer(minLength: 4) }
-            if state.status == .ready, let credits = state.snapshot?.availableResetCredits, credits > 0 {
-                Text(UsageFormatters.resetCredits(credits))
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.primary.opacity(0.05)))
-            }
+            if let credits { ResetCreditsBadge(count: credits) }
+        }
+    }
+
+    private func freshness(_ text: String) -> some View {
+        HStack(spacing: 5) {
+            Circle().fill(statusColor).frame(width: 5, height: 5)
+            Text(text)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
     }
 

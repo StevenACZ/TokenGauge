@@ -26,6 +26,8 @@
 "reset.tomorrow_at" = "Resets tomorrow · %@";
 "reset_credits.one" = "1 reset";
 "reset_credits.many" = "%d resets";
+"reset_credits.available_one" = "1 limit reset available";
+"reset_credits.available_many" = "%d limit resets available";
 "updated.now" = "now";
 "updated.never" = "no reading";
 "model.unknown" = "Other";
