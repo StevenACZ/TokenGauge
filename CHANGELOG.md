@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-09-22
+
+### Fixed
+
+- Available Codex limit resets no longer break into a letter-by-letter column. Narrow cards show the full label on its own line below the update time, and wider cards keep it beside the time, with a tooltip explaining the count.
+
 ## [1.5.0] - 2026-09-20
 
 ### Added
