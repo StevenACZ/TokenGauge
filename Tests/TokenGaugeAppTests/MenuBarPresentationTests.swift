@@ -171,10 +171,10 @@ final class MenuBarPresentationTests: XCTestCase {
         for style in QuotaMenuBarStyle.allCases {
             let weekly = MenuBarPresentation(
                 providers: [.claude], state: state, appearance: NSAppearance(named: .aqua)!,
-                style: style, claudeSource: .weekly)
+                style: style, claudeWindows: [.weekly])
             let missingModel = MenuBarPresentation(
                 providers: [.claude], state: state, appearance: NSAppearance(named: .aqua)!,
-                style: style, claudeSource: .modelWeekly)
+                style: style, claudeWindows: [.modelWeekly])
             XCTAssertEqual(weekly.segments[0].remainingPercentage, 60)
             XCTAssertNil(missingModel.segments[0].remainingPercentage)
             XCTAssertTrue(missingModel.attributedTitle().string.hasSuffix(" --"))

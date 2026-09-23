@@ -44,6 +44,14 @@ struct SettingsView: View {
                         }.labelsHidden().frame(width: 160, alignment: .trailing)
                     }
                     Divider()
+                    preferenceRow("settings.hide_account".localized) {
+                        Toggle("settings.hide_account".localized, isOn: $store.hideAccountLabel)
+                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                    }
+                    Text("settings.hide_account_help".localized)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Divider()
                     preferenceRow("settings.launch_at_login".localized) {
                         Toggle(
                             "settings.launch_at_login".localized,
@@ -268,12 +276,25 @@ struct SettingsView: View {
             HStack(spacing: 12) {
                 Text("settings.claude_menu_bar".localized).font(.callout)
                 Spacer(minLength: 0)
-                Picker("settings.claude_menu_bar".localized, selection: $store.claudeMenuBarSource) {
-                    ForEach(ClaudeMenuBarSource.allCases) { source in
-                        Text(source.kind.map(claudeWindowName) ?? "settings.claude_menu_bar.automatic".localized)
-                            .tag(source)
+                Menu {
+                    Toggle(
+                        "settings.claude_menu_bar.automatic".localized,
+                        isOn: Binding(
+                            get: { store.claudeMenuBarWindows.isEmpty },
+                            set: { if $0 { store.claudeMenuBarWindows = [] } }))
+                    Divider()
+                    ForEach(ClaudeWindowKind.allCases) { kind in
+                        Toggle(
+                            claudeWindowName(kind),
+                            isOn: Binding(
+                                get: { store.claudeMenuBarWindows.contains(kind) },
+                                set: { _ in store.toggleClaudeMenuBarWindow(kind) }))
                     }
-                }.labelsHidden().frame(width: 150, alignment: .trailing)
+                } label: {
+                    Text(menuBarSelectionTitle).lineLimit(1)
+                }
+                .menuStyle(.button).fixedSize()
+                .accessibilityLabel("settings.claude_menu_bar".localized)
             }.frame(minHeight: 24)
             Text("settings.claude_menu_bar_help".localized).font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -281,13 +302,18 @@ struct SettingsView: View {
     }
 
     private func claudeWindowName(_ kind: ClaudeWindowKind) -> String {
-        switch kind {
-        case .session: return "window.session".localized
-        case .weekly: return "window.weekly".localized
-        case .modelWeekly:
-            let scoped = store.claude.snapshot?.windows.first { ClaudeWindowKind.of($0) == .modelWeekly }
-            return "window.model_weekly".localized(scoped?.displayName ?? "settings.claude_model_placeholder".localized)
-        }
+        ClaudeWindowNames.name(kind, snapshot: store.claude.snapshot)
+    }
+
+    private var menuBarSelectionTitle: String {
+        let kinds = ClaudeWindowKind.ordered(store.claudeMenuBarWindows)
+        guard !kinds.isEmpty else { return "settings.claude_menu_bar.automatic".localized }
+        return kinds.map { kind in
+            kind == .modelWeekly
+                ? (store.claude.snapshot?.windows.first { ClaudeWindowKind.of($0) == .modelWeekly }?.displayName
+                    ?? claudeWindowName(kind))
+                : "menu.label.\(kind == .session ? "session" : "weekly")".localized
+        }.joined(separator: " + ")
     }
 
     private func displayModeImage(_ mode: UsageDisplayMode) -> Image {

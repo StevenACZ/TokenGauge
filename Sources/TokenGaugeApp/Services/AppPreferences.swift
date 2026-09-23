@@ -14,6 +14,8 @@ struct AppPreferences {
         static let showLunaReserve = "showLunaReserve"
         static let hiddenClaudeWindows = "hiddenClaudeWindows"
         static let claudeMenuBarSource = "claudeMenuBarSource"
+        static let claudeMenuBarWindows = "claudeMenuBarWindows"
+        static let hideAccountLabel = "hideAccountLabel"
         static let claudeAutomaticRecovery = "claudeAutomaticRecovery"
         static let claudeRecoveryNextAttempt = "claudeRecoveryNextAttempt"
         static let claudeRecoveryFailures = "claudeRecoveryFailures"
@@ -89,9 +91,21 @@ struct AppPreferences {
         nonmutating set { defaults.set(newValue.map(\.rawValue).sorted(), forKey: Key.hiddenClaudeWindows) }
     }
 
-    var claudeMenuBarSource: ClaudeMenuBarSource {
-        get { value(Key.claudeMenuBarSource) ?? .automatic }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: Key.claudeMenuBarSource) }
+    var claudeMenuBarWindows: Set<ClaudeWindowKind> {
+        get {
+            if let stored = defaults.stringArray(forKey: Key.claudeMenuBarWindows) {
+                return ClaudeWindowKind.decode(stored)
+            }
+            return ClaudeWindowKind.decode(defaults.string(forKey: Key.claudeMenuBarSource).map { [$0] })
+        }
+        nonmutating set {
+            defaults.set(ClaudeWindowKind.ordered(newValue).map(\.rawValue), forKey: Key.claudeMenuBarWindows)
+        }
+    }
+
+    var hideAccountLabel: Bool {
+        get { bool(Key.hideAccountLabel, default: false) }
+        nonmutating set { defaults.set(newValue, forKey: Key.hideAccountLabel) }
     }
 
     var claudeAutomaticRecovery: Bool {

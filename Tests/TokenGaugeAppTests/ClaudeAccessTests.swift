@@ -12,7 +12,8 @@ final class ClaudeAccessTests: XCTestCase {
         for status in [402, 403] {
             XCTAssertEqual(ClaudeAccountUsageError.httpStatus(status), .accessDenied)
         }
-        for status in [0, 400, 404, 429, 500, 503] {
+        XCTAssertEqual(ClaudeAccountUsageError.httpStatus(429), .rateLimited)
+        for status in [0, 400, 404, 500, 503] {
             XCTAssertEqual(ClaudeAccountUsageError.httpStatus(status), .unavailable)
         }
     }

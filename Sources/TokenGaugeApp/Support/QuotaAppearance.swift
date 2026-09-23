@@ -35,3 +35,21 @@ extension EnvironmentValues {
         set { self[QuotaAnimationsKey.self] = newValue }
     }
 }
+
+private struct QuotaValueTransition: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.quotaAnimationsEnabled) private var animateChanges
+    let value: Double
+
+    func body(content: Content) -> some View {
+        content
+            .contentTransition(.numericText(value: value))
+            .animation(animateChanges && !reduceMotion ? Theme.Motion.value : nil, value: value)
+    }
+}
+
+extension View {
+    func quotaValueTransition(_ value: Double) -> some View {
+        modifier(QuotaValueTransition(value: value))
+    }
+}

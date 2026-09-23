@@ -22,10 +22,10 @@ final class ClaudeWindowPreferencesTests: XCTestCase {
     func testExplicitMenuBarSourceOverridesTheTightestWeekly() {
         let state = ProviderViewState(snapshot: snapshot, status: .ready, isRefreshing: false)
         XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: state)?.id, "seven_day_fable")
-        XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: state, claudeSource: .session)?.id, "five_hour")
-        XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: state, claudeSource: .weekly)?.id, "seven_day")
+        XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: state, claudeWindows: [.session])?.id, "five_hour")
+        XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: state, claudeWindows: [.weekly])?.id, "seven_day")
         XCTAssertEqual(
-            ProviderStateResolver.menuBarWindow(state: state, claudeSource: .modelWeekly)?.id, "seven_day_fable")
+            ProviderStateResolver.menuBarWindow(state: state, claudeWindows: [.modelWeekly])?.id, "seven_day_fable")
     }
 
     func testMissingExplicitSourceNeverSubstitutesAnotherLimit() {
@@ -33,7 +33,7 @@ final class ClaudeWindowPreferencesTests: XCTestCase {
             provider: .claude, windows: [session, weekly], dailyUsage: [], summary: nil,
             availableResetCredits: nil, creditBalance: nil, capturedAt: Date())
         let state = ProviderViewState(snapshot: snapshot, status: .ready, isRefreshing: false)
-        XCTAssertNil(ProviderStateResolver.menuBarWindow(state: state, claudeSource: .modelWeekly))
+        XCTAssertNil(ProviderStateResolver.menuBarWindow(state: state, claudeWindows: [.modelWeekly]))
     }
 
     func testStorePersistsPreferencesAndKeepsOneWindowVisible() {
@@ -41,7 +41,7 @@ final class ClaudeWindowPreferencesTests: XCTestCase {
             let store = UsageStore(defaults: defaults, initialSnapshots: [snapshot])
             store.displayMode = .claude
             XCTAssertEqual(store.menuBarWindow?.id, "seven_day_fable")
-            store.claudeMenuBarSource = .session
+            store.claudeMenuBarWindows = [.session]
             XCTAssertEqual(store.menuBarWindow?.id, "five_hour")
             store.setClaudeWindow(.session, visible: false)
             store.setClaudeWindow(.weekly, visible: false)
@@ -51,11 +51,12 @@ final class ClaudeWindowPreferencesTests: XCTestCase {
             XCTAssertEqual(store.menuBarWindow?.id, "five_hour")
             let reopened = UsageStore(defaults: defaults)
             XCTAssertEqual(reopened.hiddenClaudeWindows, [.session, .weekly])
-            XCTAssertEqual(reopened.claudeMenuBarSource, .session)
+            XCTAssertEqual(reopened.claudeMenuBarWindows, [.session])
             defaults.set(["bogus"], forKey: "hiddenClaudeWindows")
             defaults.set("bogus", forKey: "claudeMenuBarSource")
+            defaults.set(["bogus"], forKey: "claudeMenuBarWindows")
             XCTAssertEqual(UsageStore(defaults: defaults).hiddenClaudeWindows, [])
-            XCTAssertEqual(UsageStore(defaults: defaults).claudeMenuBarSource, .automatic)
+            XCTAssertTrue(UsageStore(defaults: defaults).claudeMenuBarWindows.isEmpty)
         }
     }
 

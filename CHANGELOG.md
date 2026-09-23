@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The menu bar can show several Claude limits at once, such as the 5-hour, weekly and Fable percentages, as labelled numbers, concentric rings or stacked bars. Choose them in Settings or from the new right-click menu.
+- Privacy mode hides the account email in the panel.
+- A right-click menu on the menu bar item for quick changes to the Claude limits shown, indicator style, privacy mode and refresh.
+
+### Changed
+
+- Signing in, switching accounts or installing now shows usage within seconds instead of minutes. Claude and Codex sign-ins are detected as they happen, and quota appears before the local activity scan finishes.
+- Claude usage stays current while Claude Code is running, using its status line between account reads, and the app refreshes after waking from sleep.
+- Percentages animate smoothly when they change, and honor Reduce Motion.
+
+### Fixed
+
+- Claude no longer drops to `--` when its usage service asks the app to slow down; the last reading stays visible and retries back off.
+- A manual refresh requested while another refresh was running is no longer ignored.
+- The first history scan uses far less memory on large transcript folders.
+
 ## [1.5.1] - 2026-09-22
 
 ### Fixed

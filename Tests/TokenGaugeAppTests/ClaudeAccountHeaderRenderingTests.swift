@@ -34,10 +34,21 @@ final class ClaudeAccountHeaderRenderingTests: XCTestCase {
         }
     }
 
-    private func card(accountLabel: String?) -> some View {
+    func testPrivacyModeNeverDrawsTheAccountLabel() throws {
+        try withEachLanguage { _ in
+            let hidden = try render(card(accountLabel: label, hidden: true))
+            let otherHidden = try render(card(accountLabel: "someone.else@example.org", hidden: true))
+            let shown = try render(card(accountLabel: label))
+            XCTAssertEqual(hidden.tiffRepresentation, otherHidden.tiffRepresentation)
+            XCTAssertNotEqual(hidden.tiffRepresentation, shown.tiffRepresentation)
+            XCTAssertEqual(hidden.size.height, shown.size.height, accuracy: 1)
+        }
+    }
+
+    private func card(accountLabel: String?, hidden: Bool = false) -> some View {
         ProviderCard(
             provider: .claude, state: ProviderViewState(snapshot: snapshot(), status: .ready, isRefreshing: false),
-            showProviderTitle: true, accountLabel: accountLabel
+            showProviderTitle: true, hidesAccountLabel: hidden, accountLabel: accountLabel
         )
         .frame(width: Theme.Layout.compactPanelWidth)
     }

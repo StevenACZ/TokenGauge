@@ -5,14 +5,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let store = UsageStore()
     let launchAtLogin = LaunchAtLoginManager()
     private var statusController: StatusItemController?
+    private var wakeObserver: (any NSObjectProtocol)?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         signal(SIGPIPE, SIG_IGN)
         NSApp.setActivationPolicy(.accessory)
         statusController = StatusItemController(store: store, launchAtLogin: launchAtLogin)
-        requestClaudeRecoveryConsent()
         store.start()
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.store.refreshSoon(after: .seconds(3), force: false) }
+        }
         UpdateManager.shared.start()
+        requestClaudeRecoveryConsent()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

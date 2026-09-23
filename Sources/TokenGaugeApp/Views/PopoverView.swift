@@ -152,7 +152,8 @@ struct PopoverView: View {
                     showProviderTitle: store.displayMode == .unified,
                     showLunaReserve: store.showLunaReserve,
                     hiddenClaudeWindows: store.hiddenClaudeWindows,
-                    claudeMenuBarSource: store.claudeMenuBarSource,
+                    claudeMenuBarWindows: store.claudeMenuBarWindows,
+                    hidesAccountLabel: store.hideAccountLabel,
                     claudeAutomaticRecovery: store.claudeAutomaticRecovery,
                     showHourlyPace: store.showHourlyPace,
                     stretchesHeight: store.displayMode == .unified && store.panelStyle == .rings,
@@ -247,6 +248,8 @@ struct PopoverView: View {
             .accessibilityIdentifier("TokenGauge.panelStyle")
 
             Menu {
+                Toggle("settings.hide_account".localized, isOn: $store.hideAccountLabel)
+                Divider()
                 Button("settings.title".localized, action: showSettings)
                 Button("about.title".localized, action: showAbout)
                 Divider()
@@ -260,7 +263,7 @@ struct PopoverView: View {
             Button {
                 store.refresh(force: true)
             } label: {
-                if store.isRefreshing {
+                if store.isFetching {
                     ProgressView()
                         .controlSize(.small)
                         .frame(width: 14, height: 14)
@@ -274,7 +277,7 @@ struct PopoverView: View {
             .buttonStyle(.borderless)
             .help("action.refresh".localized)
             .accessibilityLabel("action.refresh".localized)
-            .disabled(store.isRefreshing)
+            .disabled(store.isFetching)
         }
     }
 }

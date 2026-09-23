@@ -26,13 +26,13 @@ final class QuotaAppearanceTests: XCTestCase {
                     store.menuBarStyle = menu
                     store.animateChanges = false
                     store.setClaudeWindow(.weekly, visible: false)
-                    store.claudeMenuBarSource = .modelWeekly
+                    store.claudeMenuBarWindows = [.modelWeekly]
                     let reopened = UsageStore(defaults: defaults)
                     XCTAssertEqual(reopened.panelStyle, panel)
                     XCTAssertEqual(reopened.menuBarStyle, menu)
                     XCTAssertFalse(reopened.animateChanges)
                     XCTAssertFalse(reopened.isClaudeWindowVisible(.weekly))
-                    XCTAssertEqual(reopened.claudeMenuBarSource, .modelWeekly)
+                    XCTAssertEqual(reopened.claudeMenuBarWindows, [.modelWeekly])
                 }
             }
         }

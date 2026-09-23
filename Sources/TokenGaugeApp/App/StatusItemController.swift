@@ -39,6 +39,7 @@ final class StatusItemController: NSObject {
         if let button = statusItem.button {
             button.target = self
             button.action = #selector(togglePopover)
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.imagePosition = .imageLeading
             button.imageScaling = .scaleProportionallyDown
             button.toolTip = "app.name".localized
@@ -69,7 +70,7 @@ final class StatusItemController: NSObject {
         )
         .receive(on: RunLoop.main)
         .combineLatest(
-            store.$menuBarSize.receive(on: RunLoop.main), store.$claudeMenuBarSource.receive(on: RunLoop.main),
+            store.$menuBarSize.receive(on: RunLoop.main), store.$claudeMenuBarWindows.receive(on: RunLoop.main),
             store.$menuBarStyle.receive(on: RunLoop.main)
         )
         .sink { [weak self] _, _, _, _ in
@@ -85,6 +86,12 @@ final class StatusItemController: NSObject {
 
     @objc private func togglePopover() {
         guard let button = statusItem.button else { return }
+        if let event = NSApp.currentEvent,
+            event.type == .rightMouseUp || event.modifierFlags.contains(.control)
+        {
+            showQuickMenu()
+            return
+        }
         if popover.isShown {
             popover.performClose(nil)
             return
@@ -186,7 +193,7 @@ final class StatusItemController: NSObject {
             providers: store.displayMode.providers,
             state: { store.state(for: $0) },
             appearance: button.effectiveAppearance, size: store.menuBarSize, style: store.menuBarStyle,
-            claudeSource: store.claudeMenuBarSource)
+            claudeWindows: store.claudeMenuBarWindows)
         guard presentation != displayedPresentation else { return }
         if displayedPresentation?.segments.first?.provider != presentation.segments.first?.provider
             || displayedPresentation?.size != presentation.size
@@ -203,6 +210,68 @@ final class StatusItemController: NSObject {
         displayedPresentation = presentation
         schedulePopoverPositionUpdate()
     }
+}
+
+extension StatusItemController {
+    private func showQuickMenu() {
+        dismissPopover()
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.addItem(.sectionHeader(title: "menu.quick.claude_windows".localized))
+        let automatic = item("settings.claude_menu_bar.automatic".localized, #selector(selectAutomaticWindows))
+        automatic.state = store.claudeMenuBarWindows.isEmpty ? .on : .off
+        menu.addItem(automatic)
+        for kind in ClaudeWindowKind.allCases {
+            let entry = item(ClaudeWindowNames.name(kind, snapshot: store.claude.snapshot), #selector(toggleWindow))
+            entry.representedObject = kind.rawValue
+            entry.state = store.claudeMenuBarWindows.contains(kind) ? .on : .off
+            menu.addItem(entry)
+        }
+        menu.addItem(.separator())
+        menu.addItem(.sectionHeader(title: "settings.indicator_style".localized))
+        for style in QuotaMenuBarStyle.allCases {
+            let entry = item(style.titleKey.localized, #selector(selectMenuBarStyle))
+            entry.representedObject = style.rawValue
+            entry.state = store.menuBarStyle == style ? .on : .off
+            menu.addItem(entry)
+        }
+        menu.addItem(.separator())
+        let privacy = item("settings.hide_account".localized, #selector(togglePrivacy))
+        privacy.state = store.hideAccountLabel ? .on : .off
+        menu.addItem(privacy)
+        menu.addItem(item("action.refresh".localized, #selector(refreshNow)))
+        menu.addItem(.separator())
+        menu.addItem(item("settings.title".localized + "…", #selector(openSettings)))
+        menu.addItem(item("action.quit".localized, #selector(quit)))
+        statusItem.menu = menu
+        statusItem.button?.performClick(nil)
+        statusItem.menu = nil
+    }
+
+    private func item(_ title: String, _ action: Selector) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        return item
+    }
+
+    @objc private func selectAutomaticWindows() { store.claudeMenuBarWindows = [] }
+
+    @objc private func toggleWindow(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let kind = ClaudeWindowKind(rawValue: raw) else { return }
+        store.toggleClaudeMenuBarWindow(kind)
+    }
+
+    @objc private func selectMenuBarStyle(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let style = QuotaMenuBarStyle(rawValue: raw) else {
+            return
+        }
+        store.menuBarStyle = style
+    }
+
+    @objc private func togglePrivacy() { store.hideAccountLabel.toggle() }
+    @objc private func refreshNow() { store.refresh(force: true) }
+    @objc private func openSettings() { showSettings() }
+    @objc private func quit() { NSApp.terminate(nil) }
 }
 
 extension StatusItemController: NSPopoverDelegate {
