@@ -199,7 +199,14 @@
 "history.projection_help" = "Las semanas siguientes se calculan con el horario actual. Se actualizan con cada lectura y se ocultan al cancelar el seguimiento.";
 "menu.label.session" = "5h";
 "menu.label.weekly" = "7d";
-"menu.quick.claude_windows" = "Claude en la barra";
 "settings.hide_account" = "Modo privacidad";
 "settings.hide_account_help" = "Oculta el correo de la cuenta en el panel. Clic derecho en la barra de menú para activarlo rápido.";
 "account.hidden" = "Cuenta oculta";
+"menu.quick.show_in_bar" = "Mostrar en la barra";
+"settings.menu_bar.title" = "Barra de menús";
+"settings.menu_bar.auto" = "Auto";
+"settings.menu_bar.provider_help" = "Muestra u oculta esta cuenta en la barra y en el panel. Siempre queda una visible.";
+"settings.right_click.hint" = "Clic derecho en el indicador para cambiar esto al instante";
+"settings.right_click.show" = "Ver cómo";
+"settings.panel" = "Panel";
+"settings.accounts" = "Cuentas";

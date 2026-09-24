@@ -199,7 +199,14 @@
 "history.projection_help" = "Later weeks follow the current schedule. Dates update with each reading and disappear when tracking is cancelled.";
 "menu.label.session" = "5h";
 "menu.label.weekly" = "7d";
-"menu.quick.claude_windows" = "Claude in the menu bar";
 "settings.hide_account" = "Privacy mode";
 "settings.hide_account_help" = "Hides the account email in the panel. Right-click the menu bar item to toggle it quickly.";
 "account.hidden" = "Account hidden";
+"menu.quick.show_in_bar" = "Show in menu bar";
+"settings.menu_bar.title" = "Menu bar";
+"settings.menu_bar.auto" = "Auto";
+"settings.menu_bar.provider_help" = "Show or hide this account in the menu bar and the panel. At least one stays visible.";
+"settings.right_click.hint" = "Right-click the indicator to change this instantly";
+"settings.right_click.show" = "Show me";
+"settings.panel" = "Panel";
+"settings.accounts" = "Accounts";

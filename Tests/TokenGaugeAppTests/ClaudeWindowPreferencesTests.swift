@@ -7,9 +7,9 @@ import XCTest
 @MainActor
 final class ClaudeWindowPreferencesTests: XCTestCase {
     func testKindsClassifyTheOfficialClaudeWindows() {
-        XCTAssertEqual(ClaudeWindowKind.of(session), .session)
-        XCTAssertEqual(ClaudeWindowKind.of(weekly), .weekly)
-        XCTAssertEqual(ClaudeWindowKind.of(fable), .modelWeekly)
+        XCTAssertEqual(QuotaWindowKind.of(session), .session)
+        XCTAssertEqual(QuotaWindowKind.of(weekly), .weekly)
+        XCTAssertEqual(QuotaWindowKind.of(fable), .modelWeekly)
     }
 
     func testHiddenKindsLeaveThePanelWithoutChangingOrder() {
@@ -22,10 +22,10 @@ final class ClaudeWindowPreferencesTests: XCTestCase {
     func testExplicitMenuBarSourceOverridesTheTightestWeekly() {
         let state = ProviderViewState(snapshot: snapshot, status: .ready, isRefreshing: false)
         XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: state)?.id, "seven_day_fable")
-        XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: state, claudeWindows: [.session])?.id, "five_hour")
-        XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: state, claudeWindows: [.weekly])?.id, "seven_day")
+        XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: state, selection: [.session])?.id, "five_hour")
+        XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: state, selection: [.weekly])?.id, "seven_day")
         XCTAssertEqual(
-            ProviderStateResolver.menuBarWindow(state: state, claudeWindows: [.modelWeekly])?.id, "seven_day_fable")
+            ProviderStateResolver.menuBarWindow(state: state, selection: [.modelWeekly])?.id, "seven_day_fable")
     }
 
     func testMissingExplicitSourceNeverSubstitutesAnotherLimit() {
@@ -33,7 +33,7 @@ final class ClaudeWindowPreferencesTests: XCTestCase {
             provider: .claude, windows: [session, weekly], dailyUsage: [], summary: nil,
             availableResetCredits: nil, creditBalance: nil, capturedAt: Date())
         let state = ProviderViewState(snapshot: snapshot, status: .ready, isRefreshing: false)
-        XCTAssertNil(ProviderStateResolver.menuBarWindow(state: state, claudeWindows: [.modelWeekly]))
+        XCTAssertNil(ProviderStateResolver.menuBarWindow(state: state, selection: [.modelWeekly]))
     }
 
     func testStorePersistsPreferencesAndKeepsOneWindowVisible() {

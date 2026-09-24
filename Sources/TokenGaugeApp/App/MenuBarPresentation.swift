@@ -21,7 +21,7 @@ struct MenuBarPresentation: Equatable {
     init(
         providers: [UsageProvider], state: (UsageProvider) -> ProviderViewState,
         appearance: NSAppearance, size: MenuBarSize = .large, style: QuotaMenuBarStyle = .numbers,
-        claudeWindows: Set<ClaudeWindowKind> = []
+        selection: [UsageProvider: Set<QuotaWindowKind>] = [:]
     ) {
         self.size = size
         self.style = style
@@ -32,13 +32,14 @@ struct MenuBarPresentation: Equatable {
         self.labelColor = labelColor
         segments = providers.flatMap { provider -> [Segment] in
             let windows = ProviderStateResolver.menuBarWindows(
-                state: state(provider), claudeWindows: provider == .claude ? claudeWindows : [])
+                state: state(provider), selection: selection[provider] ?? [])
             guard !windows.isEmpty else {
                 return [Self.segment(provider: provider, window: nil, appearance: appearance)]
             }
             return windows.map {
                 Self.segment(
-                    provider: provider, window: $0, label: windows.count > 1 ? Self.shortLabel($0) : nil,
+                    provider: provider, window: $0,
+                    label: windows.count > 1 ? Self.shortLabel($0, provider: provider) : nil,
                     appearance: appearance)
             }
         }
@@ -70,8 +71,8 @@ struct MenuBarPresentation: Equatable {
             remainingPercentage: remaining, graphicColor: graphicColor)
     }
 
-    static func shortLabel(_ window: QuotaWindow) -> String {
-        switch ClaudeWindowKind.of(window) {
+    static func shortLabel(_ window: QuotaWindow, provider: UsageProvider = .claude) -> String {
+        switch QuotaWindowKind.of(window, provider: provider) {
         case .session: return "menu.label.session".localized
         case .weekly: return "menu.label.weekly".localized
         case .modelWeekly:
@@ -166,6 +167,23 @@ struct MenuBarPresentation: Equatable {
         attachment.bounds = NSRect(
             x: 0, y: (font.capHeight - image.size.height) / 2, width: image.size.width, height: image.size.height)
         title.append(NSAttributedString(attachment: attachment))
+    }
+
+    func renderedImage() -> NSImage {
+        let title = attributedTitle()
+        let logo =
+            style == .rings
+            ? nil : segments.first.flatMap { ProviderLogoAssets.menuBarImage(for: $0.provider, size: size.iconSize) }
+        let titleSize = title.size()
+        let logoWidth = logo == nil ? 0 : size.iconSize
+        let height = max(22, ceil(titleSize.height))
+        let imageSize = NSSize(width: max(ceil(logoWidth + titleSize.width), 1), height: height)
+        let iconSize = size.iconSize
+        return NSImage(size: imageSize, flipped: false) { _ in
+            logo?.draw(in: NSRect(x: 0, y: (height - iconSize) / 2, width: iconSize, height: iconSize))
+            title.draw(at: NSPoint(x: logoWidth, y: (height - titleSize.height) / 2))
+            return true
+        }
     }
 
     func quotaImage(for segment: Segment) -> NSImage? {

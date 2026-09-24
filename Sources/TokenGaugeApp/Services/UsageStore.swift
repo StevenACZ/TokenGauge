@@ -64,11 +64,14 @@ final class UsageStore: ObservableObject {
     @Published var showLunaReserve: Bool {
         didSet { preferences.showLunaReserve = showLunaReserve }
     }
-    @Published private(set) var hiddenClaudeWindows: Set<ClaudeWindowKind> {
+    @Published private(set) var hiddenClaudeWindows: Set<QuotaWindowKind> {
         didSet { preferences.hiddenClaudeWindows = hiddenClaudeWindows }
     }
-    @Published var claudeMenuBarWindows: Set<ClaudeWindowKind> {
+    @Published var claudeMenuBarWindows: Set<QuotaWindowKind> {
         didSet { preferences.claudeMenuBarWindows = claudeMenuBarWindows }
+    }
+    @Published var codexMenuBarWindows: Set<QuotaWindowKind> {
+        didSet { preferences.codexMenuBarWindows = codexMenuBarWindows }
     }
     @Published var hideAccountLabel: Bool {
         didSet { preferences.hideAccountLabel = hideAccountLabel }
@@ -151,6 +154,7 @@ final class UsageStore: ObservableObject {
         showLunaReserve = preferences.showLunaReserve
         hiddenClaudeWindows = preferences.hiddenClaudeWindows
         claudeMenuBarWindows = preferences.claudeMenuBarWindows
+        codexMenuBarWindows = preferences.codexMenuBarWindows
         hideAccountLabel = preferences.hideAccountLabel
         claudeAutomaticRecovery = preferences.claudeAutomaticRecovery
         self.claudeCancelledAt = claudeCancelledAt
@@ -396,14 +400,14 @@ final class UsageStore: ObservableObject {
         setCancelled(cancelled, for: .claude)
     }
 
-    func isClaudeWindowVisible(_ kind: ClaudeWindowKind) -> Bool {
+    func isClaudeWindowVisible(_ kind: QuotaWindowKind) -> Bool {
         !hiddenClaudeWindows.contains(kind)
     }
 
-    func setClaudeWindow(_ kind: ClaudeWindowKind, visible: Bool) {
+    func setClaudeWindow(_ kind: QuotaWindowKind, visible: Bool) {
         var hidden = hiddenClaudeWindows
         if visible { hidden.remove(kind) } else { hidden.insert(kind) }
-        guard hidden.count < ClaudeWindowKind.allCases.count else { return }
+        guard hidden.count < QuotaWindowKind.allCases.count else { return }
         hiddenClaudeWindows = hidden
     }
 
@@ -518,13 +522,37 @@ final class UsageStore: ObservableObject {
     }
 
     var menuBarWindow: QuotaWindow? {
-        ProviderStateResolver.menuBarWindow(state: state(for: primaryProvider), claudeWindows: claudeMenuBarWindows)
+        ProviderStateResolver.menuBarWindow(
+            state: state(for: primaryProvider), selection: menuBarSelection(for: primaryProvider))
     }
 
-    func toggleClaudeMenuBarWindow(_ kind: ClaudeWindowKind) {
-        var selection = claudeMenuBarWindows
+    var menuBarSelections: [UsageProvider: Set<QuotaWindowKind>] {
+        [.claude: claudeMenuBarWindows, .codex: codexMenuBarWindows]
+    }
+
+    func menuBarSelection(for provider: UsageProvider) -> Set<QuotaWindowKind> {
+        provider == .claude ? claudeMenuBarWindows : codexMenuBarWindows
+    }
+
+    func setMenuBarSelection(_ selection: Set<QuotaWindowKind>, for provider: UsageProvider) {
+        if provider == .claude { claudeMenuBarWindows = selection } else { codexMenuBarWindows = selection }
+    }
+
+    func toggleMenuBarWindow(_ kind: QuotaWindowKind, for provider: UsageProvider) {
+        var selection = menuBarSelection(for: provider)
         if selection.contains(kind) { selection.remove(kind) } else { selection.insert(kind) }
-        claudeMenuBarWindows = selection
+        setMenuBarSelection(selection, for: provider)
+    }
+
+    func isInMenuBar(_ provider: UsageProvider) -> Bool {
+        displayMode.providers.contains(provider)
+    }
+
+    func setInMenuBar(_ shown: Bool, provider: UsageProvider) {
+        var providers = Set(displayMode.providers)
+        if shown { providers.insert(provider) } else { providers.remove(provider) }
+        guard let only = providers.first else { return }
+        displayMode = providers.count > 1 ? .unified : (only == .claude ? .claude : .codex)
     }
 
     private nonisolated static var dayCalendar: Calendar {
@@ -589,25 +617,42 @@ enum ProviderStateResolver {
         snapshot.windows.isEmpty ? .waiting : .ready
     }
 
-    static func menuBarWindow(state: ProviderViewState, claudeWindows: Set<ClaudeWindowKind> = []) -> QuotaWindow? {
-        menuBarWindows(state: state, claudeWindows: claudeWindows).first
+    static func menuBarWindow(state: ProviderViewState, selection: Set<QuotaWindowKind> = []) -> QuotaWindow? {
+        menuBarWindows(state: state, selection: selection).first
     }
 
-    static func menuBarWindows(state: ProviderViewState, claudeWindows: Set<ClaudeWindowKind> = [])
+    static func menuBarCandidates(_ snapshot: ProviderUsageSnapshot, now: Date = Date()) -> [QuotaWindow] {
+        let live = snapshot.windows.filter { ($0.resetsAt ?? .distantFuture) > now }
+        guard snapshot.provider == .codex else {
+            return WindowVisibility.visible(live, provider: snapshot.provider, showLunaReserve: false)
+        }
+        return live.filter { $0.id.hasPrefix("codex.") && !WindowVisibility.isSpark($0) }
+    }
+
+    static func menuBarKinds(snapshot: ProviderUsageSnapshot?, provider: UsageProvider) -> [QuotaWindowKind] {
+        let present = Set(
+            (snapshot.map { menuBarCandidates($0) } ?? []).compactMap { QuotaWindowKind.of($0, provider: provider) })
+        guard present.isEmpty else { return QuotaWindowKind.ordered(present) }
+        return provider == .codex ? [.weekly] : QuotaWindowKind.allCases
+    }
+
+    static func menuBarWindows(state: ProviderViewState, selection: Set<QuotaWindowKind> = [])
         -> [QuotaWindow]
     {
         guard state.status == .ready, let snapshot = state.snapshot else { return [] }
+        let candidates = menuBarCandidates(snapshot)
+        if !selection.isEmpty {
+            let chosen = QuotaWindowKind.ordered(selection).compactMap { kind in
+                candidates.first { QuotaWindowKind.of($0, provider: snapshot.provider) == kind }
+            }
+            if !chosen.isEmpty || snapshot.provider == .claude { return chosen }
+        }
         let windows = WindowVisibility.visible(snapshot.windows, provider: snapshot.provider, showLunaReserve: false)
             .filter { ($0.resetsAt ?? .distantFuture) > Date() }
         let weekly = windows.filter { $0.durationMinutes == 10_080 }
         if snapshot.provider == .codex {
             let general = weekly.first { $0.id.hasPrefix("codex.") } ?? windows.first { $0.id.hasPrefix("codex.") }
             return general.map { [$0] } ?? []
-        }
-        if !claudeWindows.isEmpty {
-            return ClaudeWindowKind.ordered(claudeWindows).compactMap { kind in
-                windows.first { ClaudeWindowKind.of($0) == kind }
-            }
         }
         let scoped = weekly.filter { ($0.displayName ?? "").isEmpty == false }
         let automatic =

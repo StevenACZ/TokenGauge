@@ -8,8 +8,8 @@ struct ProviderCard: View {
     var panelStyle: QuotaPanelStyle = .standard
     var showProviderTitle = false
     var showLunaReserve = true
-    var hiddenClaudeWindows: Set<ClaudeWindowKind> = []
-    var claudeMenuBarWindows: Set<ClaudeWindowKind> = []
+    var hiddenClaudeWindows: Set<QuotaWindowKind> = []
+    var menuBarWindows: Set<QuotaWindowKind> = []
     var hidesAccountLabel = false
     var claudeAutomaticRecovery = false
     var showHourlyPace = false
@@ -148,7 +148,7 @@ struct ProviderCard: View {
 
     private var compactStatus: String {
         guard state.status == .ready else { return statusText }
-        guard let window = ProviderStateResolver.menuBarWindow(state: state, claudeWindows: claudeMenuBarWindows)
+        guard let window = ProviderStateResolver.menuBarWindow(state: state, selection: menuBarWindows)
         else { return statusText }
         return "quota.remaining_value".localized(UsageFormatters.percentage(window.remainingPercentage))
     }

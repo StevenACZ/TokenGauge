@@ -152,7 +152,7 @@ struct PopoverView: View {
                     showProviderTitle: store.displayMode == .unified,
                     showLunaReserve: store.showLunaReserve,
                     hiddenClaudeWindows: store.hiddenClaudeWindows,
-                    claudeMenuBarWindows: store.claudeMenuBarWindows,
+                    menuBarWindows: store.menuBarSelection(for: provider),
                     hidesAccountLabel: store.hideAccountLabel,
                     claudeAutomaticRecovery: store.claudeAutomaticRecovery,
                     showHourlyPace: store.showHourlyPace,

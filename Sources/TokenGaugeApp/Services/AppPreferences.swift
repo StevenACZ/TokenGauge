@@ -15,6 +15,7 @@ struct AppPreferences {
         static let hiddenClaudeWindows = "hiddenClaudeWindows"
         static let claudeMenuBarSource = "claudeMenuBarSource"
         static let claudeMenuBarWindows = "claudeMenuBarWindows"
+        static let codexMenuBarWindows = "codexMenuBarWindows"
         static let hideAccountLabel = "hideAccountLabel"
         static let claudeAutomaticRecovery = "claudeAutomaticRecovery"
         static let claudeRecoveryNextAttempt = "claudeRecoveryNextAttempt"
@@ -86,20 +87,27 @@ struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Key.showLunaReserve) }
     }
 
-    var hiddenClaudeWindows: Set<ClaudeWindowKind> {
-        get { ClaudeWindowKind.decode(defaults.stringArray(forKey: Key.hiddenClaudeWindows)) }
+    var hiddenClaudeWindows: Set<QuotaWindowKind> {
+        get { QuotaWindowKind.decode(defaults.stringArray(forKey: Key.hiddenClaudeWindows)) }
         nonmutating set { defaults.set(newValue.map(\.rawValue).sorted(), forKey: Key.hiddenClaudeWindows) }
     }
 
-    var claudeMenuBarWindows: Set<ClaudeWindowKind> {
+    var claudeMenuBarWindows: Set<QuotaWindowKind> {
         get {
             if let stored = defaults.stringArray(forKey: Key.claudeMenuBarWindows) {
-                return ClaudeWindowKind.decode(stored)
+                return QuotaWindowKind.decode(stored)
             }
-            return ClaudeWindowKind.decode(defaults.string(forKey: Key.claudeMenuBarSource).map { [$0] })
+            return QuotaWindowKind.decode(defaults.string(forKey: Key.claudeMenuBarSource).map { [$0] })
         }
         nonmutating set {
-            defaults.set(ClaudeWindowKind.ordered(newValue).map(\.rawValue), forKey: Key.claudeMenuBarWindows)
+            defaults.set(QuotaWindowKind.ordered(newValue).map(\.rawValue), forKey: Key.claudeMenuBarWindows)
+        }
+    }
+
+    var codexMenuBarWindows: Set<QuotaWindowKind> {
+        get { QuotaWindowKind.decode(defaults.stringArray(forKey: Key.codexMenuBarWindows)) }
+        nonmutating set {
+            defaults.set(QuotaWindowKind.ordered(newValue).map(\.rawValue), forKey: Key.codexMenuBarWindows)
         }
     }
 

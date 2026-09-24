@@ -17,6 +17,8 @@ final class StatusItemController: NSObject {
     private var positioningUpdatePending = false
     private var positionedGeometry: PopoverGeometry?
     private var history: HistoryDashboardModel?
+    private var previousApp: NSRunningApplication?
+    private weak var trackingMenu: NSMenu?
 
     private struct PopoverGeometry: Equatable {
         let sourceWindow: NSRect
@@ -50,6 +52,16 @@ final class StatusItemController: NSObject {
                 .store(in: &cancellables)
         }
 
+        NotificationCenter.default.publisher(for: NSMenu.didBeginTrackingNotification)
+            .sink { [weak self] notification in self?.trackingMenu = notification.object as? NSMenu }
+            .store(in: &cancellables)
+        NotificationCenter.default.publisher(for: NSMenu.didEndTrackingNotification)
+            .sink { [weak self] notification in
+                guard let self, notification.object as? NSMenu === self.trackingMenu else { return }
+                self.trackingMenu = nil
+            }
+            .store(in: &cancellables)
+
         NotificationCenter.default.publisher(for: NSWindow.didMoveNotification)
             .receive(on: RunLoop.main)
             .sink { [weak self] notification in
@@ -70,7 +82,8 @@ final class StatusItemController: NSObject {
         )
         .receive(on: RunLoop.main)
         .combineLatest(
-            store.$menuBarSize.receive(on: RunLoop.main), store.$claudeMenuBarWindows.receive(on: RunLoop.main),
+            store.$menuBarSize.receive(on: RunLoop.main),
+            store.$claudeMenuBarWindows.combineLatest(store.$codexMenuBarWindows).receive(on: RunLoop.main),
             store.$menuBarStyle.receive(on: RunLoop.main)
         )
         .sink { [weak self] _, _, _, _ in
@@ -109,6 +122,9 @@ final class StatusItemController: NSObject {
         let controller = NSHostingController(rootView: view)
         controller.sizingOptions = [.preferredContentSize]
         popover.contentViewController = controller
+        let front = NSWorkspace.shared.frontmostApplication
+        previousApp = front == NSRunningApplication.current ? nil : front
+        NSApp.activate(ignoringOtherApps: true)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
         startDismissMonitors()
@@ -154,7 +170,10 @@ final class StatusItemController: NSObject {
             outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
                 matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
             ) { [weak self] _ in
-                Task { @MainActor in self?.dismissPopover() }
+                Task { @MainActor in
+                    guard let self, self.trackingMenu == nil else { return }
+                    self.dismissPopover()
+                }
             }
         }
         if resignObserver == nil {
@@ -193,7 +212,7 @@ final class StatusItemController: NSObject {
             providers: store.displayMode.providers,
             state: { store.state(for: $0) },
             appearance: button.effectiveAppearance, size: store.menuBarSize, style: store.menuBarStyle,
-            claudeWindows: store.claudeMenuBarWindows)
+            selection: store.menuBarSelections)
         guard presentation != displayedPresentation else { return }
         if displayedPresentation?.segments.first?.provider != presentation.segments.first?.provider
             || displayedPresentation?.size != presentation.size
@@ -217,17 +236,9 @@ extension StatusItemController {
         dismissPopover()
         let menu = NSMenu()
         menu.autoenablesItems = false
-        menu.addItem(.sectionHeader(title: "menu.quick.claude_windows".localized))
-        let automatic = item("settings.claude_menu_bar.automatic".localized, #selector(selectAutomaticWindows))
-        automatic.state = store.claudeMenuBarWindows.isEmpty ? .on : .off
-        menu.addItem(automatic)
-        for kind in ClaudeWindowKind.allCases {
-            let entry = item(ClaudeWindowNames.name(kind, snapshot: store.claude.snapshot), #selector(toggleWindow))
-            entry.representedObject = kind.rawValue
-            entry.state = store.claudeMenuBarWindows.contains(kind) ? .on : .off
-            menu.addItem(entry)
+        for provider in [UsageProvider.codex, .claude] {
+            addProviderSection(provider, to: menu)
         }
-        menu.addItem(.separator())
         menu.addItem(.sectionHeader(title: "settings.indicator_style".localized))
         for style in QuotaMenuBarStyle.allCases {
             let entry = item(style.titleKey.localized, #selector(selectMenuBarStyle))
@@ -254,11 +265,54 @@ extension StatusItemController {
         return item
     }
 
-    @objc private func selectAutomaticWindows() { store.claudeMenuBarWindows = [] }
+    private func addProviderSection(_ provider: UsageProvider, to menu: NSMenu) {
+        let shown = store.isInMenuBar(provider)
+        menu.addItem(.sectionHeader(title: "provider.\(provider.rawValue)".localized))
+        let visibility = item("menu.quick.show_in_bar".localized, #selector(toggleProvider))
+        visibility.representedObject = provider.rawValue
+        visibility.state = shown ? .on : .off
+        visibility.isEnabled = !shown || store.displayMode == .unified
+        menu.addItem(visibility)
+        let snapshot = store.state(for: provider).snapshot
+        let kinds = ProviderStateResolver.menuBarKinds(snapshot: snapshot, provider: provider)
+        guard kinds.count > 1 else {
+            menu.addItem(.separator())
+            return
+        }
+        let selection = store.menuBarSelection(for: provider)
+        let automatic = item("settings.claude_menu_bar.automatic".localized, #selector(selectAutomaticWindows))
+        automatic.representedObject = provider.rawValue
+        automatic.state = selection.isEmpty ? .on : .off
+        automatic.isEnabled = shown
+        automatic.indentationLevel = 1
+        menu.addItem(automatic)
+        for kind in kinds {
+            let entry = item(QuotaWindowNames.name(kind, snapshot: snapshot), #selector(toggleWindow))
+            entry.representedObject = "\(provider.rawValue):\(kind.rawValue)"
+            entry.state = selection.contains(kind) ? .on : .off
+            entry.isEnabled = shown
+            entry.indentationLevel = 1
+            menu.addItem(entry)
+        }
+        menu.addItem(.separator())
+    }
+
+    @objc private func toggleProvider(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let provider = UsageProvider(rawValue: raw) else { return }
+        store.setInMenuBar(!store.isInMenuBar(provider), provider: provider)
+    }
+
+    @objc private func selectAutomaticWindows(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let provider = UsageProvider(rawValue: raw) else { return }
+        store.setMenuBarSelection([], for: provider)
+    }
 
     @objc private func toggleWindow(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String, let kind = ClaudeWindowKind(rawValue: raw) else { return }
-        store.toggleClaudeMenuBarWindow(kind)
+        guard let parts = (sender.representedObject as? String)?.split(separator: ":").map(String.init),
+            parts.count == 2, let provider = UsageProvider(rawValue: parts[0]),
+            let kind = QuotaWindowKind(rawValue: parts[1])
+        else { return }
+        store.toggleMenuBarWindow(kind, for: provider)
     }
 
     @objc private func selectMenuBarStyle(_ sender: NSMenuItem) {
@@ -275,10 +329,24 @@ extension StatusItemController {
 }
 
 extension StatusItemController: NSPopoverDelegate {
+    func popoverShouldClose(_ popover: NSPopover) -> Bool {
+        guard trackingMenu != nil, let window = statusItem.button?.window else { return true }
+        return NSApp.currentEvent?.window !== window
+    }
+    func popoverWillClose(_ notification: Notification) {
+        trackingMenu?.cancelTrackingWithoutAnimation()
+    }
     func popoverDidClose(_ notification: Notification) {
         positionedGeometry = nil
         stopDismissMonitors()
         popover.contentViewController = nil
         history?.popoverDidClose()
+        let previous = previousApp
+        previousApp = nil
+        if let previous, !previous.isTerminated, NSApp.isActive,
+            !NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain })
+        {
+            previous.activate(options: [])
+        }
     }
 }

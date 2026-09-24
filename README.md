@@ -24,14 +24,14 @@ TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Code
   <img src="docs/images/panel.png" width="340" alt="Codex view showing only Codex quota and token activity">
   <img src="docs/images/claude.png" width="340" alt="Claude view showing only Claude quota and token activity">
 </p>
-<p align="center"><img src="docs/images/settings.png" width="600" alt="Settings with aligned controls and independent subscription state for both providers"></p>
+<p align="center"><img src="docs/images/settings.png" width="720" alt="Settings with a live menu bar preview, limit chips, indicator styles, and panel, general, and account options"></p>
 </details>
 
 ## At a glance
 
 - **Three views:** Codex, Claude, or Unified. Individual views show only that provider; Unified puts both quota cards side by side.
-- **Flexible layouts:** keep the classic panel, choose compact rows, or use separate quota rings. Switch from the panel header or Settings → Appearance.
-- **A readable menu bar:** independently choose percentages, mini bars, or mini rings, with Large, Medium, or Small sizing. Exact percentages remain available on hover and in the panel.
+- **Flexible layouts:** keep the classic panel, choose compact rows, or use separate quota rings. Switch from the panel header or Settings → Panel.
+- **A readable menu bar:** show one or several limits per provider (5-hour, weekly, model weekly), hide either provider, and choose percentages, mini bars, or mini rings with Large, Medium, or Small sizing. Settings previews your real menu bar as you click, and right-clicking the menu bar item changes the same options instantly. Exact percentages remain available on hover and in the panel.
 - **Quiet by design:** optional brief transitions respect Reduce Motion; menu indicators redraw only when their data or appearance changes.
 - **Separate limits:** general weekly quota and additional provider windows stay separate. Hide Luna weekly reserve in Settings if you do not use it.
 - **Browsable activity:** rolling seven days, Monday-based weeks with previous/next navigation, or a yearly calendar that always shows Codex and Claude together, whichever view you are in. Five intensity levels show how much you used that day, colored by the provider with more recorded tokens. Hold the pointer over a day or click it to pin a card with per-provider tokens, percentages, model detail, and your current and best streaks; Esc, a click outside, scrolling, or changing view closes it. Separate month blocks and highlighted weekend rows make the year easier to scan.
@@ -64,7 +64,7 @@ Updates use [Sparkle](https://sparkle-project.org), a signed ZIP, and an EdDSA-s
 
 ### What the numbers mean
 
-The menu bar shows the selected provider’s current balance. Codex uses its general quota; a separate Luna reserve is displayed independently and is never added to it. Claude uses its tightest scoped weekly limit, falling back to the general weekly limit. Token activity totals are not quota percentages. The current Codex account protocol supplies daily tokens, not daily turn counts; the chart labels its unit explicitly. Provider windows and account availability depend on your plan and may change upstream.
+The menu bar shows the selected provider’s current balance. Codex uses its general quota; a separate Luna reserve is displayed independently and is never added to it. Claude uses its tightest scoped weekly limit, falling back to the general weekly limit, unless you choose specific limits for either provider. Token activity totals are not quota percentages. The current Codex account protocol supplies daily tokens, not daily turn counts; the chart labels its unit explicitly. Provider windows and account availability depend on your plan and may change upstream.
 
 Hourly pace uses at least three verified samples spanning 30 minutes in the last hour. It restarts after quota resets, decreases, or long observation gaps. The info button explains the estimate and shows dated recent and previous measurements. During inactivity or after reopening the app, the last active pace remains explicitly labeled as historical until a new valid measurement with consumption is available. Pace observations, including idle readings, are stored locally without expiry for future daily comparisons. For example, 5 pp/h means an estimated five percentage points of that weekly allowance per hour. Model/effort token totals describe locally observed activity; they do not allocate quota percentages to Medium, High, XHigh, or other efforts. Daily totals use the largest observed provider or local total, without adding overlapping sources. Local effort detail is collected from the last seven days and retained thereafter; unavailable older detail cannot be reconstructed.
 
