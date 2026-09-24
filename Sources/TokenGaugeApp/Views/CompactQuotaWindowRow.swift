@@ -28,6 +28,7 @@ struct CompactQuotaWindowRow: View {
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .monospacedDigit()
                         .foregroundStyle(Theme.severity(remaining: window.remainingPercentage) ?? .primary)
+                        .quotaValueTransition(window.remainingPercentage)
                     Text((historical ? "quota.last_remaining" : "quota.remaining").localized)
                         .font(.system(size: 9))
                         .foregroundStyle(.secondary)

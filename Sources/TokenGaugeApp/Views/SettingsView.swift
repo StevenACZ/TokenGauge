@@ -8,195 +8,174 @@ struct SettingsView: View {
     @ObservedObject private var localization = LocalizationManager.shared
     @ObservedObject private var updates = UpdateManager.shared
     @AppStorage(AppPreferences.Key.codexExecutablePath) private var codexExecutablePath = ""
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    static let width: CGFloat = 820
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 16) {
             Label("settings.title".localized, systemImage: "slider.horizontal.3")
                 .font(.system(size: 22, weight: .semibold))
-                .padding(.bottom, 2)
 
-            section("settings.general".localized) {
-                VStack(spacing: 12) {
-                    preferenceRow("settings.language".localized) {
-                        Picker("settings.language".localized, selection: $localization.language) {
-                            Text("Español").tag(AppLanguage.spanish)
-                            Text("English").tag(AppLanguage.english)
-                        }.labelsHidden().frame(width: 160, alignment: .trailing)
-                    }
-                    Divider()
-                    preferenceRow("settings.display_mode".localized) {
-                        Picker("settings.display_mode".localized, selection: $store.displayMode) {
-                            ForEach(UsageDisplayMode.allCases) { mode in
-                                Label {
-                                    Text(mode.titleKey.localized)
-                                } icon: {
-                                    displayModeImage(mode)
-                                }.tag(mode)
-                            }
-                        }.labelsHidden().frame(width: 160, alignment: .trailing)
-                    }
-                    Divider()
-                    preferenceRow("settings.menu_bar_size".localized) {
-                        Picker("settings.menu_bar_size".localized, selection: $store.menuBarSize) {
-                            ForEach(MenuBarSize.allCases) { size in
-                                Text(size.titleKey.localized).tag(size)
-                            }
-                        }.labelsHidden().frame(width: 160, alignment: .trailing)
-                    }
-                    Divider()
-                    preferenceRow("settings.launch_at_login".localized) {
-                        Toggle(
-                            "settings.launch_at_login".localized,
-                            isOn: Binding(
-                                get: { launchAtLogin.isEnabled }, set: { launchAtLogin.setEnabled($0) })
-                        )
-                        .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                    }
-                    if let message = launchAtLogin.errorMessage {
-                        Text(message).font(.caption).foregroundStyle(.orange)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }.padding(16).settingsSurface()
+            SettingsCard(title: "settings.menu_bar.title".localized, symbol: "menubar.rectangle") {
+                MenuBarDesigner(store: store)
             }
 
-            section("settings.appearance".localized) {
-                VStack(spacing: 12) {
-                    preferenceRow("settings.panel_style".localized) {
-                        Picker("settings.panel_style".localized, selection: $store.panelStyle) {
-                            ForEach(QuotaPanelStyle.allCases) { style in
-                                Label(style.titleKey.localized, systemImage: style.symbol).tag(style)
-                            }
-                        }.labelsHidden().frame(width: 170, alignment: .trailing)
-                    }
-                    Divider()
-                    preferenceRow("settings.indicator_style".localized) {
-                        Picker("settings.indicator_style".localized, selection: $store.menuBarStyle) {
-                            ForEach(QuotaMenuBarStyle.allCases) { style in
-                                Text(style.titleKey.localized).tag(style)
-                            }
-                        }.labelsHidden().frame(width: 170, alignment: .trailing)
-                    }
-                    Text("settings.indicator_style_help".localized)
-                        .font(.caption).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Divider()
-                    preferenceRow("settings.animate_changes".localized) {
-                        Toggle("settings.animate_changes".localized, isOn: $store.animateChanges)
-                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                    }
-                    Text("settings.animate_changes_help".localized)
-                        .font(.caption).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Divider()
-                    preferenceRow("history.view".localized) {
-                        Picker("history.view".localized, selection: $store.historyMode) {
-                            ForEach(HistoryMode.allCases) { mode in
-                                Text(mode.titleKey.localized).tag(mode)
-                            }
-                        }.labelsHidden().frame(width: 170, alignment: .trailing)
-                    }
-                    Divider()
-                    preferenceRow("pace.setting".localized) {
-                        Toggle("pace.setting".localized, isOn: $store.showHourlyPace)
-                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                    }
-
-                }.padding(16).settingsSurface()
+            HStack(alignment: .top, spacing: 16) {
+                SettingsCard(title: "settings.panel".localized, symbol: "macwindow") { panelSettings }
+                SettingsCard(title: "settings.general".localized, symbol: "gearshape") { generalSettings }
             }
+            .fixedSize(horizontal: false, vertical: true)
 
-            section("settings.providers".localized) {
+            SettingsCard(title: "settings.accounts".localized, symbol: "person.crop.circle") {
                 HStack(alignment: .top, spacing: 12) {
-                    ForEach(UsageProvider.allCases, id: \.self) { provider in
-                        providerSettings(provider)
+                    ForEach([UsageProvider.codex, .claude], id: \.self) { provider in
+                        accountSettings(provider)
                     }
                 }
-                Text("settings.cancellation_help".localized)
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 2).padding(.top, 2)
-                DisclosureGroup("setup.privacy".localized) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("setup.permissions".localized)
-                        Text("setup.local_history".localized)
-                    }
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 6)
-                }.font(.caption).padding(.top, 2)
-            }
-
-            section("updates.title".localized) {
-                VStack(alignment: .leading, spacing: 10) {
-                    if updates.available {
-                        preferenceRow("updates.automatic".localized) {
-                            Toggle(
-                                "updates.automatic".localized,
-                                isOn: Binding(
-                                    get: { updates.autoCheckEnabled }, set: { updates.setAutoCheckEnabled($0) })
-                            )
-                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                        }
-                        Text("updates.explanation".localized).font(.caption).foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center).frame(maxWidth: .infinity)
-                    } else {
-                        Label("updates.local".localized, systemImage: "desktopcomputer")
-                            .font(.callout.weight(.medium)).frame(maxWidth: .infinity)
-                        Text("updates.development".localized).font(.caption).foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center).frame(maxWidth: .infinity)
-                    }
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(16).settingsSurface()
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(24)
-        .frame(width: 600)
+        .frame(width: Self.width)
         .fixedSize(horizontal: false, vertical: true)
         .onAppear { launchAtLogin.refresh() }
         .id(localization.language)
     }
 
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-                .padding(.horizontal, 2)
-            content()
+    private func change(_ update: () -> Void) {
+        withAnimation(store.animateChanges && !reduceMotion ? Theme.Motion.content : nil, update)
+    }
+
+    private var panelSettings: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                ForEach(QuotaPanelStyle.allCases) { style in
+                    ChoiceTile(
+                        title: style.titleKey.localized, selected: store.panelStyle == style,
+                        action: { change { store.panelStyle = style } }
+                    ) {
+                        Image(systemName: style.symbol)
+                            .font(.system(size: 19, weight: .medium))
+                            .foregroundStyle(store.panelStyle == style ? Color.accentColor : .secondary)
+                    }
+                }
+            }
+            HStack(spacing: 10) {
+                Image(systemName: "calendar").font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary).frame(width: 20)
+                Text("history.view".localized).font(.callout).lineLimit(1).minimumScaleFactor(0.85)
+                Spacer(minLength: 8)
+                Picker("history.view".localized, selection: $store.historyMode) {
+                    ForEach(HistoryMode.allCases) { mode in
+                        Text(mode.titleKey.localized).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented).labelsHidden().controlSize(.small).fixedSize()
+            }
+            SettingsToggleRow(
+                title: "settings.animate_changes".localized, symbol: "sparkles",
+                help: "settings.animate_changes_help".localized, isOn: $store.animateChanges)
+            SettingsToggleRow(
+                title: "pace.setting".localized, symbol: "gauge.with.dots.needle.33percent", isOn: $store.showHourlyPace
+            )
         }
     }
 
-    private func preferenceRow<Control: View>(_ title: String, @ViewBuilder control: () -> Control) -> some View {
-        HStack(spacing: 24) {
-            Text(title).font(.callout)
-            Spacer(minLength: 16)
-            control()
-        }.frame(minHeight: 24)
+    private var generalSettings: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "globe").font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary).frame(width: 20)
+                Text("settings.language".localized).font(.callout)
+                Spacer(minLength: 8)
+                Picker("settings.language".localized, selection: $localization.language) {
+                    Text(verbatim: "Español").tag(AppLanguage.spanish)
+                    Text(verbatim: "English").tag(AppLanguage.english)
+                }
+                .pickerStyle(.segmented).labelsHidden().controlSize(.small).fixedSize()
+            }
+            SettingsToggleRow(
+                title: "settings.launch_at_login".localized, symbol: "power",
+                isOn: Binding(get: { launchAtLogin.isEnabled }, set: { launchAtLogin.setEnabled($0) }))
+            if let message = launchAtLogin.errorMessage {
+                Text(message).font(.caption).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            SettingsToggleRow(
+                title: "settings.hide_account".localized, symbol: "eye.slash",
+                help: "settings.hide_account_help".localized, isOn: $store.hideAccountLabel)
+            if updates.available {
+                SettingsToggleRow(
+                    title: "updates.automatic".localized, symbol: "arrow.down.circle",
+                    help: "updates.explanation".localized,
+                    isOn: Binding(get: { updates.autoCheckEnabled }, set: { updates.setAutoCheckEnabled($0) }))
+            } else {
+                HStack(spacing: 10) {
+                    Image(systemName: "desktopcomputer").font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary).frame(width: 20)
+                    Text("updates.local".localized).font(.callout)
+                    InfoTip(text: "updates.development".localized)
+                    Spacer(minLength: 0)
+                }
+                .frame(minHeight: 26)
+            }
+            DisclosureGroup("setup.privacy".localized) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("setup.permissions".localized)
+                    Text("setup.local_history".localized)
+                }
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 6)
+            }.font(.caption)
+        }
     }
 
-    private func providerSettings(_ provider: UsageProvider) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private func accountSettings(_ provider: UsageProvider) -> some View {
+        let tint = provider == .codex ? Theme.codex : Theme.claude
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 ProviderLogo(provider: provider, size: 18)
                 Text("provider.\(provider.rawValue)".localized).font(.headline)
+                Spacer(minLength: 6)
+                StatusPill(title: statusTitle(for: provider), color: statusColor(for: provider))
             }
-            Label(statusTitle(for: provider), systemImage: "circle.fill")
-                .font(.caption).foregroundStyle(statusColor(for: provider))
-                .labelStyle(.titleAndIcon)
+            SettingsToggleRow(
+                title: "settings.mark_cancelled".localized, symbol: "xmark.seal",
+                help: "settings.cancellation_help".localized,
+                isOn: Binding(
+                    get: { store.isCancelled(provider: provider) }, set: { store.setCancelled($0, for: provider) }))
+            if provider == .codex {
+                SettingsToggleRow(
+                    title: "settings.show_reserve".localized, symbol: "moon",
+                    help: "settings.show_reserve_help".localized, isOn: $store.showLunaReserve)
+            } else {
+                SettingsToggleRow(
+                    title: "settings.claude_recovery".localized, symbol: "arrow.triangle.2.circlepath",
+                    help: "settings.claude_recovery_help".localized, isOn: $store.claudeAutomaticRecovery)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("settings.claude_windows".localized).font(.caption).foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        ForEach(QuotaWindowKind.allCases) { kind in
+                            let visible = store.isClaudeWindowVisible(kind)
+                            QuotaChip(title: panelWindowLabel(kind), tint: tint, selected: visible) {
+                                change { store.setClaudeWindow(kind, visible: !visible) }
+                            }
+                            .help(QuotaWindowNames.name(kind, snapshot: store.claude.snapshot))
+                            .accessibilityLabel(
+                                "settings.claude_windows".localized + " · "
+                                    + QuotaWindowNames.name(kind, snapshot: store.claude.snapshot))
+                        }
+                    }
+                }
+            }
+            Spacer(minLength: 0)
             HStack(spacing: 12) {
-                Text("settings.mark_cancelled".localized).font(.callout)
+                Link(destination: provider == .codex ? AppLinks.codexSetup : AppLinks.claudeSetup) {
+                    Label("setup.connect".localized, systemImage: "arrow.up.right.square")
+                }
                 Spacer(minLength: 0)
-                Toggle(
-                    "settings.mark_cancelled".localized,
-                    isOn: Binding(
-                        get: { store.isCancelled(provider: provider) },
-                        set: { store.setCancelled($0, for: provider) })
-                )
-                .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                .accessibilityLabel(
-                    "provider.\(provider.rawValue)".localized + " · " + "settings.mark_cancelled".localized)
-            }.frame(minHeight: 24)
-            Divider()
-            Link(destination: provider == .codex ? AppLinks.codexSetup : AppLinks.claudeSetup) {
-                Label("setup.connect".localized, systemImage: "arrow.up.right.square")
-            }.font(.callout)
-            Group {
                 if provider == .codex {
                     Menu {
                         Button("setup.choose_codex".localized, action: chooseCodex)
@@ -209,101 +188,29 @@ struct SettingsView: View {
                     } label: {
                         Text("setup.detection".localized)
                     }
-                    .menuStyle(.borderlessButton).fixedSize()
+                    .menuStyle(.borderlessButton).controlSize(.small).fixedSize()
                     .help(codexExecutablePath.isEmpty ? "setup.automatic".localized : codexExecutablePath)
                 } else {
-                    Text("setup.claude_session".localized).foregroundStyle(.secondary)
+                    Text("setup.claude_session".localized).foregroundStyle(.secondary).lineLimit(1)
                 }
-            }.font(.caption).frame(height: 20, alignment: .leading)
-            if provider == .codex {
-                Divider()
-                HStack(spacing: 12) {
-                    Text("settings.show_reserve".localized).font(.callout)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                    Toggle("settings.show_reserve".localized, isOn: $store.showLunaReserve)
-                        .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                        .help("settings.show_reserve_help".localized)
-                }.frame(minHeight: 24)
-            } else {
-                Divider()
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 12) {
-                        Text("settings.claude_recovery".localized).font(.callout)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 0)
-                        Toggle("settings.claude_recovery".localized, isOn: $store.claudeAutomaticRecovery)
-                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                    }.frame(minHeight: 24)
-                    Text("settings.claude_recovery_help".localized)
-                        .font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Divider()
-                claudeWindowSettings
             }
+            .font(.caption)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16).settingsSurface()
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(tint.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(tint.opacity(0.22)))
     }
 
-    private var claudeWindowSettings: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("settings.claude_windows".localized).font(.caption).foregroundStyle(.secondary)
-            ForEach(ClaudeWindowKind.allCases) { kind in
-                HStack(spacing: 12) {
-                    Text(claudeWindowName(kind)).font(.callout)
-                    Spacer(minLength: 0)
-                    Toggle(
-                        claudeWindowName(kind),
-                        isOn: Binding(
-                            get: { store.isClaudeWindowVisible(kind) },
-                            set: { store.setClaudeWindow(kind, visible: $0) })
-                    )
-                    .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                    .accessibilityLabel("settings.claude_windows".localized + " · " + claudeWindowName(kind))
-                }.frame(minHeight: 24)
-            }
-            Divider()
-            HStack(spacing: 12) {
-                Text("settings.claude_menu_bar".localized).font(.callout)
-                Spacer(minLength: 0)
-                Picker("settings.claude_menu_bar".localized, selection: $store.claudeMenuBarSource) {
-                    ForEach(ClaudeMenuBarSource.allCases) { source in
-                        Text(source.kind.map(claudeWindowName) ?? "settings.claude_menu_bar.automatic".localized)
-                            .tag(source)
-                    }
-                }.labelsHidden().frame(width: 150, alignment: .trailing)
-            }.frame(minHeight: 24)
-            Text("settings.claude_menu_bar_help".localized).font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+    private func panelWindowLabel(_ kind: QuotaWindowKind) -> String {
+        if let window = store.claude.snapshot?.windows.first(where: { QuotaWindowKind.of($0) == kind }) {
+            return MenuBarPresentation.shortLabel(window)
         }
-    }
-
-    private func claudeWindowName(_ kind: ClaudeWindowKind) -> String {
         switch kind {
-        case .session: return "window.session".localized
-        case .weekly: return "window.weekly".localized
-        case .modelWeekly:
-            let scoped = store.claude.snapshot?.windows.first { ClaudeWindowKind.of($0) == .modelWeekly }
-            return "window.model_weekly".localized(scoped?.displayName ?? "settings.claude_model_placeholder".localized)
+        case .session: return "menu.label.session".localized
+        case .weekly: return "menu.label.weekly".localized
+        case .modelWeekly: return "settings.claude_model_placeholder".localized
         }
-    }
-
-    private func displayModeImage(_ mode: UsageDisplayMode) -> Image {
-        let source: NSImage?
-        if let provider = mode.singleProvider {
-            source = ProviderLogoAssets.menuBarImage(for: provider, size: 14)
-        } else {
-            source = NSImage(systemSymbolName: "square.grid.2x2.fill", accessibilityDescription: nil)
-        }
-        guard let source else { return Image(systemName: "square.grid.2x2.fill") }
-        let padded = NSImage(size: NSSize(width: 20, height: 14), flipped: false) { _ in
-            source.draw(in: NSRect(x: 0, y: 0, width: 14, height: 14))
-            return true
-        }
-        padded.isTemplate = source.isTemplate
-        return Image(nsImage: padded)
     }
 
     private func statusTitle(for provider: UsageProvider) -> String {
@@ -340,17 +247,6 @@ struct SettingsView: View {
         codexExecutablePath = url.path
         store.refresh(force: true)
     }
-}
-
-private struct SettingsSurface: ViewModifier {
-    func body(content: Content) -> some View {
-        content.background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.04)))
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.06)))
-    }
-}
-
-extension View {
-    fileprivate func settingsSurface() -> some View { modifier(SettingsSurface()) }
 }
 
 enum AppLinks {

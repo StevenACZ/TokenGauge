@@ -22,9 +22,12 @@ ensure_build_closed() {
     done
 }
 ensure_build_closed
+sdk_path="$(xcrun --sdk macosx --show-sdk-path)"
+sdk_version="$(xcrun --sdk macosx --show-sdk-version)"
 swift build -c "${CONFIG:-release}" --arch arm64 \
     -Xswiftc -file-prefix-map -Xswiftc "$PWD=." \
-    -Xswiftc -gnone
+    -Xswiftc -gnone \
+    -Xswiftc -Xclang-linker -Xswiftc -isysroot -Xswiftc -Xclang-linker -Xswiftc "$sdk_path"
 bundle_stage="$(mktemp -d "$output_dir/.tokengauge-bundle.XXXXXX")"
 trap 'rm -rf "$bundle_stage"' EXIT
 bundle="$bundle_stage/TokenGauge.app"
@@ -63,6 +66,11 @@ for executable in TokenGauge TokenGaugeCapture; do
         if [[ "$rpath" == /* ]]; then install_name_tool -delete_rpath "$rpath" "$binary"; fi
     done < <(otool -l "$binary" | awk '/cmd LC_RPATH/ {getline; getline; sub(/^ *path /, ""); sub(/ \(offset.*$/, ""); print}')
     strip -S "$binary"
+    linked_sdk="$(otool -l "$binary" | awk '/cmd LC_BUILD_VERSION/ {found=1} found && $1 == "sdk" {print $2; exit}')"
+    if [[ "$linked_sdk" != "$sdk_version" ]]; then
+        echo "$executable links SDK ${linked_sdk:-unknown}, expected $sdk_version." >&2
+        exit 70
+    fi
 done
 if [[ "$distribution" == 1 ]]; then authority='Developer ID Application'; else authority='Apple Development'; fi
 identity="${TOKENGAUGE_SIGN_IDENTITY:-${SIGN_IDENTITY:-}}"

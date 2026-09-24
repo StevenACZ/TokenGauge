@@ -47,12 +47,12 @@ enum ModelActivity {
 enum WindowVisibility {
     static func visible(
         _ windows: [QuotaWindow], provider: UsageProvider, showLunaReserve: Bool = true,
-        hiddenClaudeWindows: Set<ClaudeWindowKind> = []
+        hiddenClaudeWindows: Set<QuotaWindowKind> = []
     ) -> [QuotaWindow] {
         switch provider {
         case .claude:
             return windows.filter { window in
-                guard let kind = ClaudeWindowKind.of(window) else { return true }
+                guard let kind = QuotaWindowKind.of(window) else { return true }
                 return !hiddenClaudeWindows.contains(kind)
             }
         case .codex:
@@ -73,7 +73,7 @@ enum WindowVisibility {
 
     private static let weeklyMinutes = 10_080
 
-    private static func isSpark(_ window: QuotaWindow) -> Bool {
+    static func isSpark(_ window: QuotaWindow) -> Bool {
         let haystack = "\(window.displayName ?? "") \(window.id)".lowercased()
         return haystack.contains("spark")
     }

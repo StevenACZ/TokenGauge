@@ -34,7 +34,9 @@ struct PopoverView: View {
         switch store.panelStyle {
         case .standard: return unified ? Theme.Layout.unifiedPanelWidth : Theme.Layout.panelWidth
         case .compact: return unified ? Theme.Layout.compactUnifiedWidth : Theme.Layout.compactPanelWidth
-        case .rings: return unified ? ringUnifiedWidth : Theme.Layout.ringPanelWidth
+        case .rings:
+            guard let provider = store.displayMode.singleProvider else { return ringUnifiedWidth }
+            return QuotaRingLayout.singlePanelWidth(cells: Int(ringWindowCount(provider)))
         }
     }
 
@@ -42,6 +44,7 @@ struct PopoverView: View {
         content
             .frame(width: panelWidth)
             .fixedSize(horizontal: false, vertical: true)
+            .background(Theme.panelBackground.ignoresSafeArea())
             .task(id: "\(store.historyMode.rawValue):\(history.offset):\(store.historyRevision)") {
                 let preview =
                     store.historyReadsEnabled ? nil : [store.claude.snapshot, store.codex.snapshot].compactMap { $0 }
@@ -152,7 +155,8 @@ struct PopoverView: View {
                     showProviderTitle: store.displayMode == .unified,
                     showLunaReserve: store.showLunaReserve,
                     hiddenClaudeWindows: store.hiddenClaudeWindows,
-                    claudeMenuBarSource: store.claudeMenuBarSource,
+                    menuBarWindows: store.menuBarSelection(for: provider),
+                    hidesAccountLabel: store.hideAccountLabel,
                     claudeAutomaticRecovery: store.claudeAutomaticRecovery,
                     showHourlyPace: store.showHourlyPace,
                     stretchesHeight: store.displayMode == .unified && store.panelStyle == .rings,
@@ -247,6 +251,8 @@ struct PopoverView: View {
             .accessibilityIdentifier("TokenGauge.panelStyle")
 
             Menu {
+                Toggle("settings.hide_account".localized, isOn: $store.hideAccountLabel)
+                Divider()
                 Button("settings.title".localized, action: showSettings)
                 Button("about.title".localized, action: showAbout)
                 Divider()
@@ -260,7 +266,7 @@ struct PopoverView: View {
             Button {
                 store.refresh(force: true)
             } label: {
-                if store.isRefreshing {
+                if store.isFetching {
                     ProgressView()
                         .controlSize(.small)
                         .frame(width: 14, height: 14)
@@ -274,7 +280,7 @@ struct PopoverView: View {
             .buttonStyle(.borderless)
             .help("action.refresh".localized)
             .accessibilityLabel("action.refresh".localized)
-            .disabled(store.isRefreshing)
+            .disabled(store.isFetching)
         }
     }
 }

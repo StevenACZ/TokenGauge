@@ -22,6 +22,7 @@ struct QuotaRing: View {
                     .font(.system(size: metrics.percentageSize, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(Theme.severity(remaining: remainingPercentage) ?? .primary)
+                    .quotaValueTransition(remainingPercentage)
                 if metrics.showsLabel {
                     Text((historical ? "quota.last_remaining" : "quota.remaining").localized)
                         .font(.system(size: 10))

@@ -15,7 +15,9 @@ final class UsageStoreRefreshTests: XCTestCase {
             let codexSnapshot = snapshot(.codex, now: now)
             let refresher = UsageRefresher(
                 homeDirectory: FileManager.default.temporaryDirectory,
-                fetchClaude: { _ in ClaudeUsageResult(snapshot: claudeSnapshot, access: .live, lastActivityAt: now) },
+                fetchClaude: { _, _, _ in
+                    ClaudeUsageResult(snapshot: claudeSnapshot, access: .live, lastActivityAt: now)
+                },
                 fetchCodex: { ProviderViewState(snapshot: codexSnapshot, status: .ready, isRefreshing: false) })
             let store = UsageStore(
                 refresher: refresher, defaults: defaults, initialSnapshots: [claudeSnapshot, codexSnapshot],
@@ -46,7 +48,7 @@ final class UsageStoreRefreshTests: XCTestCase {
             let fetches = OSAllocatedUnfairLock(initialState: 0)
             let refresher = UsageRefresher(
                 homeDirectory: FileManager.default.temporaryDirectory,
-                fetchClaude: { _ in
+                fetchClaude: { _, _, _ in
                     fetches.withLock { $0 += 1 }
                     return nil
                 },
@@ -76,7 +78,7 @@ final class UsageStoreRefreshTests: XCTestCase {
             let releaseClaude = DispatchSemaphore(value: 0)
             let refresher = UsageRefresher(
                 homeDirectory: FileManager.default.temporaryDirectory,
-                fetchClaude: { _ in
+                fetchClaude: { _, _, _ in
                     try? await BlockingWork.run { releaseClaude.wait() }
                     return ClaudeUsageResult(snapshot: claudeSnapshot, access: .live, lastActivityAt: now)
                 },
@@ -116,16 +118,17 @@ final class UsageStoreRefreshTests: XCTestCase {
         }
     }
 
-    func testRefreshStaysBusyUntilTheArchiveBlockFinishes() async throws {
+    func testForcedRefreshDuringArchiveRunsOnceAfterIt() async throws {
         try await withDefaults { defaults in
             let now = Date()
             let claudeSnapshot = snapshot(.claude, now: now)
             let fetches = OSAllocatedUnfairLock(initialState: 0)
             let releaseArchive = DispatchSemaphore(value: 0)
             let archiveStarted = expectation(description: "archive started")
+            archiveStarted.assertForOverFulfill = false
             let refresher = UsageRefresher(
                 homeDirectory: FileManager.default.temporaryDirectory,
-                fetchClaude: { _ in
+                fetchClaude: { _, _, _ in
                     fetches.withLock { $0 += 1 }
                     return ClaudeUsageResult(snapshot: claudeSnapshot, access: .live, lastActivityAt: now)
                 },
@@ -141,13 +144,16 @@ final class UsageStoreRefreshTests: XCTestCase {
             await fulfillment(of: [archiveStarted], timeout: 2)
 
             XCTAssertTrue(store.isRefreshing)
+            XCTAssertFalse(store.isFetching)
+            store.refresh(force: true)
             store.refresh(force: true)
             XCTAssertEqual(fetches.withLock { $0 }, 1)
 
             releaseArchive.signal()
+            releaseArchive.signal()
             try await waitUntilIdle(store)
-            XCTAssertEqual(fetches.withLock { $0 }, 1)
-            XCTAssertEqual(store.historyRevision, 1)
+            XCTAssertEqual(fetches.withLock { $0 }, 2)
+            XCTAssertEqual(store.historyRevision, 2)
         }
     }
 

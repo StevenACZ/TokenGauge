@@ -22,7 +22,7 @@ final class AppWindows {
     func showSettings() {
         if settings == nil {
             settings = makeWindow(
-                title: "settings.title".localized, size: NSSize(width: 600, height: 750),
+                title: "settings.title".localized, size: NSSize(width: SettingsView.width, height: 1020),
                 view: SettingsView(store: store, launchAtLogin: launchAtLogin))
         }
         present(settings)

@@ -6,12 +6,15 @@ enum ClaudeAccountUsageError: Error, Equatable {
     case authenticationRequired
     case credentialExpired
     case accessDenied
+    case rateLimited
+    case notRequested
     case unavailable
 
     static func httpStatus(_ status: Int) -> Self {
         switch status {
         case 401: .authenticationRequired
         case 402, 403: .accessDenied
+        case 429: .rateLimited
         default: .unavailable
         }
     }

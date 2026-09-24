@@ -60,7 +60,7 @@ final class ReadmeScreenshotTests: XCTestCase {
         store.panelStyle = .rings
         store.historyMode = .calendar
         store.showLunaReserve = false
-        for kind in ClaudeWindowKind.allCases { store.setClaudeWindow(kind, visible: true) }
+        for kind in QuotaWindowKind.allCases { store.setClaudeWindow(kind, visible: true) }
         store.showHourlyPace = false
         store.animateChanges = false
         let history = HistoryDashboardModel(previewSnapshots: snapshots, mode: .calendar, now: now)

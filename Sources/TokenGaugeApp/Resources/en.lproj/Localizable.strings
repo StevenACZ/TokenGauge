@@ -118,7 +118,7 @@
 "settings.claude_windows" = "Quota windows in the panel";
 "settings.claude_menu_bar" = "Menu bar shows";
 "settings.claude_menu_bar.automatic" = "Automatic";
-"settings.claude_menu_bar_help" = "Automatic shows the tightest weekly limit. Hiding a window only changes the panel.";
+"settings.claude_menu_bar_help" = "Automatic shows the tightest weekly limit. Pick one or more windows to show them side by side. Hiding a window only changes the panel. Right-click the menu bar item to change it quickly.";
 "settings.claude_model_placeholder" = "Model";
 
 "status.credential_expired" = "Connection pending";
@@ -197,3 +197,16 @@
 "history.weekly_reset" = "Weekly reset";
 "history.projected" = "Expected";
 "history.projection_help" = "Later weeks follow the current schedule. Dates update with each reading and disappear when tracking is cancelled.";
+"menu.label.session" = "5h";
+"menu.label.weekly" = "7d";
+"settings.hide_account" = "Privacy mode";
+"settings.hide_account_help" = "Hides the account email in the panel. Right-click the menu bar item to toggle it quickly.";
+"account.hidden" = "Account hidden";
+"menu.quick.show_in_bar" = "Show in menu bar";
+"settings.menu_bar.title" = "Menu bar";
+"settings.menu_bar.auto" = "Auto";
+"settings.menu_bar.provider_help" = "Show or hide this account in the menu bar and the panel. At least one stays visible.";
+"settings.right_click.hint" = "Right-click the indicator to change this instantly";
+"settings.right_click.show" = "Show me";
+"settings.panel" = "Panel";
+"settings.accounts" = "Accounts";

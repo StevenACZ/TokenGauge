@@ -37,7 +37,7 @@ enum JSONLReader {
         var bytesRead = 0
         var committed = offset
         while true {
-            let chunk = try handle.read(upToCount: 65_536) ?? Data()
+            let chunk = try autoreleasepool { try handle.read(upToCount: 65_536) ?? Data() }
             if chunk.isEmpty {
                 if !discarding, !buffer.isEmpty { lineHandler(buffer) }
                 return Progress(bytesRead: bytesRead, committedOffset: committed)

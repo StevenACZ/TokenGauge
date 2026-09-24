@@ -8,8 +8,9 @@ struct ProviderCard: View {
     var panelStyle: QuotaPanelStyle = .standard
     var showProviderTitle = false
     var showLunaReserve = true
-    var hiddenClaudeWindows: Set<ClaudeWindowKind> = []
-    var claudeMenuBarSource: ClaudeMenuBarSource = .automatic
+    var hiddenClaudeWindows: Set<QuotaWindowKind> = []
+    var menuBarWindows: Set<QuotaWindowKind> = []
+    var hidesAccountLabel = false
     var claudeAutomaticRecovery = false
     var showHourlyPace = false
     var stretchesHeight = false
@@ -147,7 +148,7 @@ struct ProviderCard: View {
 
     private var compactStatus: String {
         guard state.status == .ready else { return statusText }
-        guard let window = ProviderStateResolver.menuBarWindow(state: state, claudeSource: claudeMenuBarSource)
+        guard let window = ProviderStateResolver.menuBarWindow(state: state, selection: menuBarWindows)
         else { return statusText }
         return "quota.remaining_value".localized(UsageFormatters.percentage(window.remainingPercentage))
     }
@@ -187,13 +188,22 @@ struct ProviderCard: View {
             }
             .layoutPriority(2)
             if provider == .claude, let account = accountLabel, !account.isEmpty {
-                Text(account)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .layoutPriority(-1)
-                    .accessibilityLabel("account.current".localized(account))
+                Group {
+                    if hidesAccountLabel {
+                        Image(systemName: "eye.slash")
+                            .font(.system(size: 9, weight: .medium))
+                            .help("account.hidden".localized)
+                            .accessibilityLabel("account.hidden".localized)
+                    } else {
+                        Text(account)
+                            .font(.system(size: 10))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .accessibilityLabel("account.current".localized(account))
+                    }
+                }
+                .foregroundStyle(.secondary)
+                .layoutPriority(-1)
             }
             if !showsTitle { Spacer(minLength: 4) }
             if let credits { ResetCreditsBadge(count: credits) }

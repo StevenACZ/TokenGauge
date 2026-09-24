@@ -34,6 +34,7 @@ struct QuotaWindowRow: View {
                     .font(.system(size: prominent ? 25 : 14, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(valueColor)
+                    .quotaValueTransition(window.remainingPercentage)
                 Text((historical ? "quota.last_remaining" : "quota.remaining").localized)
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)

@@ -32,6 +32,10 @@ enum QuotaRingLayout {
             minimumGridWidth(windows: min(max(cells, 1), 3)) + Theme.Layout.cardPadding * 2)
     }
 
+    static func singlePanelWidth(cells: Int) -> CGFloat {
+        max(Theme.Layout.ringPanelWidth, minimumCardWidth(cells: cells) + Theme.Layout.panelPadding * 2)
+    }
+
     static func unifiedPanelWidth(codexCells: Int, claudeCells: Int) -> CGFloat {
         let content =
             minimumCardWidth(cells: codexCells) + minimumCardWidth(cells: claudeCells)

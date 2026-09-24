@@ -7,6 +7,8 @@ enum ClaudeAccessState: Equatable, Sendable {
     case authenticationRequired
     case credentialExpired
     case accessDenied
+    case rateLimited
+    case notRequested
     case unavailable
 }
 
@@ -37,7 +39,8 @@ struct ClaudeUsageClient: Sendable {
     }
 
     func fetch(
-        now: Date = Date(), recoveryAuthorization: ClaudeRecoveryAuthorization = ClaudeRecoveryAuthorization()
+        now: Date = Date(), recoveryAuthorization: ClaudeRecoveryAuthorization = ClaudeRecoveryAuthorization(),
+        includeQuota: Bool = true, onQuota: (@Sendable (ClaudeUsageResult) -> Void)? = nil
     ) async -> ClaudeUsageResult {
         let homeDirectory = homeDirectory
         let identity = ClaudeAccountIdentityReader.current(homeDirectory: homeDirectory)
@@ -45,7 +48,8 @@ struct ClaudeUsageClient: Sendable {
         return await Self.fetch(
             history: { try? await BlockingWork.run { try self.fetchModelBuckets() } },
             account: {
-                await Self.readAccount(
+                guard includeQuota else { return .failure(ClaudeAccountUsageError.notRequested) }
+                return await Self.readAccount(
                     fetch: { try await account.fetch(now: Date(), identity: identity) },
                     recover: {
                         (try? await BlockingWork.run {
@@ -61,7 +65,7 @@ struct ClaudeUsageClient: Sendable {
                     at: UsagePaths.claudeCapture(homeDirectory: homeDirectory),
                     accountFingerprint: identity?.fingerprint)
             },
-            now: now, accountFingerprint: identity?.fingerprint, accountLabel: identity?.label
+            now: now, accountFingerprint: identity?.fingerprint, accountLabel: identity?.label, onQuota: onQuota
         )
     }
 
@@ -72,11 +76,18 @@ struct ClaudeUsageClient: Sendable {
         capture: @escaping @Sendable () -> ClaudeCapturedSnapshot?,
         now: Date,
         accountFingerprint: String? = nil,
-        accountLabel: String? = nil
+        accountLabel: String? = nil,
+        onQuota: (@Sendable (ClaudeUsageResult) -> Void)? = nil
     ) async -> ClaudeUsageResult {
         async let buckets = history()
-        async let outcome = account()
-        let (modelBuckets, resolved) = await (buckets, outcome)
+        let resolved = await account()
+        if let onQuota, case .success(let live) = resolved, !live.windows.isEmpty {
+            onQuota(
+                resolve(
+                    account: resolved, cached: nil, capture: nil, modelBuckets: [], now: now,
+                    activityReadSucceeded: false, accountFingerprint: accountFingerprint, accountLabel: accountLabel))
+        }
+        let modelBuckets = await buckets
         return resolve(
             account: resolved, cached: cached(), capture: capture(), modelBuckets: modelBuckets ?? [], now: now,
             activityReadSucceeded: modelBuckets != nil, accountFingerprint: accountFingerprint,
@@ -141,6 +152,8 @@ struct ClaudeUsageClient: Sendable {
             case .authenticationRequired: access = .authenticationRequired
             case .credentialExpired: access = .credentialExpired
             case .accessDenied: access = .accessDenied
+            case .rateLimited: access = .rateLimited
+            case .notRequested: access = .notRequested
             default: access = fallback.windows.isEmpty ? .unavailable : .cached
             }
         }
