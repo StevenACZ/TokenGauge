@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-09-23
+
 ### Added
 
 - The menu bar can show several Claude limits at once, such as the 5-hour, weekly and Fable percentages, as labelled numbers, concentric rings or stacked bars. Choose them in Settings or from the new right-click menu.
