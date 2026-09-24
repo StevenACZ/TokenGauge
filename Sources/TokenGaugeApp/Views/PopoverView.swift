@@ -34,7 +34,9 @@ struct PopoverView: View {
         switch store.panelStyle {
         case .standard: return unified ? Theme.Layout.unifiedPanelWidth : Theme.Layout.panelWidth
         case .compact: return unified ? Theme.Layout.compactUnifiedWidth : Theme.Layout.compactPanelWidth
-        case .rings: return unified ? ringUnifiedWidth : Theme.Layout.ringPanelWidth
+        case .rings:
+            guard let provider = store.displayMode.singleProvider else { return ringUnifiedWidth }
+            return QuotaRingLayout.singlePanelWidth(cells: Int(ringWindowCount(provider)))
         }
     }
 
@@ -42,6 +44,7 @@ struct PopoverView: View {
         content
             .frame(width: panelWidth)
             .fixedSize(horizontal: false, vertical: true)
+            .background(Theme.panelBackground.ignoresSafeArea())
             .task(id: "\(store.historyMode.rawValue):\(history.offset):\(store.historyRevision)") {
                 let preview =
                     store.historyReadsEnabled ? nil : [store.claude.snapshot, store.codex.snapshot].compactMap { $0 }

@@ -20,12 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Claude usage stays current while Claude Code is running, using its status line between account reads, and the app refreshes after waking from sleep.
 - Percentages animate smoothly when they change, and honor Reduce Motion.
 - A wider, two-column Settings window with a live menu bar preview: click providers and limits to show them, pick the indicator style from previews, set the size with a slider, and watch a short demo of the right-click menu.
+- The panel has a solid background instead of see-through glass, so it stays readable over dark wallpapers and windows.
+- In the Rings style, a single provider with three limits shows its rings side by side, like the Unified view.
 
 ### Fixed
 
 - Claude no longer drops to `--` when its usage service asks the app to slow down; the last reading stays visible and retries back off.
 - A manual refresh requested while another refresh was running is no longer ignored.
 - The panel's settings menu no longer closes by itself on the first click.
+- Switching between Codex, Claude and Unified no longer closes the panel on macOS 27 or leaves the menu bar item unresponsive for a few seconds.
 - The first history scan uses far less memory on large transcript folders.
 
 ## [1.5.1] - 2026-09-22

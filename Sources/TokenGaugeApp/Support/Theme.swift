@@ -3,6 +3,12 @@ import SwiftUI
 enum Theme {
     static let claude = Color(red: 0.85, green: 0.44, blue: 0.29)
     static let codex = Color(red: 0.33, green: 0.47, blue: 0.96)
+    static let panelBackground = Color(
+        nsColor: NSColor(name: "TokenGaugePanelBackground") { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor(srgbRed: 0.118, green: 0.118, blue: 0.129, alpha: 1)
+                : NSColor(srgbRed: 0.965, green: 0.965, blue: 0.973, alpha: 1)
+        })
 
     enum Layout {
         static let menuBarIconSize: CGFloat = 17

@@ -36,6 +36,7 @@ final class StatusItemController: NSObject {
 
         popover.behavior = .transient
         popover.animates = true
+        popover.hasFullSizeContent = true
         popover.delegate = self
 
         if let button = statusItem.button {
@@ -207,7 +208,7 @@ final class StatusItemController: NSObject {
     }
 
     private func updateStatusItem() {
-        guard let button = statusItem.button else { return }
+        guard let button = statusItem.button, !popover.isShown else { return }
         let presentation = MenuBarPresentation(
             providers: store.displayMode.providers,
             state: { store.state(for: $0) },
@@ -227,7 +228,6 @@ final class StatusItemController: NSObject {
         button.toolTip = presentation.accessibilityLabel
         button.setAccessibilityLabel(presentation.accessibilityLabel)
         displayedPresentation = presentation
-        schedulePopoverPositionUpdate()
     }
 }
 
@@ -341,6 +341,7 @@ extension StatusItemController: NSPopoverDelegate {
         stopDismissMonitors()
         popover.contentViewController = nil
         history?.popoverDidClose()
+        updateStatusItem()
         let previous = previousApp
         previousApp = nil
         if let previous, !previous.isTerminated, NSApp.isActive,

@@ -83,6 +83,15 @@ final class QuotaRingLayoutTests: XCTestCase {
         XCTAssertEqual(QuotaRingLayout.choose(availableWidth: claude, windows: 3), .grid(columns: 3))
     }
 
+    func testSingleProviderPanelWidensToKeepItsRingsInOneRow() {
+        XCTAssertEqual(QuotaRingLayout.singlePanelWidth(cells: 1), Theme.Layout.ringPanelWidth)
+        XCTAssertEqual(QuotaRingLayout.singlePanelWidth(cells: 2), Theme.Layout.ringPanelWidth)
+        let width = QuotaRingLayout.singlePanelWidth(cells: 3)
+        let available = width - Theme.Layout.panelPadding * 2 - Theme.Layout.cardPadding * 2
+        XCTAssertEqual(QuotaRingLayout.choose(availableWidth: available, windows: 3), .grid(columns: 3))
+        XCTAssertLessThan(width, Theme.Layout.ringUnifiedWidth)
+    }
+
     func testUnifiedPanelWidthStaysWithinItsBounds() {
         XCTAssertEqual(
             QuotaRingLayout.unifiedPanelWidth(codexCells: 1, claudeCells: 1), Theme.Layout.minimumRingUnifiedWidth)
