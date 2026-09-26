@@ -247,10 +247,13 @@ struct StatsSummary: Equatable, Sendable {
             let current = totals[row.label]
             totals[row.label] = ((current?.0 ?? 0) &+ row.tokens, current?.1 ?? row.provider)
         }
-        return totals.map { StatsRankItem(id: $0.key, label: $0.key, value: $0.value.0, provider: $0.value.1) }
-            .filter { $0.value > 0 }
-            .sorted { $0.value == $1.value ? $0.label < $1.label : $0.value > $1.value }
-            .prefix(limit).map { $0 }
+        let items: [StatsRankItem] = totals.compactMap { key, value in
+            value.0 > 0 ? StatsRankItem(id: key, label: key, value: value.0, provider: value.1) : nil
+        }
+        let sorted = items.sorted { lhs, rhs in
+            lhs.value == rhs.value ? lhs.label < rhs.label : lhs.value > rhs.value
+        }
+        return Array(sorted.prefix(limit))
     }
 
     private static func insight(

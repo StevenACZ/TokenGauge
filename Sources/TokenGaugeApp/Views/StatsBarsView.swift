@@ -84,7 +84,7 @@ struct StatsBarsView: View {
                 ForEach(day.segments) { segment in
                     Rectangle()
                         .fill(Self.color(segment, providers: providers))
-                        .frame(height: max(0, height * CGFloat(segment.tokens) / CGFloat(max(1, day.total ?? 1)) - 1))
+                        .frame(height: segmentHeight(segment, of: day, height: height))
                 }
             }
             .frame(height: max(day.total == nil ? 0 : 2, height), alignment: .bottom)
@@ -111,6 +111,12 @@ struct StatsBarsView: View {
         .accessibilityLabel(
             day.date.formatted(.dateTime.weekday(.wide).day().month().locale(locale)) + ": "
                 + (day.total.map(UsageFormatters.tokens) ?? "history.unknown".localized))
+    }
+
+    private func segmentHeight(_ segment: StatsSegment, of day: StatsDayTotal, height: CGFloat) -> CGFloat {
+        let total = CGFloat(max(1, day.total ?? 1))
+        let share = CGFloat(segment.tokens) / total
+        return max(0, height * share - 1)
     }
 
     private func typicalLine(_ typical: Int) -> some View {
