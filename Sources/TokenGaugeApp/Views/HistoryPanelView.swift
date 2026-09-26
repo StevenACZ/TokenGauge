@@ -70,10 +70,7 @@ struct HistoryPanelView: View {
         VStack(alignment: .leading, spacing: 6) {
             ViewThatFits(in: .horizontal) {
                 historyToolbar(showsStreak: true)
-                VStack(alignment: .leading, spacing: 3) {
-                    historyToolbar(showsStreak: false)
-                    streakBadge
-                }
+                historyToolbar(showsStreak: false)
             }
             if model.loadFailed {
                 Text("history.load_failed".localized).font(.caption).foregroundStyle(.secondary)
@@ -90,7 +87,6 @@ struct HistoryPanelView: View {
                 }
                 .animation(motion, value: model.loadedMode)
                 .animation(motion, value: model.periodStart)
-                resetLegend
                 selectionSummary
             }
         }
@@ -120,31 +116,37 @@ struct HistoryPanelView: View {
     }
 
     private func historyToolbar(showsStreak: Bool) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 0) {
             if mode == .recent {
                 Text("history.heading".localized).font(.system(size: 11, weight: .semibold))
                     .fixedSize()
             } else {
                 navigation
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 6)
             if showsStreak {
                 streakBadge
-                Spacer(minLength: 0)
+                Spacer(minLength: 6)
             }
             modePicker
         }
     }
 
     private var streakBadge: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "flame.fill").foregroundStyle(accent)
-            Text(streakLine).foregroundStyle(.secondary)
+        let streak = model.streak(for: providers)
+        return HStack(spacing: 3) {
+            Image(systemName: "flame.fill").foregroundStyle(streak.current > 0 ? accent : .secondary)
+                .symbolEffect(.bounce, value: streak.current)
+            Text("stats.days_value".localized(String(streak.current)))
+                .foregroundStyle(.primary.opacity(0.85)).monospacedDigit()
+                .contentTransition(.numericText())
         }
-        .font(.system(size: 9, weight: .medium))
-        .padding(.horizontal, 7).padding(.vertical, 3)
-        .background(Capsule().fill(Color.primary.opacity(0.045)))
+        .font(.system(size: 10.5, weight: .semibold))
+        .padding(.horizontal, 8)
+        .frame(height: Theme.Layout.historyModeSegmentHeight + 4)
+        .background(Capsule().fill(accent.opacity(streak.current > 0 ? 0.1 : 0.04)))
         .fixedSize()
+        .help(streakLine)
         .accessibilityElement(children: .ignore).accessibilityLabel(streakLine)
     }
 
@@ -189,9 +191,6 @@ struct HistoryPanelView: View {
 
     private var modePicker: some View {
         HistoryModeControl(mode: $mode)
-            .frame(
-                width: Theme.Layout.historyModeSegmentWidth * 3 + 4,
-                height: Theme.Layout.historyModeSegmentHeight + 4)
     }
 
     private var todayBadge: some View {
@@ -205,14 +204,12 @@ struct HistoryPanelView: View {
     }
 
     private var navigation: some View {
-        let titleWidth: CGFloat = mode == .calendar ? 52 : 90
-        return HistoryPeriodControl(
-            title: periodLabel, titleWidth: titleWidth,
+        HistoryPeriodControl(
+            title: periodLabel,
             canGoBack: model.canGoBack && !model.isLoading,
             canGoForward: model.canGoForward && !model.isLoading,
             onPrevious: { model.move(-1) }, onToday: returnToToday, onNext: { model.move(1) }
         )
-        .frame(width: titleWidth + 48, height: Theme.Layout.historyModeSegmentHeight + 4)
     }
 
     private func returnToToday() {
@@ -224,8 +221,12 @@ struct HistoryPanelView: View {
     private var periodLabel: String {
         if mode == .calendar { return model.periodStart.formatted(.dateTime.year().locale(locale)) }
         let last = Calendar.current.date(byAdding: .day, value: -1, to: model.periodEnd) ?? model.periodEnd
-        return model.periodStart.formatted(.dateTime.month(.abbreviated).day().locale(locale))
-            + " – " + last.formatted(.dateTime.month(.abbreviated).day().locale(locale))
+        guard Calendar.current.isDate(model.periodStart, equalTo: last, toGranularity: .month) else {
+            return model.periodStart.formatted(.dateTime.day().month(.abbreviated).locale(locale))
+                + "–" + last.formatted(.dateTime.day().month(.abbreviated).locale(locale))
+        }
+        return model.periodStart.formatted(.dateTime.day().locale(locale)) + "–"
+            + last.formatted(.dateTime.day().month(.abbreviated).locale(locale))
     }
 
     private var bars: some View {
@@ -349,34 +350,6 @@ struct HistoryPanelView: View {
 
     private func resetsOn(_ day: HistoryCalendarDay) -> [HistoryReset] {
         resets.filter { Calendar.current.isDate($0.date, inSameDayAs: day.date) }
-    }
-
-    @ViewBuilder private var resetLegend: some View {
-        if !resets.isEmpty {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("history.weekly_reset".localized)
-                    .font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
-                HStack(alignment: .top, spacing: 8) {
-                    ForEach(providers, id: \.self) { provider in
-                        if let reset = resets.first(where: { $0.provider == provider }) {
-                            HStack(spacing: 4) {
-                                RoundedRectangle(cornerRadius: 1).stroke(color(provider), lineWidth: 1.5)
-                                    .frame(width: 6, height: 6)
-                                Text(
-                                    name(provider) + " · "
-                                        + reset.date.formatted(
-                                            .dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute()
-                                                .locale(locale))
-                                )
-                                .font(.system(size: 9)).lineLimit(2)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .help("history.projection_help".localized)
-                        }
-                    }
-                }
-            }
-        }
     }
 
     private func weekdayLabel(_ weekday: Int) -> String {

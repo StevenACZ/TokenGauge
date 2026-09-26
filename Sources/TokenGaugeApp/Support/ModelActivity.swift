@@ -20,20 +20,38 @@ enum ModelActivity {
     ) -> [ModelUsageChip] {
         let scoped =
             family.map { name in
-                buckets.filter { displayName($0.model).caseInsensitiveCompare(name) == .orderedSame }
-            } ?? buckets.filter { !excluded.contains(displayName($0.model).lowercased()) }
+                buckets.filter { Self.family($0.model).caseInsensitiveCompare(name) == .orderedSame }
+            } ?? buckets.filter { !excluded.contains(Self.family($0.model).lowercased()) }
         return ModelTokenAggregator.byModel(scoped, since: since)
             .prefix(limit)
             .map { ModelUsageChip(model: $0.model, tokens: $0.tokens) }
     }
 
-    static func displayName(_ raw: String) -> String {
+    static func family(_ raw: String) -> String {
         let identifier = raw.lowercased()
         for (needle, label) in knownFamilies where identifier.contains(needle) {
             return label
         }
         if identifier == "unknown" { return "model.unknown".localized }
         return raw
+    }
+
+    static func displayName(_ raw: String) -> String {
+        let label = family(raw)
+        let identifier = String(raw.lowercased().prefix { $0 != "[" })
+        if identifier.hasPrefix("gpt-") {
+            let parts = identifier.split(separator: "-")
+            guard parts.count > 1 else { return raw }
+            let words = parts.dropFirst(2).map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            return (["GPT-" + parts[1]] + words).joined(separator: " ")
+        }
+        guard let needle = knownFamilies.first(where: { identifier.contains($0.0) })?.0,
+            let range = identifier.range(of: needle + "-")
+        else { return label }
+        let version = identifier[range.upperBound...].split(separator: "-").prefix { part in
+            part.count <= 2 && part.allSatisfy(\.isNumber)
+        }
+        return version.isEmpty ? label : label + " " + version.joined(separator: ".")
     }
 
     private static let knownFamilies: [(String, String)] = [

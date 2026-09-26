@@ -41,6 +41,49 @@ struct QuotaPaceLabel: View {
     }
 }
 
+struct SessionForecastLabel: View {
+    let forecast: QuotaForecast
+
+    private var pace: String { UsageFormatters.percentage(forecast.pointsPerHour ?? 0) }
+
+    private var style: (symbol: String, tint: Color, text: String, detail: String) {
+        switch forecast.verdict {
+        case .runsOut(let date):
+            let time = date.formatted(
+                .dateTime.hour().minute().locale(Locale(identifier: LocalizationManager.shared.language.rawValue)))
+            return (
+                "exclamationmark.triangle.fill", .red, "session.runs_out".localized(time),
+                "session.detail_runs_out".localized(
+                    pace, UsageFormatters.duration(forecast.reset.timeIntervalSince(date)))
+            )
+        case .tight(let margin):
+            return (
+                "exclamationmark.circle.fill", .orange, "session.tight".localized(pace),
+                "session.detail".localized(pace, UsageFormatters.percentage(max(0, margin)))
+            )
+        case .lasts(let margin):
+            return (
+                "checkmark.circle.fill", .green, "session.lasts".localized(pace),
+                "session.detail".localized(pace, UsageFormatters.percentage(margin))
+            )
+        case .noUsage, .exhausted: return ("", .clear, "", "")
+        }
+    }
+
+    var body: some View {
+        let style = style
+        HStack(alignment: .firstTextBaseline, spacing: 3) {
+            Image(systemName: style.symbol).font(.system(size: 9, weight: .semibold)).foregroundStyle(style.tint)
+                .accessibilityHidden(true)
+            Text(style.text).monospacedDigit().lineLimit(1)
+        }
+        .font(.system(size: 10)).foregroundStyle(.secondary)
+        .help(style.detail)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(style.detail)
+    }
+}
+
 struct QuotaPaceDetailsView: View {
     let display: QuotaPaceDisplay
     private var locale: Locale { Locale(identifier: LocalizationManager.shared.language.rawValue) }

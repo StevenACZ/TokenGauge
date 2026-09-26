@@ -10,6 +10,8 @@ struct PopoverView: View {
     @ObservedObject private var updates = UpdateManager.shared
     @ObservedObject private var localization = LocalizationManager.shared
     @StateObject private var history: HistoryDashboardModel
+    @StateObject private var stats: StatsModel
+    @State private var showsStats = false
 
     init(
         store: UsageStore, showSettings: @escaping () -> Void, showAbout: @escaping () -> Void,
@@ -21,7 +23,10 @@ struct PopoverView: View {
         let preview = store.historyReadsEnabled ? nil : [store.claude.snapshot, store.codex.snapshot].compactMap { $0 }
         _history = StateObject(
             wrappedValue: history ?? HistoryDashboardModel(previewSnapshots: preview, mode: store.historyMode))
+        _stats = StateObject(wrappedValue: StatsModel(preview: preview.map(StatsModel.preview(snapshots:))))
     }
+
+    private var animatesMotion: Bool { store.animateChanges && !reduceMotion }
 
     var providerMaxHeight: CGFloat {
         store.panelStyle == .rings
@@ -66,7 +71,24 @@ struct PopoverView: View {
                 UpdateBannerView(updates: updates)
             }
             providerPicker
+            FlipCard(flipped: showsStats, animated: animatesMotion) {
+                panelFace
+            } back: {
+                StatsView(store: store, model: stats, providers: store.displayMode.providers)
+                    .task(id: store.historyRevision) { await stats.load(revision: store.historyRevision) }
+            }
+        }
+        .padding(.horizontal, Theme.Layout.panelPadding)
+        .padding(.top, 12)
+        .padding(.bottom, Theme.Layout.panelBottomPadding)
+        .frame(width: panelWidth)
+        .environment(\.quotaAnimationsEnabled, store.animateChanges)
+        .fixedSize(horizontal: false, vertical: true)
+        .id(localization.language)
+    }
 
+    private var panelFace: some View {
+        VStack(alignment: .leading, spacing: Theme.Layout.sectionSpacing) {
             ViewThatFits(in: .vertical) {
                 providerContent
                 ScrollView {
@@ -76,18 +98,28 @@ struct PopoverView: View {
                 .frame(height: providerMaxHeight)
             }
             .frame(maxHeight: providerMaxHeight)
-            .animation(store.animateChanges && !reduceMotion ? Theme.Motion.content : nil, value: store.panelStyle)
+            .animation(animatesMotion ? Theme.Motion.content : nil, value: store.panelStyle)
             HistoryPanelView(
                 model: history, mode: $store.historyMode,
                 providers: store.displayMode.providers, resets: upcomingResets, compact: store.panelStyle != .standard)
         }
-        .padding(.horizontal, Theme.Layout.panelPadding)
-        .padding(.top, 12)
-        .padding(.bottom, Theme.Layout.panelBottomPadding)
-        .frame(width: panelWidth)
-        .environment(\.quotaAnimationsEnabled, store.animateChanges)
-        .fixedSize(horizontal: false, vertical: true)
-        .id(localization.language)
+    }
+
+    private var statsButton: some View {
+        Button {
+            showsStats.toggle()
+        } label: {
+            Image(systemName: showsStats ? "gauge.with.dots.needle.67percent" : "chart.xyaxis.line")
+                .font(.system(size: 12, weight: showsStats ? .semibold : .regular))
+                .foregroundStyle(showsStats ? AnyShapeStyle(Theme.claude) : AnyShapeStyle(.secondary))
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 18, height: 16)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help((showsStats ? "stats.close" : "stats.open").localized)
+        .accessibilityLabel((showsStats ? "stats.close" : "stats.open").localized)
+        .accessibilityIdentifier("TokenGauge.stats")
     }
 
     var upcomingResets: [HistoryReset] {
@@ -159,7 +191,8 @@ struct PopoverView: View {
                     hidesAccountLabel: store.hideAccountLabel,
                     claudeAutomaticRecovery: store.claudeAutomaticRecovery,
                     showHourlyPace: store.showHourlyPace,
-                    stretchesHeight: store.displayMode == .unified && store.panelStyle == .rings,
+                    showsSessionForecast: store.showHourlyPace && store.displayMode != .unified,
+                    stretchesHeight: store.displayMode == .unified && store.panelStyle != .compact,
                     accountLabel: store.claudeAccountLabel,
                     paces: paces(for: provider), previousPaces: previousPaces(for: provider)
                 )
@@ -234,6 +267,8 @@ struct PopoverView: View {
                 .font(.system(size: 14, weight: .semibold))
 
             Spacer(minLength: 0)
+
+            statsButton
 
             Menu {
                 Picker("settings.panel_style".localized, selection: $store.panelStyle) {

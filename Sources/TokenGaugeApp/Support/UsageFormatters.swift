@@ -10,6 +10,15 @@ enum UsageFormatters {
         "\(Int(value.rounded()))%"
     }
 
+    static func duration(_ seconds: TimeInterval) -> String {
+        let minutes = Int((seconds / 60).rounded())
+        if minutes < 1 { return "\(Int(seconds.rounded())) s" }
+        if minutes < 60 { return "\(minutes) min" }
+        let hours = minutes / 60
+        if hours < 48 { return minutes % 60 == 0 ? "\(hours) h" : "\(hours) h \(minutes % 60) min" }
+        return "\(hours / 24) d \(hours % 24) h"
+    }
+
     static func tokens(_ value: Int) -> String {
         if value >= 1_000_000_000 {
             return "\(decimal(Double(value) / 1_000_000_000))B"

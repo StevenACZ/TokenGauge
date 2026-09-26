@@ -7,16 +7,18 @@ enum TokenGaugeCapture {
         let arguments = Set(CommandLine.arguments.dropFirst())
         if arguments.contains("--collect") {
             let scan = try TranscriptScanner.scan(stateURL: TranscriptScanner.stateURL())
-            let recorded = (try? UsageHistoryStore.recordEffort(scan.effortRecords)) != nil
+            let recorded =
+                (try? UsageHistoryStore.recordEffort(scan.effortRecords, activity: scan.activityRecords)) != nil
             try emit(CaptureCollection(buckets: scan.buckets, effortRecords: recorded ? scan.effortRecords.count : nil))
             return
         }
         let recordEffort = arguments.contains("--record-effort-history")
         if recordEffort || arguments.contains("--effort-history") {
             do {
-                let records = try TranscriptScanner.scan(stateURL: TranscriptScanner.stateURL()).effortRecords
+                let scan = try TranscriptScanner.scan(stateURL: TranscriptScanner.stateURL())
+                let records = scan.effortRecords
                 if recordEffort {
-                    try UsageHistoryStore.recordEffort(records)
+                    try UsageHistoryStore.recordEffort(records, activity: scan.activityRecords)
                     try emit(["records": records.count])
                 } else {
                     try emit(records)

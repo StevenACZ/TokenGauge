@@ -24,7 +24,8 @@ public enum EffortUsageScanner {
         let time = date.timeIntervalSince1970
         return ScanEntry(
             id: hash(provider: .codex, identifier: identifier), firstAt: time, peakAt: time, tokens: tokens,
-            model: model, effortModel: model, effort: matching?.effort ?? "unknown", eligible: true)
+            model: model, effortModel: model, effort: matching?.effort ?? "unknown", eligible: true,
+            cachedTokens: payload.usage?.cached_input_tokens.map { max(0, $0) })
     }
 
     static func records(
@@ -39,7 +40,7 @@ public enum EffortUsageScanner {
             return EffortUsageRecord(
                 id: entry.id, provider: provider, recordedAt: recordedAt,
                 day: TranscriptScanner.dayString(recordedAt, calendar: calendar),
-                model: entry.effortModel, effort: entry.effort, tokens: entry.tokens)
+                model: entry.effortModel, effort: entry.effort, tokens: entry.tokens, cachedTokens: entry.cachedTokens)
         }.sorted { $0.recordedAt == $1.recordedAt ? $0.id < $1.id : $0.recordedAt < $1.recordedAt }
     }
 

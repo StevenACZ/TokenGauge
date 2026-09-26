@@ -14,8 +14,11 @@ public enum TranscriptScanner {
     public struct Result: Sendable {
         public let buckets: [ModelTokenBucket]
         public let effortRecords: [EffortUsageRecord]
+        public let activityRecords: [ActivityUsageRecord]
         public let bytesRead: Int
     }
+
+    static let checkpointInterval: TimeInterval = 5
 
     public static func stateURL(homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
         UsagePaths.supportDirectory(homeDirectory: homeDirectory).appending(path: "scan-state.json")
@@ -49,7 +52,7 @@ public enum TranscriptScanner {
         let historyStart = windowStart(days: historyDays, now: now, calendar: calendar)
         let effortStart = windowStart(days: effortDays, now: now, calendar: calendar)
         guard let readStart = [historyStart, effortStart].compactMap({ $0?.timeIntervalSince1970 }).min() else {
-            return Result(buckets: [], effortRecords: [], bytesRead: 0)
+            return Result(buckets: [], effortRecords: [], activityRecords: [], bytesRead: 0)
         }
         let loaded = stateURL.flatMap { ScanState.load(from: $0, windowStart: readStart) }
         let previous = loaded?.state
@@ -77,6 +80,14 @@ public enum TranscriptScanner {
         let parser = TranscriptLineParser()
         var bytesRead = 0
         var written = loaded?.encoded
+        var checkpointed = ProcessInfo.processInfo.systemUptime
+        func checkpoint() {
+            guard let stateURL else { return }
+            var partial = state
+            partial.files.merge(previous?.files ?? [:]) { current, _ in current }
+            persist(partial, to: stateURL, encoded: &written)
+            checkpointed = ProcessInfo.processInfo.systemUptime
+        }
         for root in roots {
             for (file, attributes) in candidateFiles(root: root.url, wanted: root.wanted) {
                 let key = file.path
@@ -85,14 +96,16 @@ public enum TranscriptScanner {
                     parser: parser, prune: readStart)
                 bytesRead += scanned.bytesRead
                 state.files[key] = scanned.file
+                if ProcessInfo.processInfo.systemUptime - checkpointed >= checkpointInterval { checkpoint() }
             }
-            if let stateURL { persist(state, to: stateURL, encoded: &written) }
+            checkpoint()
         }
 
         let historyCutoff = historyStart?.timeIntervalSince1970
         let effortCutoff = effortStart?.timeIntervalSince1970
         var historyEntries: [String: ScanEntry] = [:]
         var effortEntries: [String: (provider: UsageProvider, entry: ScanEntry)] = [:]
+        var activityEntries: [String: (provider: UsageProvider, entry: ActivityEntry)] = [:]
         for key in state.files.keys.sorted() {
             guard let file = state.files[key] else { continue }
             let recent = recentCodexDirectories.contains(dayDirectory(URL(filePath: key).deletingLastPathComponent()))
@@ -108,6 +121,10 @@ public enum TranscriptScanner {
                     effortEntries[entry.id] = (file.provider, merged)
                 }
             }
+            guard includeEffort else { continue }
+            for entry in file.activities {
+                activityEntries[entry.id] = (file.provider, activityEntries[entry.id]?.entry.merging(entry) ?? entry)
+            }
         }
 
         if let stateURL { persist(state, to: stateURL, encoded: &written) }
@@ -117,6 +134,9 @@ public enum TranscriptScanner {
             } ?? [],
             effortRecords: effortStart.map {
                 EffortUsageScanner.records(effortEntries.values, cutoff: $0, now: now, calendar: calendar)
+            } ?? [],
+            activityRecords: effortStart.map {
+                ActivityUsageScanner.records(activityEntries.values, cutoff: $0, now: now, calendar: calendar)
             } ?? [],
             bytesRead: bytesRead)
     }
@@ -178,13 +198,18 @@ public enum TranscriptScanner {
         if let reusable, reusable.size == attributes.size, reusable.modified == attributes.modified {
             return (reusable, 0)
         }
+        let claudeSubagent = provider == .claude && url.pathComponents.contains("subagents")
         var entries: [String: ScanEntry] = [:]
+        var activities: [String: ActivityEntry] = [:]
+        var subagent = claudeSubagent
         var context: CodexTurnContext?
         var offset = 0
         if let reusable, attributes.size > reusable.size, attributes.modified >= reusable.modified,
             ((try? JSONLReader.anchor(url, endingAt: reusable.offset)) ?? nil) == reusable.anchor
         {
             entries = Dictionary(reusable.entries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            activities = Dictionary(reusable.activities.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            subagent = reusable.subagent
             context = reusable.context
             offset = reusable.offset
         }
@@ -192,17 +217,30 @@ public enum TranscriptScanner {
             autoreleasepool {
                 guard let metadata = parser.metadata(line) else { return }
                 let entry: ScanEntry?
+                let found: [ActivityEntry]
                 switch provider {
                 case .claude:
                     guard let date = parser.date(metadata.timestamp) else { return }
+                    found = ActivityUsageScanner.claude(
+                        metadata, line: line, at: date, subagent: subagent, parser: parser)
                     entry = ClaudeHistoryScanner.entry(from: metadata, at: date)
                 case .codex:
                     if metadata.type == "turn_context" {
                         context = metadata.payload.map(CodexTurnContext.init)
                         return
                     }
+                    if metadata.type == "session_meta" {
+                        subagent = metadata.payload?.source?.isSubagent == true
+                        return
+                    }
                     guard let date = parser.date(metadata.timestamp) else { return }
+                    found = ActivityUsageScanner.codex(
+                        metadata, line: line, at: date, rollout: url.lastPathComponent, subagent: subagent,
+                        parser: parser)
                     entry = EffortUsageScanner.entry(from: metadata, at: date, context: context)
+                }
+                for activity in found {
+                    activities[activity.id] = activities[activity.id]?.merging(activity) ?? activity
                 }
                 guard let entry else { return }
                 entries[entry.id] = entries[entry.id]?.merging(entry) ?? entry
@@ -213,16 +251,21 @@ public enum TranscriptScanner {
             progress = try JSONLReader.read(url, from: offset, lineHandler: handler)
         } catch JSONLReader.ReadError.offsetNotAtLineBoundary {
             entries = [:]
+            activities = [:]
+            subagent = claudeSubagent
             context = nil
             progress = try JSONLReader.read(url, lineHandler: handler)
         }
         let kept = entries.values.filter { $0.peakAt >= prune }.sorted {
             $0.firstAt == $1.firstAt ? $0.id < $1.id : $0.firstAt < $1.firstAt
         }
+        let keptActivities = activities.values.filter { $0.at >= prune }.sorted {
+            $0.at == $1.at ? $0.id < $1.id : $0.at < $1.at
+        }
         let file = ScanFile(
             provider: provider, size: attributes.size, modified: attributes.modified, created: attributes.created,
             offset: progress.committedOffset, anchor: try JSONLReader.anchor(url, endingAt: progress.committedOffset),
-            context: context, entries: kept)
+            context: context, entries: kept, subagent: subagent, activities: keptActivities)
         return (file, progress.bytesRead)
     }
 }
@@ -241,6 +284,19 @@ struct TranscriptLineParser {
         try? decoder.decode(EffortTranscriptMetadata.self, from: line)
     }
 
+    func skillCalls(_ line: Data) -> EffortTranscriptMetadata.SkillCalls? {
+        guard line.range(of: Self.skillMarker) != nil else { return nil }
+        return try? decoder.decode(EffortTranscriptMetadata.SkillCalls.self, from: line)
+    }
+
+    func toolCall(_ line: Data) -> EffortTranscriptMetadata.ToolCall? {
+        guard line.range(of: Self.skillFileMarker) != nil else { return nil }
+        return try? decoder.decode(EffortTranscriptMetadata.ToolCall.self, from: line)
+    }
+
+    private static let skillMarker = Data("\"Skill\"".utf8)
+    private static let skillFileMarker = Data("SKILL.md".utf8)
+
     func date(_ timestamp: String?) -> Date? {
         guard let timestamp else { return nil }
         return fractional.date(from: timestamp) ?? standard.date(from: timestamp)
@@ -248,7 +304,7 @@ struct TranscriptLineParser {
 }
 
 struct ScanState: Codable {
-    static let currentVersion = 2
+    static let currentVersion = 3
 
     var version: Int
     var windowStart: TimeInterval
@@ -272,6 +328,23 @@ struct ScanFile: Codable {
     var anchor: String?
     var context: CodexTurnContext?
     var entries: [ScanEntry]
+    var subagent: Bool
+    var activities: [ActivityEntry]
+}
+
+struct ActivityEntry: Codable, Equatable {
+    var id: String
+    var at: TimeInterval
+    var kind: HistoryActivityKind
+    var key: String
+    var value: Int
+
+    func merging(_ incoming: ActivityEntry) -> ActivityEntry {
+        var merged = self
+        merged.at = min(at, incoming.at)
+        merged.value = max(value, incoming.value)
+        return merged
+    }
 }
 
 struct CodexTurnContext: Codable, Equatable {
@@ -295,6 +368,7 @@ struct ScanEntry: Equatable {
     var effortModel: String
     var effort: String
     var eligible: Bool
+    var cachedTokens: Int?
 
     func merging(_ incoming: ScanEntry) -> ScanEntry {
         var merged = self
@@ -307,6 +381,7 @@ struct ScanEntry: Equatable {
         if effortModel == "unknown" { merged.effortModel = incoming.effortModel }
         if effort == "unknown" { merged.effort = incoming.effort }
         merged.eligible = eligible || incoming.eligible
+        merged.cachedTokens = [cachedTokens, incoming.cachedTokens].compactMap { $0 }.max()
         return merged
     }
 }
@@ -322,6 +397,7 @@ extension ScanEntry: Codable {
         effortModel = try container.decode(String.self)
         effort = try container.decode(String.self)
         eligible = try container.decode(Bool.self)
+        cachedTokens = try container.decodeIfPresent(Int.self)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -334,5 +410,6 @@ extension ScanEntry: Codable {
         try container.encode(effortModel)
         try container.encode(effort)
         try container.encode(eligible)
+        try container.encode(cachedTokens)
     }
 }

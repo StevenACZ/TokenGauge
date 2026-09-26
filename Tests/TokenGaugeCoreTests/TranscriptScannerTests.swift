@@ -203,7 +203,7 @@ final class TranscriptScannerTests: XCTestCase {
 
             var stored = try XCTUnwrap(
                 JSONSerialization.jsonObject(with: try Data(contentsOf: state)) as? [String: Any])
-            XCTAssertEqual(stored["version"] as? Int, 2)
+            XCTAssertEqual(stored["version"] as? Int, 3)
             stored["version"] = 1
             try JSONSerialization.data(withJSONObject: stored).write(to: state)
             XCTAssertEqual(try scan(home, state: state).bytesRead, total)
@@ -431,6 +431,7 @@ private enum ReferenceScanners {
                     let model: String?
                     let effort: String?
                     let tokens: Int?
+                    let cached: Int?
                     if provider == .codex {
                         guard type == "token_usage_record", let payload = object["payload"] as? [String: Any] else {
                             continue
@@ -441,19 +442,22 @@ private enum ReferenceScanners {
                         model = matching?["model"] as? String
                         effort = matching?["effort"] as? String
                         tokens = (payload["usage"] as? [String: Any])?["total_tokens"] as? Int
+                        cached = (payload["usage"] as? [String: Any])?["cached_input_tokens"] as? Int
                     } else {
                         guard type == "assistant", let message = object["message"] as? [String: Any] else { continue }
                         identifier = message["id"] as? String
                         model = message["model"] as? String
                         effort = object["perTurnEffort"] as? String ?? object["effort"] as? String
                         tokens = (message["usage"] as? [String: Any]).map(total)
+                        cached = (message["usage"] as? [String: Any])?["cache_read_input_tokens"] as? Int
                     }
                     guard let identifier, !identifier.isEmpty, let tokens, tokens > 0 else { continue }
                     let id = SHA256.hash(data: Data("\(provider.rawValue):\(identifier)".utf8))
                         .map { String(format: "%02x", $0) }.joined()
                     let record = EffortUsageRecord(
                         id: id, provider: provider, recordedAt: date, day: day(date, calendar),
-                        model: normalizedModel(model), effort: normalizedEffort(effort), tokens: tokens)
+                        model: normalizedModel(model), effort: normalizedEffort(effort), tokens: tokens,
+                        cachedTokens: cached.map { max(0, $0) })
                     records[id] = merge(records[id], record)
                 }
             }
@@ -468,7 +472,8 @@ private enum ReferenceScanners {
             id: existing.id, provider: existing.provider, recordedAt: earliest.recordedAt, day: earliest.day,
             model: existing.model == "unknown" ? incoming.model : existing.model,
             effort: existing.effort == "unknown" ? incoming.effort : existing.effort,
-            tokens: max(existing.tokens, incoming.tokens))
+            tokens: max(existing.tokens, incoming.tokens),
+            cachedTokens: [existing.cachedTokens, incoming.cachedTokens].compactMap { $0 }.max())
     }
 
     private static func normalizedModel(_ raw: String?) -> String {

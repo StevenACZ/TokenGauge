@@ -17,6 +17,7 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(AppPreferences.Key.showHourlyPace, "showHourlyPace")
         XCTAssertEqual(AppPreferences.Key.showLunaReserve, "showLunaReserve")
         XCTAssertEqual(AppPreferences.Key.hiddenClaudeWindows, "hiddenClaudeWindows")
+        XCTAssertEqual(AppPreferences.Key.collapsedStatsCards, "collapsedStatsCards")
         XCTAssertEqual(AppPreferences.Key.claudeMenuBarSource, "claudeMenuBarSource")
         XCTAssertEqual(AppPreferences.Key.claudeAutomaticRecovery, "claudeAutomaticRecovery")
         XCTAssertEqual(AppPreferences.Key.claudeRecoveryNextAttempt, "claudeRecoveryNextAttempt")
@@ -27,6 +28,18 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(AppPreferences.Key.cancelledAt(.codex), "codexCancelledAt")
         XCTAssertEqual(AppPreferences.Key.cancellationDailyBaseline(.claude), "claudeCancellationDailyBaseline")
         XCTAssertEqual(AppPreferences.Key.cancellationDailyBaseline(.codex), "codexCancellationDailyBaseline")
+    }
+
+    func testCollapsedStatsCardsPersistAndIgnoreUnknownValues() {
+        withDefaults { defaults in
+            let store = UsageStore(defaults: defaults)
+            store.toggleStatsCard(.models)
+            store.toggleStatsCard(.efforts)
+            store.toggleStatsCard(.models)
+            XCTAssertEqual(UsageStore(defaults: defaults).collapsedStatsCards, [.efforts])
+            defaults.set(["bogus", "skills"], forKey: "collapsedStatsCards")
+            XCTAssertEqual(UsageStore(defaults: defaults).collapsedStatsCards, [.skills])
+        }
     }
 
     func testLegacyDefaultsAreReadAndWrittenWithTheSameShapes() {

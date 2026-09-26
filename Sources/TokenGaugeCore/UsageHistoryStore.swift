@@ -86,14 +86,32 @@ public enum UsageHistoryStore {
     }
 
     public static func recordEffort(
-        _ records: [EffortUsageRecord], at url: URL = UsagePaths.history()
+        _ records: [EffortUsageRecord], activity: [ActivityUsageRecord] = [], at url: URL = UsagePaths.history()
     ) throws {
         let valid = records.filter(\.isValid)
-        guard !valid.isEmpty else { return }
+        let validActivity = activity.filter(\.isValid)
+        guard !valid.isEmpty || !validActivity.isEmpty else { return }
         try write(url) { connection in
             try connection.transaction {
                 for record in valid { try writeEffort(connection, record: record) }
+                for record in validActivity { try writeActivity(connection, record: record) }
             }
+        }
+    }
+
+    public static func activityRows(
+        since day: String? = nil, through lastDay: String? = nil, at url: URL = UsagePaths.history()
+    ) throws -> [HistoryActivityRow] {
+        try read(url) { connection in
+            try readActivityRows(connection, since: day, through: lastDay)
+        }
+    }
+
+    public static func cachedTokenRows(
+        since day: String? = nil, through lastDay: String? = nil, at url: URL = UsagePaths.history()
+    ) throws -> [HistoryCachedRow] {
+        try read(url) { connection in
+            try readCachedRows(connection, since: day, through: lastDay)
         }
     }
 

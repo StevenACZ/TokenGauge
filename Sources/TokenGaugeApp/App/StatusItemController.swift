@@ -2,6 +2,7 @@ import AppKit
 import Combine
 import SwiftUI
 import TokenGaugeCore
+import os
 
 @MainActor
 final class StatusItemController: NSObject {
@@ -19,6 +20,8 @@ final class StatusItemController: NSObject {
     private var history: HistoryDashboardModel?
     private var previousApp: NSRunningApplication?
     private weak var trackingMenu: NSMenu?
+    private var closeRequested = false
+    private static let log = Logger(subsystem: "com.stevenacz.TokenGauge", category: "popover")
 
     private struct PopoverGeometry: Equatable {
         let sourceWindow: NSRect
@@ -107,7 +110,7 @@ final class StatusItemController: NSObject {
             return
         }
         if popover.isShown {
-            popover.performClose(nil)
+            requestClose()
             return
         }
         store.refresh()
@@ -171,8 +174,14 @@ final class StatusItemController: NSObject {
             outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
                 matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
             ) { [weak self] _ in
+                let location = NSEvent.mouseLocation
                 Task { @MainActor in
                     guard let self, self.trackingMenu == nil else { return }
+                    guard self.popover.contentViewController?.view.window?.frame.contains(location) != true else {
+                        Self.log.debug("outside monitor ignored a click inside the panel")
+                        return
+                    }
+                    Self.log.debug("outside monitor closes")
                     self.dismissPopover()
                 }
             }
@@ -183,7 +192,10 @@ final class StatusItemController: NSObject {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                Task { @MainActor in self?.dismissPopover() }
+                Task { @MainActor in
+                    Self.log.debug("resign closes")
+                    self?.dismissPopover()
+                }
             }
         }
     }
@@ -204,7 +216,20 @@ final class StatusItemController: NSObject {
             stopDismissMonitors()
             return
         }
+        requestClose()
+    }
+
+    private func requestClose() {
+        closeRequested = true
         popover.performClose(nil)
+        closeRequested = false
+    }
+
+    private func isPanelClick(_ event: NSEvent?) -> Bool {
+        guard let event, [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(event.type),
+            let panel = popover.contentViewController?.view.window
+        else { return false }
+        return event.window === panel
     }
 
     private func updateStatusItem() {
@@ -330,10 +355,19 @@ extension StatusItemController {
 
 extension StatusItemController: NSPopoverDelegate {
     func popoverShouldClose(_ popover: NSPopover) -> Bool {
+        let event = NSApp.currentEvent
+        if !closeRequested, isPanelClick(event) {
+            Self.log.debug("close refused: click inside panel")
+            return false
+        }
         guard trackingMenu != nil, let window = statusItem.button?.window else { return true }
-        return NSApp.currentEvent?.window !== window
+        return event?.window !== window
     }
     func popoverWillClose(_ notification: Notification) {
+        let event = NSApp.currentEvent
+        Self.log.debug(
+            "will close requested=\(self.closeRequested) event=\(event.map { String($0.type.rawValue) } ?? "none", privacy: .public) window=\(event?.window.map { String(describing: type(of: $0)) } ?? "none", privacy: .public)"
+        )
         trackingMenu?.cancelTrackingWithoutAnimation()
     }
     func popoverDidClose(_ notification: Notification) {

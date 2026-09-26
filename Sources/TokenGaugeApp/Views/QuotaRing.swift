@@ -47,6 +47,7 @@ struct QuotaRingWindow: View {
     var showPace = false
     var pace: QuotaPace?
     var previousPace: QuotaPace?
+    var session: QuotaForecast?
     var metrics: QuotaRingMetrics = .grid
     var alignsTitleRows = true
 
@@ -71,6 +72,7 @@ struct QuotaRingWindow: View {
                     .truncationMode(.tail)
                     .multilineTextAlignment(.center)
                 if showPace { QuotaPaceLabel(pace: pace, previousPace: previousPace) }
+                if let session { SessionForecastLabel(forecast: session) }
                 if let summary = UsageFormatters.modelChips(chips) {
                     Text(summary)
                         .font(.system(size: 10))
@@ -84,7 +86,7 @@ struct QuotaRingWindow: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .accessibilityElement(children: showPace ? .contain : .combine)
+        .accessibilityElement(children: showPace || session != nil ? .contain : .combine)
     }
 }
 
@@ -96,6 +98,7 @@ struct QuotaRingRow: View {
     var showPace = false
     var pace: QuotaPace?
     var previousPace: QuotaPace?
+    var session: QuotaForecast?
 
     var body: some View {
         HStack(spacing: Theme.Layout.quotaRingSpacing) {
@@ -123,18 +126,11 @@ struct QuotaRingRow: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                 if showPace { QuotaPaceLabel(pace: pace, previousPace: previousPace) }
-                if let summary = UsageFormatters.modelChips(chips) {
-                    Text(summary)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .help(summary)
-                        .monospacedDigit()
-                }
+                if let session { SessionForecastLabel(forecast: session) }
+                ModelChipsLabel(chips: chips)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .accessibilityElement(children: showPace ? .contain : .combine)
+        .accessibilityElement(children: showPace || session != nil ? .contain : .combine)
     }
 }

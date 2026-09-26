@@ -9,6 +9,7 @@ struct CompactQuotaWindowRow: View {
     var showPace = false
     var pace: QuotaPace?
     var previousPace: QuotaPace?
+    var session: QuotaForecast?
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
@@ -37,6 +38,7 @@ struct CompactQuotaWindowRow: View {
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)
                 if showPace { QuotaPaceLabel(pace: pace, previousPace: previousPace) }
+                if let session { SessionForecastLabel(forecast: session) }
             }
             .fixedSize(horizontal: true, vertical: false)
         }
@@ -44,7 +46,7 @@ struct CompactQuotaWindowRow: View {
             [UsageFormatters.windowHelp(window), UsageFormatters.modelChips(chips)].compactMap { $0 }.joined(
                 separator: "\n")
         )
-        .accessibilityElement(children: showPace ? .contain : .combine)
+        .accessibilityElement(children: showPace || session != nil ? .contain : .combine)
         .accessibilityHint(UsageFormatters.modelChips(chips) ?? "")
     }
 }

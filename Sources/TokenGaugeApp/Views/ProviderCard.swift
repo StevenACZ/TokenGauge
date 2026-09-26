@@ -13,6 +13,7 @@ struct ProviderCard: View {
     var hidesAccountLabel = false
     var claudeAutomaticRecovery = false
     var showHourlyPace = false
+    var showsSessionForecast = false
     var stretchesHeight = false
     var accountLabel: String?
     var paces: [String: QuotaPace] = [:]
@@ -76,6 +77,7 @@ struct ProviderCard: View {
                 QuotaRingWindow(
                     window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown,
                     showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id],
+                    session: sessionForecast(window),
                     metrics: .single, alignsTitleRows: false)
             } else {
                 ViewThatFits(in: .horizontal) {
@@ -89,7 +91,8 @@ struct ProviderCard: View {
                 if panelStyle == .compact {
                     CompactQuotaWindowRow(
                         window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown,
-                        showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id])
+                        showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id],
+                        session: sessionForecast(window))
                 } else {
                     QuotaWindowRow(
                         window: window,
@@ -97,7 +100,8 @@ struct ProviderCard: View {
                         chips: chips(for: window),
                         prominent: index == 0 && !showsLastKnown,
                         historical: showsLastKnown,
-                        showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id]
+                        showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id],
+                        session: sessionForecast(window)
                     )
                 }
             }
@@ -109,7 +113,8 @@ struct ProviderCard: View {
             ForEach(visibleWindows) { window in
                 QuotaRingWindow(
                     window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown,
-                    showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id])
+                    showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id],
+                    session: sessionForecast(window))
             }
         }
     }
@@ -120,13 +125,25 @@ struct ProviderCard: View {
                 if index > 0 { Divider() }
                 QuotaRingRow(
                     window: window, tint: tint, chips: chips(for: window), historical: showsLastKnown,
-                    showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id])
+                    showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id],
+                    session: sessionForecast(window))
             }
         }
     }
 
     private func canShowPace(_ window: QuotaWindow) -> Bool {
         showHourlyPace && (state.status == .ready || showsLastKnown) && window.durationMinutes == 10080
+    }
+
+    private func sessionForecast(_ window: QuotaWindow) -> QuotaForecast? {
+        guard showsSessionForecast, state.status == .ready, window.durationMinutes == 300,
+            let forecast = QuotaForecast.make(provider: provider, window: window, rows: [], now: Date()),
+            forecast.pointsPerHour != nil
+        else { return nil }
+        switch forecast.verdict {
+        case .lasts, .tight, .runsOut: return forecast
+        case .noUsage, .exhausted: return nil
+        }
     }
 
     private var compactHeader: some View {

@@ -27,7 +27,7 @@ final class ObservedHistoryTotalsTests: XCTestCase {
                 ('2026-09-07','codex','model-b',70,0),
                 ('2026-09-08','codex','all',300,0),
                 ('2026-09-08','codex','model-a',20,0);
-            INSERT INTO effort_events VALUES
+            INSERT INTO effort_events (id, provider, occurred_at, day, model, effort, tokens) VALUES
                 ('a','codex',1,'2026-09-07','model-a','high',100),
                 ('b','codex',1,'2026-09-07','model-b','high',100),
                 ('c','codex',1,'2026-09-08','model-a','high',250);
@@ -44,7 +44,7 @@ final class ObservedHistoryTotalsTests: XCTestCase {
     func testEffortOnlyAndExplicitZeroDaysRemainPresentWhileMissingDaysStayAbsent() throws {
         try sql(
             """
-            INSERT INTO effort_events VALUES
+            INSERT INTO effort_events (id, provider, occurred_at, day, model, effort, tokens) VALUES
                 ('a','claude',1,'2026-09-07','fable','high',40),
                 ('b','claude',1,'2026-09-08','fable','high',0);
             INSERT INTO daily_tokens VALUES ('2026-09-10','claude','all',0,0);
@@ -62,7 +62,7 @@ final class ObservedHistoryTotalsTests: XCTestCase {
             INSERT INTO daily_tokens VALUES
                 ('2026-08-31','codex','all',10,0), ('2026-09-01','codex','all',20,0),
                 ('2026-09-07','codex','all',30,0);
-            INSERT INTO effort_events VALUES
+            INSERT INTO effort_events (id, provider, occurred_at, day, model, effort, tokens) VALUES
                 ('a','codex',1,'2026-09-01','gpt','high',25),
                 ('b','claude',1,'2026-09-01','fable','high',40);
             """)
@@ -83,7 +83,7 @@ final class ObservedHistoryTotalsTests: XCTestCase {
         try sql(
             """
             INSERT INTO daily_tokens VALUES ('2026-09-07','codex','all',100,0);
-            INSERT INTO effort_events VALUES ('a','codex',1,'2026-09-07','gpt','high',150);
+            INSERT INTO effort_events (id, provider, occurred_at, day, model, effort, tokens) VALUES ('a','codex',1,'2026-09-07','gpt','high',150);
             DROP VIEW monthly_totals;
             DROP VIEW weekly_totals;
             DROP VIEW daily_totals;

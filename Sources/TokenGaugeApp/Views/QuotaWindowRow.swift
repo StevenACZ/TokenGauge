@@ -10,6 +10,7 @@ struct QuotaWindowRow: View {
     var showPace = false
     var pace: QuotaPace?
     var previousPace: QuotaPace?
+    var session: QuotaForecast?
 
     private var valueColor: Color {
         Theme.severity(remaining: window.remainingPercentage) ?? .primary
@@ -50,17 +51,33 @@ struct QuotaWindowRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer(minLength: 4)
-                if let summary = UsageFormatters.modelChips(chips) {
-                    Text(summary)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .monospacedDigit()
-                        .layoutPriority(-1)
-                }
+                ModelChipsLabel(chips: chips).layoutPriority(-1)
             }
             if showPace { QuotaPaceLabel(pace: pace, previousPace: previousPace) }
+            if let session { SessionForecastLabel(forecast: session) }
         }
+    }
+}
+
+struct ModelChipsLabel: View {
+    let chips: [ModelUsageChip]
+
+    var body: some View {
+        if let summary = UsageFormatters.modelChips(chips) {
+            ViewThatFits(in: .horizontal) {
+                line(chips)
+                line(Array(chips.prefix(1)))
+            }
+            .help(summary)
+        }
+    }
+
+    private func line(_ chips: [ModelUsageChip]) -> some View {
+        Text(UsageFormatters.modelChips(chips) ?? "")
+            .font(.system(size: 10))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .monospacedDigit()
     }
 }

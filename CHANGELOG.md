@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-09-26
+
+### Added
+
+- Stats: flip the panel to see statistics for the selected tab, Claude, Codex or both. The main card answers whether each weekly limit and the current 5-hour session will last until the reset, with a projection chart, your pace and the most you can use per day or per hour.
+- Stats also compares today with a usual day, charts the last 14 days by model, and shows this week, this month, the total, best day, streak, active days, top models, reasoning effort, most used skills, time worked today, the longest turn and the share served from cache.
+- Under the 5-hour session in the Claude and Codex views, a line says whether the session lasts at your current pace or when it runs out.
+- Stats cards can be collapsed from their header, and the choice is remembered.
+
+### Changed
+
+- The period switcher and year stepper are redrawn with the rest of the panel, and the streak sits centered between them.
+- Model names include their version, such as Opus 5.5 or GPT-5.3 Codex. When several models do not fit, the first one is shown and the rest appear on hover.
+
+### Fixed
+
+- A click inside the panel right after reopening it no longer closes it.
+- Forecasts ignore the time spent on another Claude account, and returning to an account is no longer shown as an early reset.
+- A very large first history scan resumes where it stopped instead of starting over.
+
 ## [1.6.0] - 2026-09-23
 
 ### Added
