@@ -72,6 +72,7 @@
 
 - Preparing a public release does not authorize publishing it. Repository visibility changes, release publication, release tags and assets require explicit publication authorization; preparation or signing approval alone is insufficient.
 - UI iteration is M4-only for Steven to review. Broader QA, documentation screenshots, and public release publication require his explicit scope approval.
+- Real-app captures for the landing use demo mode: launch a development build with `TOKENGAUGE_DEMO=1`. `DemoData` seeds a synthetic history in the temporary directory, keeps preferences in its own defaults suite and never reads live usage; distribution builds ignore it.
 
 - Do not log or persist raw JSONL lines, prompts, responses, account identifiers, emails, tokens, or credentials; only the SHA-256 fingerprint of the account uuid may reach disk.
 - Do not invoke a model request to refresh usage.

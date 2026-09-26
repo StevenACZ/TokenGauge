@@ -137,7 +137,8 @@ final class StatusItemController: NSObject {
     private func historyModel() -> HistoryDashboardModel {
         if let history { return history }
         let preview = store.historyReadsEnabled ? nil : [store.claude.snapshot, store.codex.snapshot].compactMap { $0 }
-        let model = HistoryDashboardModel(previewSnapshots: preview, mode: store.historyMode)
+        let model = HistoryDashboardModel(
+            previewSnapshots: preview, mode: store.historyMode, historyURL: store.historyURL)
         history = model
         return model
     }

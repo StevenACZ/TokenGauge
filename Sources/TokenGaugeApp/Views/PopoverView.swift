@@ -22,8 +22,12 @@ struct PopoverView: View {
         self.showAbout = showAbout
         let preview = store.historyReadsEnabled ? nil : [store.claude.snapshot, store.codex.snapshot].compactMap { $0 }
         _history = StateObject(
-            wrappedValue: history ?? HistoryDashboardModel(previewSnapshots: preview, mode: store.historyMode))
-        _stats = StateObject(wrappedValue: StatsModel(preview: preview.map(StatsModel.preview(snapshots:))))
+            wrappedValue: history
+                ?? HistoryDashboardModel(
+                    previewSnapshots: preview, mode: store.historyMode, historyURL: store.historyURL))
+        _stats = StateObject(
+            wrappedValue: StatsModel(
+                preview: preview.map(StatsModel.preview(snapshots:)), historyURL: store.historyURL))
     }
 
     private var animatesMotion: Bool { store.animateChanges && !reduceMotion }

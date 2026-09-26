@@ -2,7 +2,7 @@ import AppKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    let store = UsageStore()
+    let store = DemoData.isEnabled ? DemoData.makeStore() : UsageStore()
     let launchAtLogin = LaunchAtLoginManager()
     private var statusController: StatusItemController?
     private var wakeObserver: (any NSObjectProtocol)?
@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         signal(SIGPIPE, SIG_IGN)
         NSApp.setActivationPolicy(.accessory)
         statusController = StatusItemController(store: store, launchAtLogin: launchAtLogin)
+        guard store.liveReadsEnabled else { return }
         store.start()
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
