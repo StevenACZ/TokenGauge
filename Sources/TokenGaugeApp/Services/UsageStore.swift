@@ -61,6 +61,8 @@ final class UsageStore: ObservableObject {
     }
     @Published private(set) var historyRevision = 0
     let historyReadsEnabled: Bool
+    let historyURL: URL
+    let liveReadsEnabled: Bool
     @Published var showLunaReserve: Bool {
         didSet { preferences.showLunaReserve = showLunaReserve }
     }
@@ -122,11 +124,14 @@ final class UsageStore: ObservableObject {
         codexClient: CodexAppServerClient = CodexAppServerClient(),
         defaults: UserDefaults = .standard,
         initialSnapshots: [ProviderUsageSnapshot] = [],
-        historyReadsEnabled: Bool? = nil
+        historyReadsEnabled: Bool? = nil,
+        historyURL: URL = UsagePaths.history(),
+        liveReadsEnabled: Bool = true
     ) {
         self.init(
             refresher: UsageRefresher(claudeClient: claudeClient, codexClient: codexClient),
-            defaults: defaults, initialSnapshots: initialSnapshots, historyReadsEnabled: historyReadsEnabled)
+            defaults: defaults, initialSnapshots: initialSnapshots, historyReadsEnabled: historyReadsEnabled,
+            historyURL: historyURL, liveReadsEnabled: liveReadsEnabled)
     }
 
     init(
@@ -134,6 +139,8 @@ final class UsageStore: ObservableObject {
         defaults: UserDefaults = .standard,
         initialSnapshots: [ProviderUsageSnapshot] = [],
         historyReadsEnabled: Bool? = nil,
+        historyURL: URL = UsagePaths.history(),
+        liveReadsEnabled: Bool = true,
         archiveWork: @escaping ArchiveWork = UsageStore.liveArchiveWork
     ) {
         let preferences = AppPreferences(defaults: defaults)
@@ -142,6 +149,8 @@ final class UsageStore: ObservableObject {
         self.preferences = preferences
         self.historyReadsEnabled =
             historyReadsEnabled ?? (defaults === UserDefaults.standard && initialSnapshots.isEmpty)
+        self.historyURL = historyURL
+        self.liveReadsEnabled = liveReadsEnabled
         let claudeCancelledAt = preferences.cancelledAt(.claude)
         recoveryAuthorization = ClaudeRecoveryAuthorization(
             allowed: preferences.claudeAutomaticRecovery && claudeCancelledAt == nil)
@@ -182,6 +191,7 @@ final class UsageStore: ObservableObject {
     }
 
     func start() {
+        guard liveReadsEnabled else { return }
         refresh(force: true)
         scheduler.start()
         startMonitoring()
@@ -196,6 +206,7 @@ final class UsageStore: ObservableObject {
     }
 
     func refresh(force: Bool = false) {
+        guard liveReadsEnabled else { return }
         guard !isRefreshing else {
             if force { refreshQueued = true }
             return
