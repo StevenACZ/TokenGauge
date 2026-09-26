@@ -100,6 +100,34 @@ final class PopoverLayoutTests: XCTestCase {
         }
     }
 
+    func testPanelKeepsItsBottomPaddingInEveryMode() throws {
+        let suite = "TokenGauge.layout.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = UsageStore(
+            defaults: defaults, initialSnapshots: [codexSnapshot(), claudeSnapshot()], historyReadsEnabled: false)
+        for mode in UsageDisplayMode.allCases {
+            for history in [HistoryMode.recent, .calendar] {
+                store.displayMode = mode
+                store.historyMode = history
+                let bitmap = try render(PopoverView(store: store, showSettings: {}, showAbout: {}))
+                let scale = CGFloat(bitmap.pixelsHigh) / bitmap.size.height
+                let rows = Int((Theme.Layout.panelBottomPadding - 2) * scale)
+                let reference = try XCTUnwrap(
+                    bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh - 1)?.usingColorSpace(.sRGB))
+                let touched = ((bitmap.pixelsHigh - rows)..<bitmap.pixelsHigh).contains { y in
+                    stride(from: 0, to: bitmap.pixelsWide, by: 2).contains { x in
+                        guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { return true }
+                        return abs(color.redComponent - reference.redComponent)
+                            + abs(color.greenComponent - reference.greenComponent)
+                            + abs(color.blueComponent - reference.blueComponent) > 0.05
+                    }
+                }
+                XCTAssertFalse(touched, "\(mode.rawValue) / \(history.rawValue)")
+            }
+        }
+    }
+
     private func claudeSnapshot() -> ProviderUsageSnapshot {
         Fixture.snapshot(
             .claude,

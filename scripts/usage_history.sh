@@ -49,6 +49,11 @@ quota)
                 datetime(resets_at, 'unixepoch', 'localtime') AS resets
          FROM quota_samples ORDER BY sampled_at DESC LIMIT ${1:-40};"
     ;;
+skills)
+    run "SELECT provider, key AS skill, COUNT(*) AS uses FROM activity_events
+         WHERE kind = 'skill' AND day >= date('now', 'localtime', '-${1:-30} days')
+         GROUP BY provider, key ORDER BY uses DESC, provider, key LIMIT 20;"
+    ;;
 export)
     OUT="${1:-usage-history.csv}"
     sqlite3 -header -csv "$DB" "SELECT day, provider, model, tokens FROM daily_tokens ORDER BY day, provider, model;" >"$OUT"
@@ -58,7 +63,7 @@ sql)
     run "${1:?usage: usage_history.sh sql \"SELECT ...\"}"
     ;;
 *)
-    printf "usage: %s {status|daily|models|weekly|monthly|quota|export|sql|path} [argument]\n" "$(basename "$0")" >&2
+    printf "usage: %s {status|daily|models|weekly|monthly|quota|skills|export|sql|path} [argument]\n" "$(basename "$0")" >&2
     exit 64
     ;;
 esac

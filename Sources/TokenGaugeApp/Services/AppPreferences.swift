@@ -13,6 +13,7 @@ struct AppPreferences {
         static let showHourlyPace = "showHourlyPace"
         static let showLunaReserve = "showLunaReserve"
         static let hiddenClaudeWindows = "hiddenClaudeWindows"
+        static let collapsedStatsCards = "collapsedStatsCards"
         static let claudeMenuBarSource = "claudeMenuBarSource"
         static let claudeMenuBarWindows = "claudeMenuBarWindows"
         static let codexMenuBarWindows = "codexMenuBarWindows"
@@ -90,6 +91,11 @@ struct AppPreferences {
     var hiddenClaudeWindows: Set<QuotaWindowKind> {
         get { QuotaWindowKind.decode(defaults.stringArray(forKey: Key.hiddenClaudeWindows)) }
         nonmutating set { defaults.set(newValue.map(\.rawValue).sorted(), forKey: Key.hiddenClaudeWindows) }
+    }
+
+    var collapsedStatsCards: Set<StatsCard> {
+        get { StatsCard.decode(defaults.stringArray(forKey: Key.collapsedStatsCards)) }
+        nonmutating set { defaults.set(newValue.map(\.rawValue).sorted(), forKey: Key.collapsedStatsCards) }
     }
 
     var claudeMenuBarWindows: Set<QuotaWindowKind> {

@@ -17,20 +17,20 @@ final class ModelActivityTests: XCTestCase {
             excludingFamilies: ["fable"]
         )
 
-        XCTAssertEqual(chips.map(\.displayName), ["Opus", "Sonnet"])
+        XCTAssertEqual(chips.map(\.displayName), ["Opus 5", "Sonnet 5"])
     }
 
     func testScopedChipsStillReportTheirOwnFamily() {
         let chips = ModelActivity.chips(buckets: buckets, since: start, limit: 2, family: "Fable")
 
-        XCTAssertEqual(chips.map(\.displayName), ["Fable"])
+        XCTAssertEqual(chips.map(\.displayName), ["Fable 5"])
         XCTAssertEqual(chips.map(\.tokens), [78_800_000])
     }
 
     func testNoExclusionKeepsEveryFamily() {
         let chips = ModelActivity.chips(buckets: buckets, since: start, limit: 3)
 
-        XCTAssertEqual(chips.map(\.displayName), ["Fable", "Opus", "Sonnet"])
+        XCTAssertEqual(chips.map(\.displayName), ["Fable 5", "Opus 5", "Sonnet 5"])
     }
 
     private var buckets: [ModelTokenBucket] {

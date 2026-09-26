@@ -43,6 +43,16 @@ extension UsageHistoryStore {
                 tokens INTEGER NOT NULL
             ) WITHOUT ROWID;
             CREATE INDEX IF NOT EXISTS effort_events_day_provider ON effort_events(day, provider);
+            CREATE TABLE IF NOT EXISTS activity_events (
+                id TEXT NOT NULL PRIMARY KEY,
+                provider TEXT NOT NULL,
+                occurred_at REAL NOT NULL,
+                day TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                key TEXT NOT NULL,
+                value INTEGER NOT NULL
+            ) WITHOUT ROWID;
+            CREATE INDEX IF NOT EXISTS activity_events_day_provider ON activity_events(day, provider);
             """
 
         static let observedTotalsViews = """
@@ -105,6 +115,13 @@ extension UsageHistoryStore {
             }
             if !paceColumns.contains("account_fingerprint") {
                 try connection.exec("ALTER TABLE pace_samples ADD COLUMN account_fingerprint TEXT;")
+            }
+            var effortColumns = Set<String>()
+            try connection.query("PRAGMA table_info(effort_events);", bindings: { _ in }) { statement in
+                effortColumns.insert(statement.text(1))
+            }
+            if !effortColumns.contains("cached_tokens") {
+                try connection.exec("ALTER TABLE effort_events ADD COLUMN cached_tokens INTEGER;")
             }
             if try schemaVersion(connection) < Schema.version {
                 try connection.exec(Schema.observedTotalsViews)

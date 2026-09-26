@@ -23,7 +23,7 @@ public enum ClaudeHistoryScanner {
             tokens: tokens, model: normalizedModel(message.model),
             effortModel: EffortTranscriptMetadata.normalizedModel(message.model),
             effort: EffortTranscriptMetadata.normalizedEffort(metadata.perTurnEffort ?? metadata.effort),
-            eligible: message.id?.isEmpty == false)
+            eligible: message.id?.isEmpty == false, cachedTokens: usage.cache_read_input_tokens.map { max(0, $0) })
     }
 
     static func buckets(

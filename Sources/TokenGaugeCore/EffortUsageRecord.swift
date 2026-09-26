@@ -8,9 +8,11 @@ public struct EffortUsageRecord: Codable, Equatable, Sendable {
     public let model: String
     public let effort: String
     public let tokens: Int
+    public let cachedTokens: Int?
 
     public init(
-        id: String, provider: UsageProvider, recordedAt: Date, day: String, model: String, effort: String, tokens: Int
+        id: String, provider: UsageProvider, recordedAt: Date, day: String, model: String, effort: String, tokens: Int,
+        cachedTokens: Int? = nil
     ) {
         self.id = id
         self.provider = provider
@@ -19,6 +21,7 @@ public struct EffortUsageRecord: Codable, Equatable, Sendable {
         self.model = model
         self.effort = effort
         self.tokens = tokens
+        self.cachedTokens = cachedTokens
     }
 
     private static let hexCharacters = CharacterSet(charactersIn: "0123456789abcdefABCDEF")
@@ -34,19 +37,24 @@ public struct EffortUsageRecord: Codable, Equatable, Sendable {
     }()
 
     var isValid: Bool {
-        guard id.utf8.count == 64, id.unicodeScalars.allSatisfy(Self.hexCharacters.contains),
-            !model.isEmpty, model.utf8.count <= 128,
+        guard !model.isEmpty, model.utf8.count <= 128,
             model.unicodeScalars.allSatisfy(Self.identifierCharacters.contains),
-            Self.efforts.contains(effort), tokens >= 0,
+            Self.efforts.contains(effort), tokens >= 0, (cachedTokens ?? 0) >= 0
+        else { return false }
+        return Self.isValid(id: id, recordedAt: recordedAt, day: day)
+    }
+
+    static func isValid(id: String, recordedAt: Date, day: String) -> Bool {
+        guard id.utf8.count == 64, id.unicodeScalars.allSatisfy(hexCharacters.contains),
             recordedAt.timeIntervalSince1970.isFinite,
             (0...253_402_300_799).contains(recordedAt.timeIntervalSince1970),
-            Self.isDayFormat(day)
+            isDayFormat(day)
         else { return false }
         let parts = day.split(separator: "-").compactMap { Int($0) }
         guard parts.count == 3, (1970...9999).contains(parts[0]) else { return false }
         let components = DateComponents(year: parts[0], month: parts[1], day: parts[2])
-        guard let date = Self.utcCalendar.date(from: components) else { return false }
-        return Self.utcCalendar.dateComponents([.year, .month, .day], from: date) == components
+        guard let date = utcCalendar.date(from: components) else { return false }
+        return utcCalendar.dateComponents([.year, .month, .day], from: date) == components
     }
 
     private static func isDayFormat(_ day: String) -> Bool {

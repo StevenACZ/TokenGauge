@@ -9,12 +9,17 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
 </p>
 
-TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Codex quota you have left. Check reset times, browse weekly and yearly activity, and keep a private local history without opening a terminal.
+TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Codex quota you have left. Check reset times, see whether your weekly limit and 5-hour session will last, browse weekly and yearly activity, and keep a private local history without opening a terminal.
 
 <p align="center">
   <img src="docs/images/readme-year.png" width="604" alt="Annual activity calendar with weekly reset forecasts, Codex quota, and all three Claude quota rings">
 </p>
 <p align="center"><sub>App views rendered with synthetic demonstration data.</sub></p>
+
+<details>
+<summary>Stats: forecasts, today, models, effort, and skills</summary>
+<p align="center"><img src="docs/images/stats.png" width="340" alt="Stats view with weekly and 5-hour forecasts, today against a usual day, the last 14 days, top models, reasoning effort, and most used skills"></p>
+</details>
 
 <details>
 <summary>Classic panels, yearly history, and Settings</summary>
@@ -29,6 +34,7 @@ TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Code
 
 ## At a glance
 
+- **Stats and forecasts:** flip the panel to see whether each weekly limit and the current 5-hour session will last until its reset, projected from the provider’s own percentage. Stats also compares today with a usual day, charts the last 14 days, and shows streaks, top models, reasoning effort, most used skills, turns, and cache share. Time on another Claude account is marked instead of being mistaken for a reset. Collapse any card you do not need.
 - **Three views:** Codex, Claude, or Unified. Individual views show only that provider; Unified puts both quota cards side by side.
 - **Flexible layouts:** keep the classic panel, choose compact rows, or use separate quota rings. Switch from the panel header or Settings → Panel.
 - **A readable menu bar:** show one or several limits per provider (5-hour, weekly, model weekly), hide either provider, and choose percentages, mini bars, or mini rings with Large, Medium, or Small sizing. Settings previews your real menu bar as you click, and right-clicking the menu bar item changes the same options instantly. Exact percentages remain available on hover and in the panel.
@@ -74,7 +80,7 @@ If a live read fails, historical balances are not presented as current quota. Au
 
 Codex metrics come from the local `codex app-server` account methods. Claude quota comes from its read-only usage endpoint, using the existing credential only in memory. This integration depends on provider behavior and is not an official provider product.
 
-Local activity scans decode timestamps, message IDs, model identifiers, reasoning effort, and numeric counters. Prompt and response fields are not decoded, logged, or persisted. Only normalized metrics and aggregate history are saved under `~/Library/Application Support/TokenGauge`, with user-only permissions. No usage is sent to a TokenGauge server. Provider quota requests contact the provider, and update checks contact GitHub.
+Local activity scans decode timestamps, message IDs, model identifiers, reasoning effort, skill names, turn durations, and numeric counters. Prompt and response fields are not decoded, logged, or persisted. Only normalized metrics and aggregate history are saved under `~/Library/Application Support/TokenGauge`, with user-only permissions. No usage is sent to a TokenGauge server. Provider quota requests contact the provider, and update checks contact GitHub.
 
 See [SECURITY.md](SECURITY.md) for reporting and update-channel details.
 

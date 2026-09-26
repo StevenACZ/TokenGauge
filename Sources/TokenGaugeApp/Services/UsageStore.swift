@@ -67,6 +67,9 @@ final class UsageStore: ObservableObject {
     @Published private(set) var hiddenClaudeWindows: Set<QuotaWindowKind> {
         didSet { preferences.hiddenClaudeWindows = hiddenClaudeWindows }
     }
+    @Published private(set) var collapsedStatsCards: Set<StatsCard> {
+        didSet { preferences.collapsedStatsCards = collapsedStatsCards }
+    }
     @Published var claudeMenuBarWindows: Set<QuotaWindowKind> {
         didSet { preferences.claudeMenuBarWindows = claudeMenuBarWindows }
     }
@@ -153,6 +156,7 @@ final class UsageStore: ObservableObject {
         animateChanges = preferences.animateChanges
         showLunaReserve = preferences.showLunaReserve
         hiddenClaudeWindows = preferences.hiddenClaudeWindows
+        collapsedStatsCards = preferences.collapsedStatsCards
         claudeMenuBarWindows = preferences.claudeMenuBarWindows
         codexMenuBarWindows = preferences.codexMenuBarWindows
         hideAccountLabel = preferences.hideAccountLabel
@@ -409,6 +413,14 @@ final class UsageStore: ObservableObject {
         if visible { hidden.remove(kind) } else { hidden.insert(kind) }
         guard hidden.count < QuotaWindowKind.allCases.count else { return }
         hiddenClaudeWindows = hidden
+    }
+
+    func toggleStatsCard(_ card: StatsCard) {
+        if collapsedStatsCards.contains(card) {
+            collapsedStatsCards.remove(card)
+        } else {
+            collapsedStatsCards.insert(card)
+        }
     }
 
     func setCancelled(_ cancelled: Bool, for provider: UsageProvider) {

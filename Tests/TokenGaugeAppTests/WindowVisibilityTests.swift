@@ -37,10 +37,20 @@ final class WindowVisibilityTests: XCTestCase {
     }
 
     @MainActor
-    func testModelDisplayNamesCollapseToFamilies() {
-        XCTAssertEqual(ModelActivity.displayName("claude-fable-5"), "Fable")
-        XCTAssertEqual(ModelActivity.displayName("claude-opus-5[1m]"), "Opus")
-        XCTAssertEqual(ModelActivity.displayName("claude-haiku-4-5-20251001"), "Haiku")
+    func testModelFamiliesCollapseVersions() {
+        XCTAssertEqual(ModelActivity.family("claude-fable-5"), "Fable")
+        XCTAssertEqual(ModelActivity.family("claude-opus-5[1m]"), "Opus")
+        XCTAssertEqual(ModelActivity.family("claude-haiku-4-5-20251001"), "Haiku")
+    }
+
+    @MainActor
+    func testModelDisplayNamesKeepTheVersion() {
+        XCTAssertEqual(ModelActivity.displayName("claude-opus-5-5"), "Opus 5.5")
+        XCTAssertEqual(ModelActivity.displayName("claude-opus-5[1m]"), "Opus 5")
+        XCTAssertEqual(ModelActivity.displayName("claude-fable-5-1"), "Fable 5.1")
+        XCTAssertEqual(ModelActivity.displayName("claude-haiku-4-5-20251001"), "Haiku 4.5")
+        XCTAssertEqual(ModelActivity.displayName("gpt-6-astra"), "GPT-6 Astra")
+        XCTAssertEqual(ModelActivity.displayName("gpt-5.3-codex"), "GPT-5.3 Codex")
     }
 
     @MainActor
@@ -54,7 +64,7 @@ final class WindowVisibilityTests: XCTestCase {
 
         let chips = ModelActivity.chips(buckets: buckets, since: start)
 
-        XCTAssertEqual(chips.map(\.displayName), ["Opus", "Fable"])
+        XCTAssertEqual(chips.map(\.displayName), ["Opus 5", "Fable 5"])
         XCTAssertEqual(chips.map(\.tokens), [400, 100])
     }
 
