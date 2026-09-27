@@ -80,7 +80,7 @@
 - Do not request Accessibility, Automation or Full Disk Access. Claude uses its existing read-only Keychain credential; explain the system access prompt if its ACL requires one.
 - Launch at login is opt-in through `SMAppService.mainApp`.
 - Keep local installs signed with Apple Development.
-- All implementation uses a topic branch and PR. Never push directly to `main` or bypass its protection: GitHub Actions `check` must pass on an up-to-date branch, conversations must be resolved, and the rules apply to admins. Steven approves the final local UI before merge/release; no force-push or branch deletion without authorization.
+- All implementation uses a topic branch and PR. Never push directly to `main` or bypass its protection: conversations must be resolved and the rules apply to admins. Verification is local only (`make ci-check`); there is no hosted CI. Do not add GitHub Actions workflows. Steven approves the final local UI before merge/release; no force-push or branch deletion without authorization.
 
 ## Verification
 
