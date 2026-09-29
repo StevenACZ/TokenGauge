@@ -53,8 +53,14 @@ enum Fixture {
     }
 }
 
+func temporaryDefaultsSuite() -> String {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TokenGaugeTests", isDirectory: true)
+    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    return directory.appendingPathComponent(UUID().uuidString).path
+}
+
 func withDefaults(_ body: (UserDefaults) throws -> Void) throws {
-    let suite = "TokenGauge.tests.\(UUID().uuidString)"
+    let suite = temporaryDefaultsSuite()
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     try body(defaults)

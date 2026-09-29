@@ -15,7 +15,7 @@ final class ReadmeScreenshotTests: XCTestCase {
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let language = LocalizationManager.shared.language
         let previousIcon = NSApplication.shared.applicationIconImage
-        let suite = "TokenGauge.readme.\(UUID().uuidString)"
+        let suite = temporaryDefaultsSuite()
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer {
             defaults.removePersistentDomain(forName: suite)
@@ -76,7 +76,7 @@ final class ReadmeScreenshotTests: XCTestCase {
         let output = URL(fileURLWithPath: directory)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let language = LocalizationManager.shared.language
-        let suite = "TokenGauge.readme.\(UUID().uuidString)"
+        let suite = temporaryDefaultsSuite()
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer {
             defaults.removePersistentDomain(forName: suite)

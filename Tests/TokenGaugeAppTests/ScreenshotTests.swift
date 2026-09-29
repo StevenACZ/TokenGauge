@@ -19,7 +19,7 @@ final class ScreenshotTests: XCTestCase {
             .appendingPathComponent("Resources/AppIcon.icns")
         NSApplication.shared.applicationIconImage = try XCTUnwrap(NSImage(contentsOf: icon))
         defer { NSApplication.shared.applicationIconImage = previousIcon }
-        let suite = "TokenGauge.screenshots.\(UUID().uuidString)"
+        let suite = temporaryDefaultsSuite()
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let language = LocalizationManager.shared.language

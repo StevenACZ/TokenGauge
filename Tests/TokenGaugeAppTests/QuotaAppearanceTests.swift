@@ -49,7 +49,7 @@ final class QuotaAppearanceTests: XCTestCase {
     }
 
     private func withDefaults(_ action: (UserDefaults) -> Void) {
-        let suite = "TokenGauge.appearance-tests.\(UUID().uuidString)"
+        let suite = temporaryDefaultsSuite()
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         action(defaults)

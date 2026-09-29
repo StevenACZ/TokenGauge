@@ -134,7 +134,7 @@ final class UpdateBannerRenderingTests: XCTestCase {
     }
 
     private func makeManager(phase: UpdateManager.Phase) throws -> UpdateManager {
-        let suite = "TokenGauge.banner.\(UUID().uuidString)"
+        let suite = temporaryDefaultsSuite()
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
         let manager = UpdateManager(defaults: defaults)

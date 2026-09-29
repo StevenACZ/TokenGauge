@@ -177,7 +177,7 @@ final class ProviderCancellationTests: XCTestCase {
     }
 
     private func withDefaults(_ body: (UserDefaults) -> Void) {
-        let suite = "TokenGaugeCancellationTests.\(UUID().uuidString)"
+        let suite = temporaryDefaultsSuite()
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         body(defaults)

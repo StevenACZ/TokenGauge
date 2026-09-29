@@ -368,7 +368,7 @@ final class HistoryDashboardTests: XCTestCase {
     }
 
     func testPreviewStoresDoNotReadOrCollectLiveHistory() {
-        let name = "TokenGauge.history-preview.\(UUID().uuidString)"
+        let name = temporaryDefaultsSuite()
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
         XCTAssertFalse(UsageStore(defaults: defaults).historyReadsEnabled)

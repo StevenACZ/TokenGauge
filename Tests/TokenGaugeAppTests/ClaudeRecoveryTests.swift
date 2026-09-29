@@ -121,7 +121,7 @@ final class ClaudeRecoveryTests: XCTestCase {
     }
 
     private func withDefaults(_ action: (UserDefaults) -> Void) {
-        let suite = "TokenGauge.recovery-tests.\(UUID().uuidString)"
+        let suite = temporaryDefaultsSuite()
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         action(defaults)

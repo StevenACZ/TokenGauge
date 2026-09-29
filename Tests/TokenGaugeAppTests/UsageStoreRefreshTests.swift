@@ -207,7 +207,7 @@ final class UsageStoreRefreshTests: XCTestCase {
     }
 
     private func withDefaults(_ body: (UserDefaults) async throws -> Void) async rethrows {
-        let suite = "TokenGauge.refresh-tests.\(UUID().uuidString)"
+        let suite = temporaryDefaultsSuite()
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         try await body(defaults)
