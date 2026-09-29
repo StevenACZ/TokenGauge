@@ -139,7 +139,7 @@ final class ProviderStateResolverTests: XCTestCase {
     }
 
     @MainActor func testProviderChoiceAndCancellationSurviveRelaunch() {
-        let suite = "TokenGaugeTests.\(UUID().uuidString)"
+        let suite = temporaryDefaultsSuite()
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let first = UsageStore(defaults: defaults)

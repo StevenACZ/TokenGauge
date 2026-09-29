@@ -8,7 +8,7 @@ import XCTest
 @MainActor
 final class PopoverLayoutTests: XCTestCase {
     func testLargeProviderListsAndUpdateStatesStayWithinPanelHeight() throws {
-        let suite = "TokenGauge.layout.\(UUID().uuidString)"
+        let suite = temporaryDefaultsSuite()
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         let language = LocalizationManager.shared.language
         defer {
@@ -46,7 +46,7 @@ final class PopoverLayoutTests: XCTestCase {
     }
 
     func testUnifiedProviderContentFitsEveryStyleWithoutScrolling() throws {
-        let suite = "TokenGauge.layout.\(UUID().uuidString)"
+        let suite = temporaryDefaultsSuite()
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = UsageStore(
@@ -67,7 +67,7 @@ final class PopoverLayoutTests: XCTestCase {
     }
 
     func testUpdateBannerNeverClipsTheRingProviderCards() throws {
-        let suite = "TokenGauge.layout.\(UUID().uuidString)"
+        let suite = temporaryDefaultsSuite()
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer {
             defaults.removePersistentDomain(forName: suite)
@@ -101,7 +101,7 @@ final class PopoverLayoutTests: XCTestCase {
     }
 
     func testPanelKeepsItsBottomPaddingInEveryMode() throws {
-        let suite = "TokenGauge.layout.\(UUID().uuidString)"
+        let suite = temporaryDefaultsSuite()
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = UsageStore(

@@ -90,7 +90,7 @@ final class DisplayModeTests: XCTestCase {
     }
 
     private func withDefaults(_ action: (UserDefaults) -> Void) {
-        let name = "TokenGauge.display-tests.\(UUID().uuidString)"
+        let name = temporaryDefaultsSuite()
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
         action(defaults)

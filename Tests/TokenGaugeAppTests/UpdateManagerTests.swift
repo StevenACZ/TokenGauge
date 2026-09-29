@@ -24,7 +24,7 @@ final class UpdateManagerTests: XCTestCase {
     private var clock = Date(timeIntervalSince1970: 1_000)
 
     private func makeDefaults() -> UserDefaults {
-        let suite = "TokenGauge.UpdaterTests." + UUID().uuidString
+        let suite = temporaryDefaultsSuite()
         let defaults = UserDefaults(suiteName: suite)!
         addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
         return defaults

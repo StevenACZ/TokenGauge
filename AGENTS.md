@@ -94,6 +94,7 @@ make install-dev
 ```
 
 - Run `git diff --check` when the directory becomes a Git repository.
+- Tests never name a `UserDefaults` suite in `~/Library/Preferences`: use `temporaryDefaultsSuite()` (a path suite under the temp directory). cfprefsd keeps an empty plist for every named suite, so UUID names leaked thousands of files (lesson `swift-test-uuid-defaults-suite-leaks-plists`).
 - Exercise the history database against the live file with `scripts/usage_history.sh status` after UI or store work.
 - Verify the installed signature contains `Authority=Apple Development` and a TeamIdentifier.
 - Every packaged executable must link `LC_BUILD_VERSION sdk` equal to `xcrun --sdk macosx --show-sdk-version`. Xcode 27's default `swiftbuild` engine records the deployment target instead, which runs the app in legacy mode and opened an empty Settings window at launch. `scripts/build_and_run.sh` passes `-isysroot` to the clang linker and fails packaging on a mismatch; never drop either (lesson `swiftpm-swiftbuild-links-deployment-target-as-sdk`).
