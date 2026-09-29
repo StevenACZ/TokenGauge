@@ -25,7 +25,7 @@ struct MenuBarPresentation: Equatable {
     ) {
         self.size = size
         self.style = style
-        var labelColor = NSColor.secondaryLabelColor
+        var labelColor = NSColor.labelColor
         appearance.performAsCurrentDrawingAppearance {
             labelColor = labelColor.usingColorSpace(.sRGB) ?? labelColor
         }

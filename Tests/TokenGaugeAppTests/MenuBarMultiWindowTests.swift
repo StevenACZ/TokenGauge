@@ -18,6 +18,16 @@ final class MenuBarMultiWindowTests: XCTestCase {
         XCTAssertEqual(presentation.accessibilityLabel.components(separatedBy: "\n").count, 3)
     }
 
+    func testWindowLabelsKeepTheQuotaTextContrastOnTheBar() throws {
+        let vibrantDark = try XCTUnwrap(NSAppearance(named: .vibrantDark))
+        let presentation = MenuBarPresentation(
+            providers: [.claude], state: state, appearance: vibrantDark, selection: [.claude: [.session, .weekly]])
+        let label = try XCTUnwrap(presentation.labelColor.usingColorSpace(.sRGB))
+        let quota = try XCTUnwrap(presentation.segments.first?.color.usingColorSpace(.sRGB))
+        XCTAssertEqual(label.alphaComponent, quota.alphaComponent, accuracy: 0.01)
+        XCTAssertGreaterThan(label.brightnessComponent, 0.9)
+    }
+
     func testOneSelectedWindowKeepsTheUnlabelledTitle() {
         let presentation = MenuBarPresentation(
             providers: [.claude], state: state, appearance: appearance, selection: [.claude: [.weekly]])

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-09-28
+
+### Fixed
+
+- Switching between Codex, Claude and Unified updates the menu bar right away instead of after the panel closes.
+- The window labels in the menu bar, such as 5h and 7d, stay readable over light wallpapers.
+
 ## [1.7.0] - 2026-09-26
 
 ### Added

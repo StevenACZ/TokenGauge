@@ -14,6 +14,7 @@ final class StatusItemController: NSObject {
     private var cancellables = Set<AnyCancellable>()
     private var displayedPresentation: MenuBarPresentation?
     private var appearanceObservation: NSKeyValueObservation?
+    private var barAppearanceObservation: NSKeyValueObservation?
     private var popoverSizeObservation: NSKeyValueObservation?
     private var positioningUpdatePending = false
     private var positionedGeometry: PopoverGeometry?
@@ -96,6 +97,9 @@ final class StatusItemController: NSObject {
         .store(in: &cancellables)
 
         appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
+            Task { @MainActor in self?.updateStatusItem() }
+        }
+        barAppearanceObservation = statusItem.button?.observe(\.effectiveAppearance) { [weak self] _, _ in
             Task { @MainActor in self?.updateStatusItem() }
         }
         updateStatusItem()
@@ -234,7 +238,7 @@ final class StatusItemController: NSObject {
     }
 
     private func updateStatusItem() {
-        guard let button = statusItem.button, !popover.isShown else { return }
+        guard let button = statusItem.button else { return }
         let presentation = MenuBarPresentation(
             providers: store.displayMode.providers,
             state: { store.state(for: $0) },
