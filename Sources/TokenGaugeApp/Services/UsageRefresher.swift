@@ -14,6 +14,7 @@ struct UsageRefresher: Sendable {
 
     let homeDirectory: URL
     private let fetchClaude: ClaudeFetch
+    private let fetchClaudeQuota: @Sendable () async -> ClaudeUsageResult?
     private let fetchCodex: @Sendable () -> ProviderViewState
 
     init(claudeClient: ClaudeUsageClient, codexClient: CodexAppServerClient) {
@@ -23,17 +24,25 @@ struct UsageRefresher: Sendable {
                 await claudeClient.fetch(
                     recoveryAuthorization: authorization, includeQuota: includeQuota, onQuota: onQuota)
             },
-            fetchCodex: { Self.codexState(client: codexClient) })
+            fetchCodex: { Self.codexState(client: codexClient) },
+            fetchClaudeQuota: { await claudeClient.fetchQuota() })
     }
 
     init(
         homeDirectory: URL,
         fetchClaude: @escaping ClaudeFetch,
-        fetchCodex: @escaping @Sendable () -> ProviderViewState
+        fetchCodex: @escaping @Sendable () -> ProviderViewState,
+        fetchClaudeQuota: @escaping @Sendable () async -> ClaudeUsageResult? = { nil }
     ) {
         self.homeDirectory = homeDirectory
         self.fetchClaude = fetchClaude
         self.fetchCodex = fetchCodex
+        self.fetchClaudeQuota = fetchClaudeQuota
+    }
+
+    func claudeQuota() async -> ClaudeUsageResult? {
+        let fetch = fetchClaudeQuota
+        return await Task.detached(priority: .utility) { await fetch() }.value
     }
 
     func outcomes(
