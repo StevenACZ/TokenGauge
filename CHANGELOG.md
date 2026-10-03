@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-03
+
 ### Added
 
 - Stats: step back through past 5-hour sessions and past weeks from the forecast card. Each one shows its real curve and whether it lasted or ran out, around what time and how long you were left without quota. A Today button jumps back to the current one.
