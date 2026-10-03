@@ -297,3 +297,4 @@
 "stats.past.accuracy" = "Pronóstico acertó %1$@ de %2$@";
 "stats.past.current_session" = "Sesión actual";
 "stats.past.current_week" = "Semana actual";
+"stats.past.back_to_current" = "Hoy";

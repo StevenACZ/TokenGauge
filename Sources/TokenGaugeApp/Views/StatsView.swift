@@ -220,6 +220,21 @@ struct StatsView: View {
             .font(.system(size: 9.5, weight: .medium)).foregroundStyle(.secondary).lineLimit(1).monospacedDigit()
             .contentTransition(.opacity)
             Spacer(minLength: 0)
+            if pastIndex != nil {
+                Button {
+                    pastIndex = nil
+                } label: {
+                    Text("stats.past.back_to_current".localized)
+                        .font(.system(size: 9, weight: .semibold)).lineLimit(1)
+                        .padding(.horizontal, 7).frame(height: 16)
+                        .background(Capsule().fill(Color.primary.opacity(0.06)))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(PressableStyle())
+                .foregroundStyle(.secondary)
+                .help((forecast.isSession ? "stats.past.current_session" : "stats.past.current_week").localized)
+                .transition(.opacity)
+            }
             stepButton("chevron.right", "stats.past.newer", enabled: pastIndex != nil) {
                 pastIndex = pastIndex.flatMap { $0 > 0 ? $0 - 1 : nil }
             }

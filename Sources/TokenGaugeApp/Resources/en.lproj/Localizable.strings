@@ -297,3 +297,4 @@
 "stats.past.accuracy" = "Forecast right in %1$@ of %2$@";
 "stats.past.current_session" = "This session";
 "stats.past.current_week" = "This week";
+"stats.past.back_to_current" = "Today";
