@@ -154,10 +154,14 @@ public enum UsageHistoryStore {
         provider: UsageProvider? = nil,
         since: Date? = nil,
         until: Date? = nil,
+        durationMinutes: Int? = nil,
+        everySeconds: Int? = nil,
         at url: URL = UsagePaths.history()
     ) throws -> [HistoryQuotaRow] {
         try read(url) { connection in
-            try readQuotaRows(connection, provider: provider, since: since, until: until)
+            try readQuotaRows(
+                connection, provider: provider, since: since, until: until, durationMinutes: durationMinutes,
+                everySeconds: everySeconds)
         }
     }
 

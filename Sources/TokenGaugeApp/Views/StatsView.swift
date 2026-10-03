@@ -9,6 +9,7 @@ struct StatsView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.quotaAnimationsEnabled) private var animateChanges
     @State private var selectedForecast: String?
+    @State var pastIndex: Int?
     @State private var appeared = false
 
     private var locale: Locale { Locale(identifier: LocalizationManager.shared.language.rawValue) }
@@ -144,12 +145,18 @@ struct StatsView: View {
         let selected = forecasts.first { $0.id == selectedForecast } ?? forecasts.first
         card(.forecast, "stats.forecast.title".localized, symbol: "gauge.with.needle") {
             if let selected {
+                let history = model.pastSessions(like: selected, accountFingerprint: store.claudeAccountFingerprint)
+                let past = pastIndex.flatMap { history.indices.contains($0) ? history[$0] : nil }
+                let shown = past?.forecast ?? selected
                 VStack(alignment: .leading, spacing: 10) {
-                    headline(selected)
-                    ForecastChartView(forecast: selected, tint: color(selected.provider), locale: locale)
-                        .id(selected.id)
-                        .transition(.opacity)
-                    paceLine(selected)
+                    headline(shown, past: past)
+                    if !history.isEmpty { sessionStepper(selected, past: past, count: history.count) }
+                    ForecastChartView(
+                        forecast: shown, tint: color(shown.provider), locale: locale, depletedAt: past?.depletedAt
+                    )
+                    .id("\(shown.id)@\(shown.reset.timeIntervalSince1970)")
+                    .transition(.opacity)
+                    if let past { pastLine(past, history: history) } else { paceLine(selected) }
                     if forecasts.count > 1 {
                         VStack(spacing: 4) {
                             ForEach(forecasts) { forecast in
@@ -159,6 +166,7 @@ struct StatsView: View {
                     }
                 }
                 .animation(animates ? .easeInOut(duration: 0.22) : nil, value: selected.id)
+                .animation(animates ? .easeInOut(duration: 0.22) : nil, value: pastIndex)
             } else {
                 Text("stats.forecast.unavailable".localized)
                     .font(.system(size: 11)).foregroundStyle(.secondary)
@@ -167,18 +175,23 @@ struct StatsView: View {
         .help((selected?.isSession == true ? "stats.forecast.help_session" : "stats.forecast.help").localized)
     }
 
-    private func headline(_ forecast: QuotaForecast) -> some View {
-        let (symbol, tint) = verdictStyle(forecast.verdict)
+    private func headline(_ forecast: QuotaForecast, past: PastQuotaSession?) -> some View {
+        let (symbol, tint) =
+            past.map { $0.ranOut ? ("xmark.octagon.fill", Color.red) : ("checkmark.seal.fill", Color.green) }
+            ?? verdictStyle(forecast.verdict)
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: symbol).font(.system(size: 15, weight: .semibold)).accessibilityHidden(true)
                 .foregroundStyle(tint)
                 .symbolRenderingMode(.hierarchical)
             VStack(alignment: .leading, spacing: 2) {
-                Text(headlineText(forecast.verdict))
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(tint)
-                    .contentTransition(.opacity)
-                Text(verdictText(forecast))
+                Text(
+                    past.map { ($0.ranOut ? "stats.past.ran_out" : "stats.past.lasted").localized }
+                        ?? headlineText(forecast.verdict)
+                )
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(tint)
+                .contentTransition(.opacity)
+                Text(past.map(pastText) ?? verdictText(forecast))
                     .font(.system(size: 10.5, weight: .medium)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -188,10 +201,114 @@ struct StatsView: View {
                     ProviderLogo(provider: forecast.provider, size: 11)
                     Text(windowName(forecast)).font(.system(size: 10, weight: .semibold)).lineLimit(1)
                 }
-                Text(UsageFormatters.reset(forecast.reset))
+                Text(past == nil ? UsageFormatters.reset(forecast.reset) : " ")
                     .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
             }
         }
+    }
+
+    private func sessionStepper(_ forecast: QuotaForecast, past: PastQuotaSession?, count: Int) -> some View {
+        HStack(spacing: 6) {
+            stepButton("chevron.left", "stats.past.older", enabled: (pastIndex ?? -1) < count - 1) {
+                pastIndex = (pastIndex ?? -1) + 1
+            }
+            Spacer(minLength: 0)
+            Text(
+                past.map { pastRange($0.forecast) }
+                    ?? (forecast.isSession ? "stats.past.current_session" : "stats.past.current_week").localized
+            )
+            .font(.system(size: 9.5, weight: .medium)).foregroundStyle(.secondary).lineLimit(1).monospacedDigit()
+            .contentTransition(.opacity)
+            Spacer(minLength: 0)
+            if pastIndex != nil {
+                Button {
+                    pastIndex = nil
+                } label: {
+                    Text("stats.past.back_to_current".localized)
+                        .font(.system(size: 9, weight: .semibold)).lineLimit(1)
+                        .padding(.horizontal, 7).frame(height: 16)
+                        .background(Capsule().fill(Color.primary.opacity(0.06)))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(PressableStyle())
+                .foregroundStyle(.secondary)
+                .help((forecast.isSession ? "stats.past.current_session" : "stats.past.current_week").localized)
+                .transition(.opacity)
+            }
+            stepButton("chevron.right", "stats.past.newer", enabled: pastIndex != nil) {
+                pastIndex = pastIndex.flatMap { $0 > 0 ? $0 - 1 : nil }
+            }
+        }
+    }
+
+    private func stepButton(_ symbol: String, _ label: String, enabled: Bool, action: @escaping () -> Void)
+        -> some View
+    {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 8, weight: .bold))
+                .frame(width: 16, height: 16)
+                .background(Circle().fill(Color.primary.opacity(0.06)))
+                .contentShape(Circle())
+        }
+        .buttonStyle(PressableStyle())
+        .foregroundStyle(enabled ? .secondary : .quaternary)
+        .disabled(!enabled)
+        .help(label.localized)
+        .accessibilityLabel(label.localized)
+    }
+
+    private func pastRange(_ forecast: QuotaForecast) -> String {
+        let day = Date.FormatStyle.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(locale)
+        guard forecast.isSession else {
+            let short = Date.FormatStyle.dateTime.day().month(.abbreviated).locale(locale)
+            return forecast.start.formatted(short) + " – " + forecast.reset.formatted(short)
+        }
+        let time = Date.FormatStyle.dateTime.hour().minute().locale(locale)
+        return forecast.start.formatted(day) + " · " + forecast.start.formatted(time) + "–"
+            + forecast.reset.formatted(time)
+    }
+
+    private func pastText(_ past: PastQuotaSession) -> String {
+        guard let depletedAt = past.depletedAt else {
+            return "stats.past.lasted_detail".localized(UsageFormatters.percentage(past.forecast.remaining))
+        }
+        return (past.forecast.isSession ? "stats.past.ran_out_session" : "stats.past.ran_out_week").localized(
+            moment(depletedAt, past.forecast),
+            UsageFormatters.duration(depletedAt.timeIntervalSince(past.forecast.start)),
+            UsageFormatters.duration(past.forecast.reset.timeIntervalSince(depletedAt)))
+    }
+
+    private func pastLine(_ past: PastQuotaSession, history: [PastQuotaSession]) -> some View {
+        let graded = history.compactMap(\.callWasRight)
+        return VStack(alignment: .leading, spacing: 3) {
+            if let call = past.call, let right = past.callWasRight {
+                label(
+                    right ? "checkmark.circle" : "xmark.circle",
+                    call.predictedRunOut.map { "stats.past.call_runs_out".localized(moment($0, past.forecast)) }
+                        ?? "stats.past.call_lasts".localized)
+            }
+            let summary = label(
+                "clock.arrow.circlepath",
+                "stats.past.summary".localized("\(history.filter(\.ranOut).count)", "\(history.count)"))
+            let accuracy = label(
+                "scope", "stats.past.accuracy".localized("\(graded.filter { $0 }.count)", "\(graded.count)"))
+            if graded.isEmpty {
+                summary
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        summary
+                        accuracy
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        summary
+                        accuracy
+                    }
+                }
+            }
+        }
+        .font(.system(size: 9.5))
+        .foregroundStyle(.secondary)
     }
 
     private func paceLine(_ forecast: QuotaForecast) -> some View {
@@ -230,6 +347,7 @@ struct StatsView: View {
         let (symbol, tint) = verdictStyle(forecast.verdict)
         return Button {
             selectedForecast = forecast.id
+            pastIndex = nil
         } label: {
             HStack(spacing: 7) {
                 ProviderLogo(provider: forecast.provider, size: 11)

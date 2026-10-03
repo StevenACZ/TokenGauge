@@ -118,6 +118,7 @@ final class StatusItemController: NSObject {
             return
         }
         store.refresh()
+        store.claudeActivityObserved()
         launchAtLogin.refresh()
         let view = PopoverView(
             store: store,

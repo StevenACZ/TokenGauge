@@ -104,6 +104,13 @@ final class UsageStore: ObservableObject {
         }
     }
 
+    static let liveQuotaArchiveWork: @Sendable (ClaudeUsageResult) async -> Void = { result in
+        try? await BlockingWork.run {
+            try? UsageHistoryStore.record(
+                result.snapshot, recordTokens: false, accountFingerprint: result.accountFingerprint)
+        }
+    }
+
     let recoveryAuthorization: ClaudeRecoveryAuthorization
     private let preferences: AppPreferences
     private let refresher: UsageRefresher
@@ -116,8 +123,13 @@ final class UsageStore: ObservableObject {
     private var lastClaudeConfigRefresh: Date?
     private var latestCapture: ClaudeCapturedSnapshot?
     private var monitors: [FileChangeMonitor] = []
+    private var activityMonitor: DirectoryActivityMonitor?
     private var pendingRefresh: Task<Void, Never>?
+    private var liveQuotaRead: Task<Void, Never>?
+    private var lastClaudeLiveAttempt: Date?
     var eventRefreshDelay: Duration = .milliseconds(1_500)
+    var claudeLiveInterval: TimeInterval = 120
+    var quotaArchiveWork: @Sendable (ClaudeUsageResult) async -> Void = UsageStore.liveQuotaArchiveWork
 
     convenience init(
         claudeClient: ClaudeUsageClient = ClaudeUsageClient(),
@@ -201,7 +213,10 @@ final class UsageStore: ObservableObject {
         scheduler.stop()
         monitors.forEach { $0.stop() }
         monitors = []
+        activityMonitor?.stop()
+        activityMonitor = nil
         pendingRefresh?.cancel()
+        liveQuotaRead?.cancel()
         recoveryAuthorization.setAllowed(false)
     }
 
@@ -260,12 +275,67 @@ final class UsageStore: ObservableObject {
 
     func claudeQuotaDue(force: Bool, now: Date = Date()) -> Bool {
         guard let last = lastClaudeQuotaAttempt else { return true }
-        let elapsed = now.timeIntervalSince(last)
-        if claudeRateLimitStreak > 0 {
-            return elapsed >= min(300 * pow(2, Double(claudeRateLimitStreak - 1)), 1_800)
+        if let claudeRateLimitBackoff, let latest = lastClaudeAttempt {
+            return now.timeIntervalSince(latest) >= claudeRateLimitBackoff
         }
         guard claude.status == .ready else { return true }
-        return elapsed >= (force ? 60 : 270)
+        return now.timeIntervalSince(last) >= (force ? 60 : 270)
+    }
+
+    private var lastClaudeAttempt: Date? {
+        [lastClaudeQuotaAttempt, lastClaudeLiveAttempt].compactMap { $0 }.max()
+    }
+
+    private var claudeRateLimitBackoff: TimeInterval? {
+        claudeRateLimitStreak > 0 ? min(300 * pow(2, Double(claudeRateLimitStreak - 1)), 1_800) : nil
+    }
+
+    func claudeLiveQuotaWait(now: Date = Date()) -> TimeInterval {
+        guard let last = lastClaudeAttempt else { return 0 }
+        return max((claudeRateLimitBackoff ?? claudeLiveInterval) - now.timeIntervalSince(last), 0)
+    }
+
+    func claudeActivityObserved() {
+        guard liveReadsEnabled, claude.status == .ready, liveQuotaRead == nil else { return }
+        let wait = claudeLiveQuotaWait()
+        liveQuotaRead = Task { [weak self] in
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+            if !Task.isCancelled { await self?.readLiveClaudeQuota() }
+            self?.liveQuotaRead = nil
+        }
+    }
+
+    private func readLiveClaudeQuota() async {
+        let now = Date()
+        guard claude.status == .ready, claudeLiveQuotaWait(now: now) == 0 else { return }
+        let lastFullAttempt = lastClaudeQuotaAttempt
+        lastClaudeLiveAttempt = now
+        lastClaudeQuotaAttempt = now
+        let result = await refresher.claudeQuota()
+        switch result?.access {
+        case .live:
+            guard let result, claude.status == .ready, belongsToCurrentAccount(result),
+                let capturedAt = result.snapshot.capturedAt,
+                capturedAt > (claude.snapshot?.capturedAt ?? .distantPast)
+            else { return }
+            claudeRateLimitStreak = 0
+            let snapshot = result.snapshot.carryingActivity(from: claude.snapshot)
+            var next = claude
+            next.snapshot =
+                ProviderStateResolver.overlay(
+                    snapshot, capture: latestCapture, accountFingerprint: claudeAccountFingerprint) ?? snapshot
+            next.status = ProviderStateResolver.claudeStatus(snapshot: snapshot, now: Date())
+            claude = next
+            if historyReadsEnabled {
+                await quotaArchiveWork(result)
+                historyRevision &+= 1
+            }
+        case .rateLimited:
+            claudeRateLimitStreak += 1
+            claudeLiveInterval = min(claudeLiveInterval * 2, 270)
+        default:
+            if lastClaudeQuotaAttempt == now { lastClaudeQuotaAttempt = lastFullAttempt }
+        }
     }
 
     private func receive(_ outcome: ProviderOutcome) {
@@ -319,6 +389,11 @@ final class UsageStore: ObservableObject {
             },
         ]
         monitors.forEach { $0.start() }
+        activityMonitor = DirectoryActivityMonitor(url: UsagePaths.claudeProjects(homeDirectory: home)) {
+            [weak self] in
+            Task { @MainActor in self?.claudeActivityObserved() }
+        }
+        activityMonitor?.start()
         Task.detached(priority: .utility) { [weak self] in
             let capture = readCapture()
             await self?.captureChanged(capture)

@@ -244,6 +244,164 @@ final class ResponsiveRefreshTests: XCTestCase {
         }
     }
 
+    func testActivityReadsOnlyTheQuotaAndKeepsTheActivityBuckets() async throws {
+        try await withStoreDefaults { defaults in
+            let now = Date()
+            let buckets = Fixture.modelBuckets([("claude-fable-5", 100)])
+            let fullFetches = OSAllocatedUnfairLock(initialState: 0)
+            let refresher = UsageRefresher(
+                homeDirectory: home,
+                fetchClaude: { _, _, _ in
+                    fullFetches.withLock { $0 += 1 }
+                    return nil
+                }, fetchCodex: codexUnavailable,
+                fetchClaudeQuota: { Self.result(used: 40, now: now, buckets: [], activity: false) })
+            let store = UsageStore(
+                refresher: refresher, defaults: defaults,
+                initialSnapshots: [Self.snapshot(used: 25, capturedAt: now.addingTimeInterval(-200), buckets: buckets)],
+                historyReadsEnabled: false)
+
+            store.claudeActivityObserved()
+            try await waitUntil { store.claude.snapshot?.windows.first?.usedPercentage == 40 }
+
+            XCTAssertEqual(store.claude.status, .ready)
+            XCTAssertFalse(store.claude.isRefreshing)
+            XCTAssertEqual(store.claude.snapshot?.modelBuckets, buckets)
+            XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: store.claude)?.remainingPercentage, 60)
+            XCTAssertEqual(fullFetches.withLock { $0 }, 0)
+            XCTAssertGreaterThan(store.claudeLiveQuotaWait(), 110)
+        }
+    }
+
+    func testALiveReadSpendsTheSharedQuotaBudgetAndIsArchived() async throws {
+        try await withStoreDefaults { defaults in
+            let now = Date()
+            let archived = OSAllocatedUnfairLock(initialState: [Double]())
+            let refresher = UsageRefresher(
+                homeDirectory: home, fetchClaude: { _, _, _ in nil }, fetchCodex: codexUnavailable,
+                fetchClaudeQuota: { Self.result(used: 40, now: Date(), buckets: [], activity: false) })
+            let store = UsageStore(
+                refresher: refresher, defaults: defaults,
+                initialSnapshots: [Self.snapshot(used: 25, capturedAt: now.addingTimeInterval(-200))],
+                historyReadsEnabled: true)
+            store.quotaArchiveWork = { result in
+                archived.withLock { $0.append(result.snapshot.windows.first?.usedPercentage ?? -1) }
+            }
+            let revision = store.historyRevision
+
+            store.claudeActivityObserved()
+            try await waitUntil { store.historyRevision != revision }
+
+            XCTAssertEqual(archived.withLock { $0 }, [40])
+            let later = Date()
+            XCTAssertFalse(store.claudeQuotaDue(force: true, now: later))
+            XCTAssertTrue(store.claudeQuotaDue(force: true, now: later.addingTimeInterval(61)))
+            XCTAssertFalse(store.claudeQuotaDue(force: false, now: later.addingTimeInterval(61)))
+            XCTAssertTrue(store.claudeQuotaDue(force: false, now: later.addingTimeInterval(271)))
+        }
+    }
+
+    func testAFailedLiveReadLeavesTheFullRefreshDue() async throws {
+        try await withStoreDefaults { defaults in
+            let now = Date()
+            let reads = OSAllocatedUnfairLock(initialState: 0)
+            let refresher = UsageRefresher(
+                homeDirectory: home, fetchClaude: { _, _, _ in Self.result(used: 25, now: now, buckets: []) },
+                fetchCodex: codexUnavailable,
+                fetchClaudeQuota: {
+                    reads.withLock { $0 += 1 }
+                    return ClaudeUsageResult(
+                        snapshot: Self.snapshot(used: 0, capturedAt: now), access: .unavailable, lastActivityAt: nil)
+                })
+            let store = UsageStore(refresher: refresher, defaults: defaults, historyReadsEnabled: false)
+            store.claudeLiveInterval = 0.2
+
+            store.refresh(force: true)
+            let attempted = Date()
+            try await waitUntilIdle(store)
+            store.claudeActivityObserved()
+            try await waitUntil { reads.withLock { $0 } == 1 && store.claudeLiveQuotaWait() > 0 }
+            try await Task.sleep(for: .milliseconds(20))
+
+            XCTAssertEqual(store.claude.snapshot?.windows.first?.usedPercentage, 25)
+            XCTAssertTrue(store.claudeQuotaDue(force: true, now: attempted.addingTimeInterval(60)))
+        }
+    }
+
+    func testAnActivityBurstSharesOneReadAndEndsWithATrailingOne() async throws {
+        try await withStoreDefaults { defaults in
+            let now = Date()
+            let reads = OSAllocatedUnfairLock(initialState: 0)
+            let refresher = UsageRefresher(
+                homeDirectory: home, fetchClaude: { _, _, _ in nil }, fetchCodex: codexUnavailable,
+                fetchClaudeQuota: {
+                    let count = reads.withLock {
+                        $0 += 1
+                        return $0
+                    }
+                    return Self.result(used: 30 + Double(count), now: Date(), buckets: [], activity: false)
+                })
+            let store = UsageStore(
+                refresher: refresher, defaults: defaults,
+                initialSnapshots: [Self.snapshot(used: 25, capturedAt: now.addingTimeInterval(-200))],
+                historyReadsEnabled: false)
+            store.claudeLiveInterval = 0.3
+
+            store.claudeActivityObserved()
+            try await waitUntil { store.claude.snapshot?.windows.first?.usedPercentage == 31 }
+            for _ in 0..<3 { store.claudeActivityObserved() }
+            XCTAssertEqual(reads.withLock { $0 }, 1)
+
+            try await waitUntil { store.claude.snapshot?.windows.first?.usedPercentage == 32 }
+            try await Task.sleep(for: .milliseconds(450))
+            XCTAssertEqual(reads.withLock { $0 }, 2)
+        }
+    }
+
+    func testLiveRateLimitKeepsTheReadingBacksOffAndWidensTheInterval() async throws {
+        try await withStoreDefaults { defaults in
+            let now = Date()
+            let reads = OSAllocatedUnfairLock(initialState: 0)
+            let refresher = UsageRefresher(
+                homeDirectory: home, fetchClaude: { _, _, _ in nil }, fetchCodex: codexUnavailable,
+                fetchClaudeQuota: {
+                    reads.withLock { $0 += 1 }
+                    return ClaudeUsageResult(
+                        snapshot: Self.snapshot(used: 0, capturedAt: now), access: .rateLimited, lastActivityAt: nil)
+                })
+            let store = UsageStore(
+                refresher: refresher, defaults: defaults,
+                initialSnapshots: [Self.snapshot(used: 25, capturedAt: now.addingTimeInterval(-120))],
+                historyReadsEnabled: false)
+
+            store.claudeActivityObserved()
+            try await waitUntil { store.claudeLiveInterval == 240 }
+
+            XCTAssertEqual(reads.withLock { $0 }, 1)
+            XCTAssertEqual(store.claude.status, .ready)
+            XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: store.claude)?.remainingPercentage, 75)
+            XCTAssertGreaterThan(store.claudeLiveQuotaWait(), 290)
+        }
+    }
+
+    func testActivityIsIgnoredUntilClaudeIsReady() async throws {
+        try await withStoreDefaults { defaults in
+            let reads = OSAllocatedUnfairLock(initialState: 0)
+            let refresher = UsageRefresher(
+                homeDirectory: home, fetchClaude: { _, _, _ in nil }, fetchCodex: codexUnavailable,
+                fetchClaudeQuota: {
+                    reads.withLock { $0 += 1 }
+                    return nil
+                })
+            let store = UsageStore(refresher: refresher, defaults: defaults, historyReadsEnabled: false)
+
+            store.claudeActivityObserved()
+            try await Task.sleep(for: .milliseconds(100))
+
+            XCTAssertEqual(reads.withLock { $0 }, 0)
+        }
+    }
+
     func testCodexHomeHonorsAnAbsoluteCodexHome() {
         let home = URL(filePath: "/Users/example")
         XCTAssertEqual(UsageStore.codexHome(home, environment: [:]).path, "/Users/example/.codex")
@@ -281,6 +439,13 @@ final class ResponsiveRefreshTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(5))
         }
         XCTAssertFalse(store.isRefreshing)
+    }
+
+    private func waitUntil(_ condition: () -> Bool) async throws {
+        for _ in 0..<400 where !condition() {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        XCTAssertTrue(condition())
     }
 
     private func withStoreDefaults(_ body: (UserDefaults) async throws -> Void) async rethrows {

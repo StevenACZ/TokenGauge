@@ -284,3 +284,17 @@
 "stats.skills.runs_one" = "%@ run";
 "stats.chart.away" = "Other account · %1$@ → %2$@";
 "stats.chart.boost" = "Early reset: the quota went back up before the scheduled date (a provider reset or a banked reset).";
+"stats.past.older" = "Previous session";
+"stats.past.newer" = "Next session";
+"stats.past.ran_out" = "Ran out";
+"stats.past.lasted" = "It lasted";
+"stats.past.lasted_detail" = "You ended with %@ left.";
+"stats.past.ran_out_session" = "Around %1$@, %2$@ into the session. %3$@ without quota.";
+"stats.past.ran_out_week" = "Around %1$@, %2$@ into the week. %3$@ without quota.";
+"stats.past.call_runs_out" = "At 50%% used the forecast said: runs out at %@";
+"stats.past.call_lasts" = "At 50%% used the forecast said: it lasts";
+"stats.past.summary" = "%1$@ of %2$@ ran out";
+"stats.past.accuracy" = "Forecast right in %1$@ of %2$@";
+"stats.past.current_session" = "This session";
+"stats.past.current_week" = "This week";
+"stats.past.back_to_current" = "Today";

@@ -54,6 +54,7 @@ public struct QuotaForecast: Equatable, Identifiable, Sendable {
 
     public var id: String { provider.rawValue + ":" + windowID }
     public var isSession: Bool { reset.timeIntervalSince(start) < 86_400 }
+    public var isCompleted: Bool { now >= reset }
     public var horizon: Horizon { isSession ? .session : .weekly }
     public var budgetUnit: TimeInterval { isSession ? 3600 : 86_400 }
     public var hoursLeft: Double { max(0, reset.timeIntervalSince(now) / 3600) }

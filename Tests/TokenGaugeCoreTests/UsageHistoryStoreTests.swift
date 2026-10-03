@@ -87,6 +87,17 @@ final class UsageHistoryStoreTests: XCTestCase {
         XCTAssertEqual(rows.map(\.durationMinutes), [10_080, 10_080])
     }
 
+    func testQuotaRowsFilterByWindowLengthAndHourlyBuckets() throws {
+        let base = Date(timeIntervalSince1970: 1_787_000_400)
+        try UsageHistoryStore.record(claudeSnapshot(used: 20, capturedAt: base), at: database)
+        try UsageHistoryStore.record(claudeSnapshot(used: 31, capturedAt: base.addingTimeInterval(1_800)), at: database)
+
+        XCTAssertEqual(
+            try UsageHistoryStore.quotaRows(durationMinutes: 10_080, at: database).map(\.usedPercentage), [20, 31])
+        XCTAssertTrue(try UsageHistoryStore.quotaRows(durationMinutes: 300, at: database).isEmpty)
+        XCTAssertEqual(try UsageHistoryStore.quotaRows(everySeconds: 3_600, at: database).map(\.usedPercentage), [20])
+    }
+
     func testQuotaSamplesOlderThanTheRetentionWindowAreDropped() throws {
         let now = Date(timeIntervalSince1970: 1_787_000_400)
         let ancient = now.addingTimeInterval(-Double(UsageHistoryStore.quotaRetentionDays + 5) * 86_400)

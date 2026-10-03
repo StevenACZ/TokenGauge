@@ -69,6 +69,20 @@ struct ClaudeUsageClient: Sendable {
         )
     }
 
+    func fetchQuota(now: Date = Date()) async -> ClaudeUsageResult {
+        let identity = ClaudeAccountIdentityReader.current(homeDirectory: homeDirectory)
+        let account = ClaudeAccountUsageClient(homeDirectory: homeDirectory)
+        let resolved: Result<ClaudeAccountSnapshot, Error>
+        do {
+            resolved = .success(try await account.fetch(now: now, identity: identity))
+        } catch {
+            resolved = .failure(error)
+        }
+        return Self.resolve(
+            account: resolved, cached: nil, capture: nil, modelBuckets: [], now: now, activityReadSucceeded: false,
+            accountFingerprint: identity?.fingerprint, accountLabel: identity?.label)
+    }
+
     static func fetch(
         history: @escaping @Sendable () async -> [ModelTokenBucket]?,
         account: @escaping @Sendable () async -> Result<ClaudeAccountSnapshot, Error>,
