@@ -284,3 +284,16 @@
 "stats.skills.runs_one" = "%@ uso";
 "stats.chart.away" = "Otra cuenta · %1$@ → %2$@";
 "stats.chart.boost" = "Reinicio anticipado: el cupo subió antes de la fecha programada (lo reinició el proveedor o usaste un reinicio guardado).";
+"stats.past.older" = "Sesión anterior";
+"stats.past.newer" = "Sesión siguiente";
+"stats.past.ran_out" = "Se agotó";
+"stats.past.lasted" = "Te alcanzó";
+"stats.past.lasted_detail" = "Terminaste con %@ libre.";
+"stats.past.ran_out_session" = "Hacia las %1$@, a %2$@ del inicio. %3$@ sin cupo.";
+"stats.past.ran_out_week" = "Hacia el %1$@, a %2$@ del inicio. %3$@ sin cupo.";
+"stats.past.call_runs_out" = "Al 50%% de uso el pronóstico decía: se acaba a las %@";
+"stats.past.call_lasts" = "Al 50%% de uso el pronóstico decía: te alcanza";
+"stats.past.summary" = "%1$@ de %2$@ se agotaron";
+"stats.past.accuracy" = "Pronóstico acertó %1$@ de %2$@";
+"stats.past.current_session" = "Sesión actual";
+"stats.past.current_week" = "Semana actual";

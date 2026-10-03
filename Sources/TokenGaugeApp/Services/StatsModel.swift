@@ -7,6 +7,7 @@ final class StatsModel: ObservableObject {
     struct Records: Sendable {
         var input: StatsSummary.Input
         var quota: [HistoryQuotaRow]
+        var weeklyQuota: [HistoryQuotaRow] = []
     }
 
     @Published private(set) var records: Records?
@@ -14,10 +15,12 @@ final class StatsModel: ObservableObject {
     @Published private(set) var isLoading = false
     private var loadedRevision: Int?
     private var summaries: [String: StatsSummary] = [:]
+    private var pastSessions: [String: [PastQuotaSession]] = [:]
     private let historyURL: URL
     private let preview: Records?
 
     nonisolated static let quotaLookback: TimeInterval = 8 * 86_400
+    nonisolated static let weeklyLookback: TimeInterval = 84 * 86_400
 
     init(preview: Records? = nil, historyURL: URL = UsagePaths.history()) {
         self.preview = preview
@@ -48,6 +51,18 @@ final class StatsModel: ObservableObject {
         }
     }
 
+    func pastSessions(like forecast: QuotaForecast, accountFingerprint: String?) -> [PastQuotaSession] {
+        guard let records else { return [] }
+        let key = "\(forecast.id)@\(Int(forecast.reset.timeIntervalSince1970 / 3600))"
+        if let cached = pastSessions[key] { return cached }
+        let value = PastQuotaSession.history(
+            like: forecast, rows: forecast.isSession ? records.quota : records.weeklyQuota,
+            accountFingerprint: forecast.provider == .claude ? accountFingerprint : nil,
+            gradesCalls: forecast.isSession)
+        pastSessions[key] = value
+        return value
+    }
+
     func load(revision: Int) async {
         guard preview == nil, loadedRevision != revision || records == nil else { return }
         isLoading = true
@@ -59,6 +74,7 @@ final class StatsModel: ObservableObject {
             }.value
             guard !Task.isCancelled else { return }
             summaries.removeAll()
+            pastSessions.removeAll()
             records = loaded
             loadedRevision = revision
             loadFailed = false
@@ -103,7 +119,10 @@ final class StatsModel: ObservableObject {
                 tokens: tokens, efforts: efforts,
                 activity: (try? UsageHistoryStore.activityRows(since: since, at: url)) ?? [],
                 cached: (try? UsageHistoryStore.cachedTokenRows(since: since, at: url)) ?? []),
-            quota: try UsageHistoryStore.quotaRows(since: now.addingTimeInterval(-quotaLookback), until: now, at: url))
+            quota: try UsageHistoryStore.quotaRows(since: now.addingTimeInterval(-quotaLookback), until: now, at: url),
+            weeklyQuota: (try? UsageHistoryStore.quotaRows(
+                since: now.addingTimeInterval(-weeklyLookback), until: now, durationMinutes: 10_080,
+                everySeconds: 3600, at: url)) ?? [])
     }
 
     nonisolated private static func date(from key: String) -> Date? {

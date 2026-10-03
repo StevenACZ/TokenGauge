@@ -5,6 +5,7 @@ struct ForecastChartView: View {
     let forecast: QuotaForecast
     let tint: Color
     let locale: Locale
+    var depletedAt: Date?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.quotaAnimationsEnabled) private var animateChanges
     @State private var drawn: CGFloat = 0
@@ -226,7 +227,7 @@ struct ForecastChartView: View {
                 ticks.append(
                     AxisTick(
                         date: hour, x: x(hour, plot), label: hour.formatted(.dateTime.hour().locale(locale)),
-                        isCurrent: hour == current))
+                        isCurrent: hour == current && !forecast.isCompleted))
             }
             hour = calendar.date(byAdding: .hour, value: 1, to: hour) ?? forecast.reset
         }
@@ -248,7 +249,7 @@ struct ForecastChartView: View {
                     AxisTick(
                         date: day, x: x(middle, plot),
                         label: day.formatted(.dateTime.weekday(.narrow).locale(locale)),
-                        isCurrent: day == today))
+                        isCurrent: day == today && !forecast.isCompleted))
             }
             day = next
         }
@@ -259,34 +260,41 @@ struct ForecastChartView: View {
         let nowX = x(forecast.now, plot)
         let nowY = y(forecast.remaining, plot)
         return ZStack(alignment: .topLeading) {
-            Path { path in
-                path.move(to: CGPoint(x: nowX, y: plot.minY - 6))
-                path.addLine(to: CGPoint(x: nowX, y: plot.maxY))
+            if !forecast.isCompleted {
+                Path { path in
+                    path.move(to: CGPoint(x: nowX, y: plot.minY - 6))
+                    path.addLine(to: CGPoint(x: nowX, y: plot.maxY))
+                }
+                .stroke(Color.primary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [2, 3]))
             }
-            .stroke(Color.primary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [2, 3]))
             Path { path in
                 path.move(to: CGPoint(x: plot.maxX, y: plot.minY - 6))
                 path.addLine(to: CGPoint(x: plot.maxX, y: plot.maxY))
             }
             .stroke(tint.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [2, 3]))
-            Text("stats.chart.now".localized(UsageFormatters.percentage(forecast.remaining)))
-                .font(.system(size: 8, weight: .semibold)).monospacedDigit()
-                .foregroundStyle(.secondary)
-                .fixedSize()
-                .position(x: min(max(nowX, plot.minX + 26), plot.maxX - 60), y: plot.minY - 8)
+            if !forecast.isCompleted {
+                Text("stats.chart.now".localized(UsageFormatters.percentage(forecast.remaining)))
+                    .font(.system(size: 8, weight: .semibold)).monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                    .position(x: min(max(nowX, plot.minX + 26), plot.maxX - 60), y: plot.minY - 8)
+            }
             Text("stats.chart.reset".localized)
                 .font(.system(size: 8, weight: .semibold))
                 .foregroundStyle(tint.opacity(0.9))
                 .fixedSize()
                 .position(x: plot.maxX - 18, y: plot.minY - 8)
-                .opacity(nowX < plot.maxX - 100 ? 1 : 0)
-            Circle()
-                .fill(Color.white)
-                .overlay(Circle().stroke(tint, lineWidth: 2.5))
-                .frame(width: 9, height: 9)
-                .position(x: nowX, y: nowY)
-                .scaleEffect(drawProgress >= 1 ? 1 : 0.01, anchor: .center)
-                .animation(animates ? .spring(response: 0.35, dampingFraction: 0.6) : nil, value: drawProgress >= 1)
+                .opacity(forecast.isCompleted || nowX < plot.maxX - 100 ? 1 : 0)
+            if !forecast.isCompleted {
+                Circle()
+                    .fill(Color.white)
+                    .overlay(Circle().stroke(tint, lineWidth: 2.5))
+                    .frame(width: 9, height: 9)
+                    .position(x: nowX, y: nowY)
+                    .scaleEffect(drawProgress >= 1 ? 1 : 0.01, anchor: .center)
+                    .animation(
+                        animates ? .spring(response: 0.35, dampingFraction: 0.6) : nil, value: drawProgress >= 1)
+            }
             ForEach(forecast.boosts, id: \.date) { boost in
                 Image(systemName: "arrow.up")
                     .font(.system(size: 7, weight: .black))
@@ -297,7 +305,7 @@ struct ForecastChartView: View {
                     .opacity(Double(drawProgress))
                     .help("stats.chart.boost".localized)
             }
-            if let runsOut = forecast.runsOutAt {
+            if let runsOut = depletedAt ?? forecast.runsOutAt {
                 Image(systemName: "xmark")
                     .font(.system(size: 7, weight: .black))
                     .foregroundStyle(.white)

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Stats: step back through past 5-hour sessions and past weeks from the forecast card. Each one shows its real curve and whether it lasted or ran out, around what time and how long you were left without quota.
+- For past 5-hour sessions, the card also shows what the forecast said when you were at 50% used, and how many times it was right.
+
 ### Changed
 
 - The Claude percentages in the menu bar and the panel now follow real use within about a minute while Claude Code is working, instead of every five minutes. The extra reads stop when Claude Code is idle.

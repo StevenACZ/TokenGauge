@@ -2,7 +2,8 @@ import Foundation
 
 extension UsageHistoryStore {
     static func readQuotaRows(
-        _ connection: SQLiteConnection, provider: UsageProvider? = nil, since: Date? = nil, until: Date? = nil
+        _ connection: SQLiteConnection, provider: UsageProvider? = nil, since: Date? = nil, until: Date? = nil,
+        durationMinutes: Int? = nil, everySeconds: Int? = nil
     ) throws -> [HistoryQuotaRow] {
         let sql = """
             SELECT COALESCE(observed_at, sampled_at), provider, window_id, display_name, used_percentage, resets_at,
@@ -10,6 +11,7 @@ extension UsageHistoryStore {
             FROM quota_samples
             WHERE sampled_at >= ?2 AND sampled_at <= ?3 AND (?1 IS NULL OR provider = ?1)
                 AND COALESCE(observed_at, sampled_at) >= ?4 AND COALESCE(observed_at, sampled_at) <= ?5
+                AND (?6 IS NULL OR duration_minutes = ?6) AND (?7 IS NULL OR sampled_at % ?7 = 0)
             ORDER BY sampled_at, provider, window_id;
             """
         var rows: [HistoryQuotaRow] = []
@@ -19,6 +21,8 @@ extension UsageHistoryStore {
             statement.bind(3, until.map { bucket($0) } ?? Int64.max)
             statement.bind(4, since?.timeIntervalSince1970 ?? -Double.greatestFiniteMagnitude)
             statement.bind(5, until?.timeIntervalSince1970 ?? Double.greatestFiniteMagnitude)
+            statement.bind(6, durationMinutes.map(Int64.init))
+            statement.bind(7, everySeconds.map(Int64.init))
         } each: { statement in
             guard let provider = UsageProvider(rawValue: statement.text(1)) else { return }
             rows.append(
