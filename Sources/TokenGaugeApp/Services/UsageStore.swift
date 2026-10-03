@@ -104,6 +104,13 @@ final class UsageStore: ObservableObject {
         }
     }
 
+    static let liveQuotaArchiveWork: @Sendable (ClaudeUsageResult) async -> Void = { result in
+        try? await BlockingWork.run {
+            try? UsageHistoryStore.record(
+                result.snapshot, recordTokens: false, accountFingerprint: result.accountFingerprint)
+        }
+    }
+
     let recoveryAuthorization: ClaudeRecoveryAuthorization
     private let preferences: AppPreferences
     private let refresher: UsageRefresher
@@ -121,7 +128,8 @@ final class UsageStore: ObservableObject {
     private var liveQuotaRead: Task<Void, Never>?
     private var lastClaudeLiveAttempt: Date?
     var eventRefreshDelay: Duration = .milliseconds(1_500)
-    var claudeLiveInterval: TimeInterval = 60
+    var claudeLiveInterval: TimeInterval = 120
+    var quotaArchiveWork: @Sendable (ClaudeUsageResult) async -> Void = UsageStore.liveQuotaArchiveWork
 
     convenience init(
         claudeClient: ClaudeUsageClient = ClaudeUsageClient(),
@@ -300,11 +308,13 @@ final class UsageStore: ObservableObject {
     private func readLiveClaudeQuota() async {
         let now = Date()
         guard claude.status == .ready, claudeLiveQuotaWait(now: now) == 0 else { return }
+        let lastFullAttempt = lastClaudeQuotaAttempt
         lastClaudeLiveAttempt = now
-        guard let result = await refresher.claudeQuota() else { return }
-        switch result.access {
+        lastClaudeQuotaAttempt = now
+        let result = await refresher.claudeQuota()
+        switch result?.access {
         case .live:
-            guard claude.status == .ready, belongsToCurrentAccount(result),
+            guard let result, claude.status == .ready, belongsToCurrentAccount(result),
                 let capturedAt = result.snapshot.capturedAt,
                 capturedAt > (claude.snapshot?.capturedAt ?? .distantPast)
             else { return }
@@ -316,11 +326,15 @@ final class UsageStore: ObservableObject {
                     snapshot, capture: latestCapture, accountFingerprint: claudeAccountFingerprint) ?? snapshot
             next.status = ProviderStateResolver.claudeStatus(snapshot: snapshot, now: Date())
             claude = next
+            if historyReadsEnabled {
+                await quotaArchiveWork(result)
+                historyRevision &+= 1
+            }
         case .rateLimited:
             claudeRateLimitStreak += 1
             claudeLiveInterval = min(claudeLiveInterval * 2, 270)
         default:
-            break
+            if lastClaudeQuotaAttempt == now { lastClaudeQuotaAttempt = lastFullAttempt }
         }
     }
 

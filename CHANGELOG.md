@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The Claude percentages in the menu bar and the panel now follow real use within about a minute while Claude Code is working, instead of every five minutes. The extra reads stop when Claude Code is idle.
+- The Claude percentages in the menu bar and the panel now follow real use within about two minutes while Claude Code is working, instead of every five minutes. The extra reads stop when Claude Code is idle.
 
 ## [1.7.1] - 2026-09-28
 
