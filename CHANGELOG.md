@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-09
+
 ### Added
 
 - Optional extra Claude accounts. Turn them on in Settings, add each one by its config folder (`~/.claude-other`) or on another Mac (`host:~/.claude-other`), pick a color, and the panel shows its 5-hour and weekly limits under the Claude card. Off by default.
