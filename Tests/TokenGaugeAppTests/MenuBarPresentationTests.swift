@@ -208,6 +208,23 @@ final class MenuBarPresentationTests: XCTestCase {
         return opacity
     }
 
+    @MainActor func testExtraAccountsFollowClaudeAsTheirOwnGroups() {
+        let work = MenuBarPresentation.Account(
+            id: UUID(), name: "Work", tint: .violet, icon: .balloon, remaining: 37)
+        let idle = MenuBarPresentation.Account(id: UUID(), name: "", tint: .claude, remaining: nil)
+        let presentation = MenuBarPresentation(
+            providers: [.claude], state: { self.state(provider: $0, status: .ready) },
+            appearance: NSAppearance(named: .aqua)!, style: .bars, accounts: [work, idle])
+        XCTAssertEqual(presentation.segments.map(\.text), ["60%", "37%", "--"])
+        XCTAssertEqual(presentation.groups.count, 3)
+        XCTAssertEqual(presentation.groups[1].first?.account, work.id)
+        XCTAssertEqual(presentation.groups[1].first?.icon, .balloon)
+        XCTAssertNil(presentation.groups[2].first?.icon)
+        XCTAssertNotNil(AccountIconArt.image(.balloon, color: .systemPurple, size: 16))
+        XCTAssertTrue(presentation.accessibilityLabel.contains("Work"))
+        XCTAssertTrue(presentation.attributedTitle().string.hasSuffix("--"))
+    }
+
     private func state(provider: UsageProvider, status: ProviderStatus, usedPercentage: Double? = nil)
         -> ProviderViewState
     {

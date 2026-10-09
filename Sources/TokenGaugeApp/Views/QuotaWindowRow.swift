@@ -11,6 +11,7 @@ struct QuotaWindowRow: View {
     var pace: QuotaPace?
     var previousPace: QuotaPace?
     var session: QuotaForecast?
+    var header: AnyView?
 
     private var valueColor: Color {
         Theme.severity(remaining: window.remainingPercentage) ?? .primary
@@ -19,10 +20,14 @@ struct QuotaWindowRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(UsageFormatters.windowName(window))
-                    .font(.caption.weight(.medium))
-                    .lineLimit(1)
-                    .help(UsageFormatters.windowHelp(window))
+                VStack(alignment: .leading, spacing: 4) {
+                    if let header { header }
+                    Text(UsageFormatters.windowName(window))
+                        .font(.caption.weight(.medium))
+                        .lineLimit(1)
+                        .help(UsageFormatters.windowHelp(window))
+                }
+                .alignmentGuide(.firstTextBaseline) { $0[.lastTextBaseline] }
                 if window.id.hasPrefix("base_model_inference.") || window.displayName?.lowercased() == "gpt-reserve" {
                     Image(systemName: "info.circle")
                         .font(.system(size: 9))

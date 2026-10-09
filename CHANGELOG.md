@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-09
+
+### Added
+
+- Optional extra Claude accounts. Turn them on in Settings, add each one by its config folder (`~/.claude-other`) or on another Mac (`host:~/.claude-other`), pick a color, and the panel shows its 5-hour and weekly limits under the Claude card. Off by default.
+- Reading an account that lives on another Mac asks once for macOS Local Network access.
+- Each extra account can also show its 5-hour limit in the menu bar, after Claude, with its color and an icon you pick (dot, hot-air balloon, briefcase, house, person or building).
+
+### Changed
+
+- Classic view: when the card has no title, its update time sits above the first limit instead of on its own empty line.
+
 ## [1.8.0] - 2026-10-03
 
 ### Added

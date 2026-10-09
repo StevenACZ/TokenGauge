@@ -9,15 +9,17 @@ struct PopoverView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var updates = UpdateManager.shared
     @ObservedObject private var localization = LocalizationManager.shared
+    @ObservedObject private var accounts: ClaudeAccountsStore
     @StateObject private var history: HistoryDashboardModel
     @StateObject private var stats: StatsModel
     @State private var showsStats = false
 
     init(
         store: UsageStore, showSettings: @escaping () -> Void, showAbout: @escaping () -> Void,
-        history: HistoryDashboardModel? = nil
+        history: HistoryDashboardModel? = nil, accounts: ClaudeAccountsStore? = nil
     ) {
         self.store = store
+        _accounts = ObservedObject(wrappedValue: accounts ?? .shared)
         self.showSettings = showSettings
         self.showAbout = showAbout
         let preview = store.historyReadsEnabled ? nil : [store.claude.snapshot, store.codex.snapshot].compactMap { $0 }
@@ -89,6 +91,7 @@ struct PopoverView: View {
         .environment(\.quotaAnimationsEnabled, store.animateChanges)
         .fixedSize(horizontal: false, vertical: true)
         .id(localization.language)
+        .onAppear { accounts.refreshAll(force: true) }
     }
 
     private var panelFace: some View {
@@ -103,6 +106,9 @@ struct PopoverView: View {
             }
             .frame(maxHeight: providerMaxHeight)
             .animation(animatesMotion ? Theme.Motion.content : nil, value: store.panelStyle)
+            if accounts.isShowing, store.displayMode.providers.contains(.claude) {
+                ClaudeAccountsSection(store: accounts)
+            }
             HistoryPanelView(
                 model: history, mode: $store.historyMode,
                 providers: store.displayMode.providers, resets: upcomingResets, compact: store.panelStyle != .standard)

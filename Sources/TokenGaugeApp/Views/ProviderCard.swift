@@ -32,6 +32,10 @@ struct ProviderCard: View {
         .filter { ($0.resetsAt ?? .distantFuture) > Date() }
     }
 
+    private var headerInline: Bool {
+        panelStyle == .standard && !showProviderTitle && !showsLastKnown && !visibleWindows.isEmpty
+    }
+
     private var showsLastKnown: Bool {
         provider == .claude && [.stale, .credentialExpired, .unavailable].contains(state.status)
     }
@@ -44,7 +48,7 @@ struct ProviderCard: View {
             if compact {
                 compactHeader
             } else {
-                header
+                if !headerInline { header }
                 if visibleWindows.isEmpty {
                     statusMessage
                     if let capturedAt = state.snapshot?.capturedAt {
@@ -101,7 +105,8 @@ struct ProviderCard: View {
                         prominent: index == 0 && !showsLastKnown,
                         historical: showsLastKnown,
                         showPace: canShowPace(window), pace: paces[window.id], previousPace: previousPaces[window.id],
-                        session: sessionForecast(window)
+                        session: sessionForecast(window),
+                        header: index == 0 && headerInline ? AnyView(header) : nil
                     )
                 }
             }

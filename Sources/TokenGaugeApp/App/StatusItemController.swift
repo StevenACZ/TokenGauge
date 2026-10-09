@@ -96,6 +96,11 @@ final class StatusItemController: NSObject {
         }
         .store(in: &cancellables)
 
+        ClaudeAccountsStore.shared.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusItem() }
+            .store(in: &cancellables)
+
         appearanceObservation = NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
             Task { @MainActor in self?.updateStatusItem() }
         }
@@ -244,7 +249,8 @@ final class StatusItemController: NSObject {
             providers: store.displayMode.providers,
             state: { store.state(for: $0) },
             appearance: button.effectiveAppearance, size: store.menuBarSize, style: store.menuBarStyle,
-            selection: store.menuBarSelections)
+            selection: store.menuBarSelections,
+            accounts: store.displayMode.providers.contains(.claude) ? ClaudeAccountsStore.shared.menuBarAccounts : [])
         guard presentation != displayedPresentation else { return }
         if displayedPresentation?.segments.first?.provider != presentation.segments.first?.provider
             || displayedPresentation?.size != presentation.size
