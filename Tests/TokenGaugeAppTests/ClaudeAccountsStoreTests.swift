@@ -21,14 +21,34 @@ final class ClaudeAccountsStoreTests: XCTestCase {
 
     func testRateLimitKeepsTheLastReadingAndBacksOff() {
         let ready = ClaudeAccountsStore.apply(.windows([window]), to: ClaudeAccountState(), at: now)
-        let first = ClaudeAccountsStore.apply(.status(429), to: ready, at: now)
+        let first = ClaudeAccountsStore.apply(.rateLimited(retryAfter: nil), to: ready, at: now)
         XCTAssertEqual(first.status, .ready)
         XCTAssertEqual(first.windows, [window])
         XCTAssertEqual(first.nextRead, now.addingTimeInterval(300))
         var state = first
-        for _ in 0..<5 { state = ClaudeAccountsStore.apply(.status(429), to: state, at: now) }
+        for _ in 0..<5 { state = ClaudeAccountsStore.apply(.rateLimited(retryAfter: nil), to: state, at: now) }
         XCTAssertEqual(state.nextRead, now.addingTimeInterval(1800))
-        XCTAssertEqual(ClaudeAccountsStore.apply(.status(429), to: ClaudeAccountState(), at: now).status, .rateLimited)
+        XCTAssertEqual(
+            ClaudeAccountsStore.apply(.rateLimited(retryAfter: nil), to: ClaudeAccountState(), at: now).status,
+            .rateLimited)
+    }
+
+    func testRateLimitWaitsAtLeastWhatTheServerAsks() {
+        let first = ClaudeAccountsStore.apply(.rateLimited(retryAfter: 1206), to: ClaudeAccountState(), at: now)
+        XCTAssertEqual(first.nextRead, now.addingTimeInterval(1206))
+        let short = ClaudeAccountsStore.apply(.rateLimited(retryAfter: 30), to: first, at: now)
+        XCTAssertEqual(short.nextRead, now.addingTimeInterval(600))
+    }
+
+    func testOpeningThePanelReadsEarlyOnlyWhenNotRateLimited() {
+        let ready = ClaudeAccountsStore.apply(.windows([window]), to: ClaudeAccountState(), at: now)
+        let panelOpen = now.addingTimeInterval(ClaudeAccountsStore.minimumGap)
+        XCTAssertFalse(ClaudeAccountsStore.isDue(ready, at: panelOpen, force: false))
+        XCTAssertTrue(ClaudeAccountsStore.isDue(ready, at: panelOpen, force: true))
+        let limited = ClaudeAccountsStore.apply(.rateLimited(retryAfter: nil), to: ready, at: now)
+        XCTAssertEqual(limited.status, .ready)
+        XCTAssertFalse(ClaudeAccountsStore.isDue(limited, at: limited.nextRead.addingTimeInterval(-1), force: true))
+        XCTAssertTrue(ClaudeAccountsStore.isDue(limited, at: limited.nextRead, force: true))
     }
 
     func testFailuresDropTheReadingAndNameTheCause() {

@@ -107,11 +107,7 @@ final class ClaudeAccountsStore: ObservableObject {
     func refresh(_ id: UUID, force: Bool) async {
         guard enabled, let account = accounts.first(where: { $0.id == id }), !inFlight.contains(id) else { return }
         var state = states[id] ?? ClaudeAccountState()
-        let now = Date()
-        let early =
-            force && state.status == .ready
-            && now >= state.nextRead.addingTimeInterval(Self.minimumGap - Self.interval)
-        guard now >= state.nextRead || early else { return }
+        guard Self.isDue(state, at: Date(), force: force) else { return }
         guard let location = ClaudeAccountLocation.parse(account.location) else {
             state.status = .invalidLocation
             states[id] = state
@@ -124,6 +120,12 @@ final class ClaudeAccountsStore: ObservableObject {
         states[id] = Self.apply(result, to: state, at: Date())
     }
 
+    static func isDue(_ state: ClaudeAccountState, at now: Date, force: Bool) -> Bool {
+        if now >= state.nextRead { return true }
+        return force && state.status == .ready && state.failures == 0
+            && now >= state.nextRead.addingTimeInterval(minimumGap - interval)
+    }
+
     static func apply(_ result: ClaudeExtraAccountResult, to previous: ClaudeAccountState, at now: Date)
         -> ClaudeAccountState
     {
@@ -133,10 +135,10 @@ final class ClaudeAccountsStore: ObservableObject {
             state = ClaudeAccountState(
                 status: .ready, windows: windows, capturedAt: now, nextRead: now.addingTimeInterval(interval))
             return state
-        case .status(429):
+        case .rateLimited(let retryAfter):
             state.failures += 1
             let backoff = [300.0, 600, 1200, 1800][min(state.failures, 4) - 1]
-            state.nextRead = now.addingTimeInterval(backoff)
+            state.nextRead = now.addingTimeInterval(max(backoff, retryAfter ?? 0))
             state.status = state.windows.isEmpty ? .rateLimited : state.status
             return state
         case .status(let code):
