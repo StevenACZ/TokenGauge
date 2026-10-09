@@ -86,13 +86,14 @@ public struct ClaudeAccountLocation: Equatable, Sendable {
           t=$(security find-generic-password -a "$(id -un)" -s "$s" -w 2>/dev/null | plutil -extract claudeAiOauth.accessToken raw -o - - 2>/dev/null)
         fi
         [ -n "$t" ] || { printf 'TG_STATUS 401\n'; exit 0; }
-        printf 'Authorization: Bearer %s\n' "$t" | curl -s -m 10 -H @- -H 'anthropic-beta: oauth-2025-04-20' -w '\nTG_STATUS %{http_code}\n' https://api.anthropic.com/api/oauth/usage
+        printf 'Authorization: Bearer %s\n' "$t" | curl -s -m 10 -H @- -H 'anthropic-beta: oauth-2025-04-20' -w '\nTG_STATUS %{http_code} %header{retry-after}\n' https://api.anthropic.com/api/oauth/usage
         """#
 }
 
 public enum ClaudeExtraAccountResult: Equatable, Sendable {
     case windows([QuotaWindow])
     case status(Int)
+    case rateLimited(retryAfter: TimeInterval?)
     case unreachable
 }
 
@@ -100,8 +101,12 @@ public enum ClaudeExtraAccountParser {
     public static func parse(_ output: Data?) -> ClaudeExtraAccountResult {
         guard let output, let text = String(data: output, encoding: .utf8),
             let marker = text.range(of: "TG_STATUS ", options: .backwards),
-            let status = Int(text[marker.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines))
+            case let fields = text[marker.upperBound...].split(whereSeparator: \.isWhitespace),
+            let status = fields.first.flatMap({ Int($0) })
         else { return .unreachable }
+        if status == 429 {
+            return .rateLimited(retryAfter: fields.dropFirst().first.flatMap { Int($0) }.map(TimeInterval.init))
+        }
         guard status == 200 else { return .status(status) }
         let body = Data(text[..<marker.lowerBound].utf8)
         switch try? ClaudeAccountUsageParser.parseLimits(body) {

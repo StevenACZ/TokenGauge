@@ -47,6 +47,7 @@ final class ClaudeExtraAccountTests: XCTestCase {
         let script = ClaudeAccountLocation.script
         XCTAssertTrue(script.contains("shasum -a 256 | cut -c1-8"))
         XCTAssertTrue(script.contains("curl -s -m 10 -H @-"))
+        XCTAssertTrue(script.contains("TG_STATUS %{http_code} %header{retry-after}"))
         XCTAssertFalse(script.contains("Bearer $t\" https"))
     }
 
@@ -60,7 +61,12 @@ final class ClaudeExtraAccountTests: XCTestCase {
         XCTAssertEqual(windows.map(\.id), ["five_hour", "seven_day"])
         XCTAssertEqual(windows.first?.usedPercentage, 43)
         XCTAssertEqual(ClaudeExtraAccountParser.parse(Data("TG_STATUS 401\n".utf8)), .status(401))
-        XCTAssertEqual(ClaudeExtraAccountParser.parse(Data("{\"error\":1}\nTG_STATUS 429\n".utf8)), .status(429))
+        XCTAssertEqual(
+            ClaudeExtraAccountParser.parse(Data("{\"error\":1}\nTG_STATUS 429 1206\n".utf8)),
+            .rateLimited(retryAfter: 1206))
+        XCTAssertEqual(
+            ClaudeExtraAccountParser.parse(Data("{\"error\":1}\nTG_STATUS 429 \n".utf8)), .rateLimited(retryAfter: nil))
+        XCTAssertEqual(ClaudeExtraAccountParser.parse(Data("TG_STATUS 403 \n".utf8)), .status(403))
         XCTAssertEqual(ClaudeExtraAccountParser.parse(Data("{\"limits\":[]}\nTG_STATUS 200".utf8)), .windows([]))
         XCTAssertEqual(ClaudeExtraAccountParser.parse(Data("ssh: connect refused".utf8)), .unreachable)
         XCTAssertEqual(ClaudeExtraAccountParser.parse(nil), .unreachable)
