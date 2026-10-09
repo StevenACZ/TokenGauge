@@ -22,6 +22,8 @@
     <string>12</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>TokenGauge reads the usage of Claude accounts that live on other Macs on your network.</string>
     <key>LSUIElement</key>
     <true/>
     <key>NSHighResolutionCapable</key>

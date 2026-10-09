@@ -3,6 +3,8 @@ import SwiftUI
 enum Theme {
     static let claude = Color(red: 0.85, green: 0.44, blue: 0.29)
     static let codex = Color(red: 0.33, green: 0.47, blue: 0.96)
+    static let accountViolet = Color(red: 0.58, green: 0.42, blue: 0.92)
+    static let accountGreen = Color(red: 0.27, green: 0.68, blue: 0.45)
     static let panelBackground = Color(
         nsColor: NSColor(name: "TokenGaugePanelBackground") { appearance in
             appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -18,6 +20,7 @@ enum Theme {
         static let maximumPanelHeight: CGFloat = 700
         static let unifiedPanelWidth: CGFloat = 560
         static let providerMaxHeight: CGFloat = 275
+        static let accountsMaxHeight: CGFloat = 104
         static let compactProviderMaxHeight: CGFloat = 335
         static let ringProviderMaxHeight: CGFloat = 315
         static let compactPanelWidth: CGFloat = 320

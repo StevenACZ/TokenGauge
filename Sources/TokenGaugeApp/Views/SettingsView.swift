@@ -35,6 +35,10 @@ struct SettingsView: View {
                 }
                 .fixedSize(horizontal: false, vertical: true)
             }
+
+            SettingsCard(title: "accounts.title".localized, symbol: "person.2") {
+                ClaudeAccountsSettings(store: ClaudeAccountsStore.shared)
+            }
         }
         .padding(24)
         .frame(width: Self.width)

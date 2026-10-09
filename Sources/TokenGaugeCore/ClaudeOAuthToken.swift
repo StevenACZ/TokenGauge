@@ -71,7 +71,7 @@ public enum ClaudeOAuthTokenReader {
         )
     }
 
-    static func boundedPayload(executable: URL, arguments: [String], timeout: TimeInterval) -> Data? {
+    public static func boundedPayload(executable: URL, arguments: [String], timeout: TimeInterval) -> Data? {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
