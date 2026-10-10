@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-10-09
+
+### Fixed
+
+- Extra Claude accounts: an account whose login has expired now says so ("Login expired, open Claude Code on that account") instead of "Too many reads", and TokenGauge stops asking for its usage until Claude Code renews the login there.
+- Extra Claude accounts: when Claude asks TokenGauge to slow down, it now waits as long as Claude asks, and opening the panel no longer reads again before that wait ends.
+
 ## [1.9.0] - 2026-10-09
 
 ### Added

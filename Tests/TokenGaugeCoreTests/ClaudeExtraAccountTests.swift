@@ -48,6 +48,7 @@ final class ClaudeExtraAccountTests: XCTestCase {
         XCTAssertTrue(script.contains("shasum -a 256 | cut -c1-8"))
         XCTAssertTrue(script.contains("curl -s -m 10 -H @-"))
         XCTAssertTrue(script.contains("TG_STATUS %{http_code} %header{retry-after}"))
+        XCTAssertTrue(script.contains("claudeAiOauth.expiresAt"))
         XCTAssertFalse(script.contains("Bearer $t\" https"))
     }
 
@@ -67,6 +68,7 @@ final class ClaudeExtraAccountTests: XCTestCase {
         XCTAssertEqual(
             ClaudeExtraAccountParser.parse(Data("{\"error\":1}\nTG_STATUS 429 \n".utf8)), .rateLimited(retryAfter: nil))
         XCTAssertEqual(ClaudeExtraAccountParser.parse(Data("TG_STATUS 403 \n".utf8)), .status(403))
+        XCTAssertEqual(ClaudeExtraAccountParser.parse(Data("TG_STATUS expired\n".utf8)), .expired)
         XCTAssertEqual(ClaudeExtraAccountParser.parse(Data("{\"limits\":[]}\nTG_STATUS 200".utf8)), .windows([]))
         XCTAssertEqual(ClaudeExtraAccountParser.parse(Data("ssh: connect refused".utf8)), .unreachable)
         XCTAssertEqual(ClaudeExtraAccountParser.parse(nil), .unreachable)

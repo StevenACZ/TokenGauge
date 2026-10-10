@@ -78,14 +78,18 @@ public struct ClaudeAccountLocation: Equatable, Sendable {
     static let script = #"""
         d="$1"
         case "$d" in "~") d="$HOME" ;; "~/"*) d="$HOME/${d#??}" ;; esac
-        t=""
-        if [ -f "$d/.credentials.json" ]; then t=$(plutil -extract claudeAiOauth.accessToken raw -o - "$d/.credentials.json" 2>/dev/null); fi
+        j=""
+        if [ -f "$d/.credentials.json" ]; then j=$(cat "$d/.credentials.json" 2>/dev/null); fi
+        t=$(printf %s "$j" | plutil -extract claudeAiOauth.accessToken raw -o - - 2>/dev/null)
         if [ -z "$t" ]; then
           s="Claude Code-credentials"
           [ "$d" = "$HOME/.claude" ] || s="$s-$(printf %s "$d" | shasum -a 256 | cut -c1-8)"
-          t=$(security find-generic-password -a "$(id -un)" -s "$s" -w 2>/dev/null | plutil -extract claudeAiOauth.accessToken raw -o - - 2>/dev/null)
+          j=$(security find-generic-password -a "$(id -un)" -s "$s" -w 2>/dev/null)
+          t=$(printf %s "$j" | plutil -extract claudeAiOauth.accessToken raw -o - - 2>/dev/null)
         fi
         [ -n "$t" ] || { printf 'TG_STATUS 401\n'; exit 0; }
+        e=$(printf %s "$j" | plutil -extract claudeAiOauth.expiresAt raw -o - - 2>/dev/null)
+        if [ -n "$e" ] && [ "$e" -le "$(date +%s)000" ] 2>/dev/null; then printf 'TG_STATUS expired\n'; exit 0; fi
         printf 'Authorization: Bearer %s\n' "$t" | curl -s -m 10 -H @- -H 'anthropic-beta: oauth-2025-04-20' -w '\nTG_STATUS %{http_code} %header{retry-after}\n' https://api.anthropic.com/api/oauth/usage
         """#
 }
@@ -94,6 +98,7 @@ public enum ClaudeExtraAccountResult: Equatable, Sendable {
     case windows([QuotaWindow])
     case status(Int)
     case rateLimited(retryAfter: TimeInterval?)
+    case expired
     case unreachable
 }
 
@@ -102,8 +107,10 @@ public enum ClaudeExtraAccountParser {
         guard let output, let text = String(data: output, encoding: .utf8),
             let marker = text.range(of: "TG_STATUS ", options: .backwards),
             case let fields = text[marker.upperBound...].split(whereSeparator: \.isWhitespace),
-            let status = fields.first.flatMap({ Int($0) })
+            let code = fields.first
         else { return .unreachable }
+        if code == "expired" { return .expired }
+        guard let status = Int(code) else { return .unreachable }
         if status == 429 {
             return .rateLimited(retryAfter: fields.dropFirst().first.flatMap { Int($0) }.map(TimeInterval.init))
         }

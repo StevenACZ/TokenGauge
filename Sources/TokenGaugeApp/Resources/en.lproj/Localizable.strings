@@ -321,6 +321,7 @@
 "accounts.status.ready" = "Reading";
 "accounts.status.loading" = "Reading…";
 "accounts.status.signed_out" = "Not signed in";
+"accounts.status.expired" = "Login expired, open Claude Code on that account";
 "accounts.status.no_access" = "No access";
 "accounts.status.rate_limited" = "Too many reads, retrying soon";
 "accounts.status.unreachable" = "Not reachable";

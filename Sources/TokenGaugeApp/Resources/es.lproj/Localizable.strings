@@ -321,6 +321,7 @@
 "accounts.status.ready" = "Leyendo";
 "accounts.status.loading" = "Leyendo…";
 "accounts.status.signed_out" = "Sin sesión";
+"accounts.status.expired" = "Sesión vencida, abre Claude Code en esa cuenta";
 "accounts.status.no_access" = "Sin acceso";
 "accounts.status.rate_limited" = "Demasiadas lecturas, reintenta pronto";
 "accounts.status.unreachable" = "No responde";
