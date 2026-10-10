@@ -127,6 +127,7 @@ struct ClaudeAccountRow: View {
         case .loading: "accounts.status.loading".localized
         case .ready: ""
         case .signedOut: "accounts.status.signed_out".localized
+        case .expired: "accounts.status.expired".localized
         case .noAccess: "accounts.status.no_access".localized
         case .rateLimited: "accounts.status.rate_limited".localized
         case .unreachable: "accounts.status.unreachable".localized

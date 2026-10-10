@@ -3,7 +3,7 @@ import TokenGaugeCore
 
 struct ClaudeAccountState: Equatable {
     enum Status: Equatable {
-        case loading, ready, signedOut, noAccess, rateLimited, unreachable, invalidLocation
+        case loading, ready, signedOut, expired, noAccess, rateLimited, unreachable, invalidLocation
     }
 
     var status: Status = .loading
@@ -143,6 +143,8 @@ final class ClaudeAccountsStore: ObservableObject {
             return state
         case .status(let code):
             state.status = code == 401 ? .signedOut : (code == 402 || code == 403) ? .noAccess : .unreachable
+        case .expired:
+            state.status = .expired
         case .unreachable:
             state.status = .unreachable
         }

@@ -139,6 +139,7 @@ private struct ClaudeAccountEditor: View {
         case .ready: "accounts.status.ready".localized
         case .loading: "accounts.status.loading".localized
         case .signedOut: "accounts.status.signed_out".localized
+        case .expired: "accounts.status.expired".localized
         case .noAccess: "accounts.status.no_access".localized
         case .rateLimited: "accounts.status.rate_limited".localized
         case .unreachable: "accounts.status.unreachable".localized
