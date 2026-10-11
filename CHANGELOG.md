@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-11
+
 ### Added
 
-- Extra Claude accounts can be hidden: by hand with an eye button in Settings or a right-click on the account in the panel, or on the weekdays you choose (a work login on weekends). A hidden account leaves the panel and the menu bar and is not read.
+- Extra Claude accounts can be hidden: by hand, from Settings → Accounts or with a right-click on the account in the panel, or on the weekdays you choose (a work login on weekends). A hidden account leaves the panel and the menu bar and is not read.
 - An extra account can be marked with its initial in the menu bar, and there are two more colors (teal and pink), so several accounts are easy to tell apart.
 - The README explains how to add more Claude accounts.
 - Privacy mode has its own eye button in the panel header.
