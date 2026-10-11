@@ -120,7 +120,7 @@ final class ScreenshotTests: XCTestCase {
         let resetHistory = HistoryDashboardModel(previewSnapshots: snapshots, mode: .calendar, now: now)
         try render(
             PopoverView(store: store, showSettings: {}, history: resetHistory),
-            to: output.appendingPathComponent("weekly-resets-three-claude.png"))
+            to: output.appendingPathComponent("weekly-resets.png"))
         let resetDate = now.addingTimeInterval(21 * 86400)
         try render(
             HistoryDayCardView(
