@@ -29,7 +29,7 @@ TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Code
   <img src="docs/images/panel.png" width="340" alt="Codex view showing only Codex quota and token activity">
   <img src="docs/images/claude.png" width="340" alt="Claude view showing only Claude quota and token activity">
 </p>
-<p align="center"><img src="docs/images/settings.png" width="720" alt="Settings with a live menu bar preview, limit chips, indicator styles, and panel, general, and account options"></p>
+<p align="center"><img src="docs/images/settings.png" width="720" alt="Settings with a sidebar of pages and the Menu bar page: a live menu bar preview, limit chips, indicator styles, and size"></p>
 </details>
 
 ## At a glance
