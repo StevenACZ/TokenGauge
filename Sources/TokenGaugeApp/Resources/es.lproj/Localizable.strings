@@ -323,12 +323,14 @@
 
 "accounts.title" = "Otras cuentas de Claude";
 "accounts.enable" = "Mostrar otras sesiones de Claude Code";
-"accounts.enable_help" = "Para quien tiene más de un login de Claude Code. Cada uno muestra su sesión de 5 h y su límite semanal bajo la tarjeta de Claude. El token se lee en la Mac donde vive ese login y nunca sale de ella.";
+"accounts.enable_help" = "Para quien tiene más de un login de Claude Code. Cada uno muestra su sesión de 5 h y su límite semanal bajo la tarjeta de Claude, según los límites de Claude elegidos en Configuración → Panel. El token se lee en la Mac donde vive ese login y nunca sale de ella.";
 "accounts.add" = "Añadir cuenta";
 "accounts.name" = "Nombre";
 "accounts.location_placeholder" = "~/.claude-trabajo";
 "accounts.location_help" = "Ubicación: la carpeta de configuración del login en esta Mac (~/.claude-trabajo), o host:carpeta para leer una de otra Mac por SSH (solo con llaves, sin contraseña).";
 "accounts.menu_bar" = "Mostrar su 5 h en la barra de menú";
+"accounts.look" = "Ícono y color";
+"accounts.color" = "Color";
 "accounts.icon" = "Ícono";
 "accounts.icon.dot" = "Punto";
 "accounts.icon.balloon" = "Globo";
@@ -342,6 +344,11 @@
 "accounts.show" = "Mostrar cuenta";
 "accounts.days" = "Se muestra";
 "accounts.days_help" = "Apaga los días en que no usas esta cuenta, por ejemplo un login de trabajo el fin de semana. Esos días sale del panel y de la barra de menú y no se lee.";
+"accounts.days.every" = "Todos los días";
+"accounts.days.none" = "Ningún día";
+"accounts.days.hidden" = "Oculta";
+"accounts.days.range" = "%@ a %@";
+"accounts.days.count" = "%d días";
 "accounts.unnamed" = "Cuenta";
 "accounts.session" = "5 h";
 "accounts.weekly" = "Semanal";

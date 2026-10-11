@@ -151,6 +151,43 @@ final class ClaudeAccountsStoreTests: XCTestCase {
             id: "seven_day_fable", usedPercentage: 60, resetsAt: nil, durationMinutes: 10_080, displayName: "Fable")
         XCTAssertEqual(ClaudeAccountRow.columns([weekly, fable, window]).map(\.id), ["five_hour", "seven_day_fable"])
     }
+
+    func testTheLimitsHiddenForClaudeLeaveEveryAccountRow() {
+        let weekly = QuotaWindow(
+            id: "seven_day", usedPercentage: 10, resetsAt: nil, durationMinutes: 10_080, displayName: nil)
+        let fable = QuotaWindow(
+            id: "seven_day_fable", usedPercentage: 60, resetsAt: nil, durationMinutes: 10_080, displayName: "Fable")
+        XCTAssertEqual(ClaudeAccountRow.columns([window, fable], hidden: [.modelWeekly]).map(\.id), ["five_hour"])
+        XCTAssertEqual(
+            ClaudeAccountRow.columns([weekly, fable, window], hidden: [.modelWeekly]).map(\.id),
+            ["five_hour", "seven_day"])
+        XCTAssertEqual(
+            ClaudeAccountRow.columns([weekly, fable, window], hidden: [.session, .weekly]).map(\.id),
+            ["seven_day_fable"])
+    }
+
+    func testTheDaysButtonSummarizesTheWeek() {
+        var account = ClaudeExtraAccount(name: "Side", location: "~/.claude-side")
+        let cases: [(Set<Int>, String, String)] = [
+            ([], "Every day", "Todos los días"),
+            ([7, 1], "Mon to Fri", "Lun a Vie"),
+            ([1], "Mon to Sat", "Lun a Sáb"),
+            ([2, 3, 4, 5, 6], "Sat and Sun", "Sáb y Dom"),
+            ([2, 3, 4, 5, 6, 7], "Sun", "Dom"),
+            ([3, 5, 7, 1], "3 days", "3 días"),
+            ([3, 6], "5 days", "5 días"),
+            (Set(1...7), "No days", "Ningún día"),
+        ]
+        withEachLanguage { language in
+            account.hidden = false
+            for (hidden, english, spanish) in cases {
+                account.hiddenWeekdays = hidden
+                XCTAssertEqual(AccountSchedule.summary(account), language == .english ? english : spanish)
+            }
+            account.hidden = true
+            XCTAssertEqual(AccountSchedule.summary(account), language == .english ? "Hidden" : "Oculta")
+        }
+    }
 }
 
 private final class Weekday: @unchecked Sendable {

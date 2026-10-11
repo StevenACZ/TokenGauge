@@ -63,6 +63,14 @@ enum AccountIconArt {
         }
     }
 
+    static func swatch(_ color: NSColor, size: CGFloat) -> NSImage {
+        NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
+            color.setFill()
+            NSBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1)).fill()
+            return true
+        }
+    }
+
     static func image(_ icon: ClaudeExtraAccount.Icon, letter: String = "", color: NSColor, size: CGFloat) -> NSImage? {
         if icon == .letter { return letterImage(letter, color: color, size: size) }
         guard let symbol = icon.symbol else {

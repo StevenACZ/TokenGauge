@@ -55,21 +55,32 @@ struct SettingsView: View {
         HStack(spacing: 0) {
             sidebar
             Rectangle().fill(Color.primary.opacity(0.08)).frame(width: 1).ignoresSafeArea()
-            ScrollView {
-                page
-                    .padding(.horizontal, Self.pagePadding)
-                    .padding(.top, 10)
-                    .padding(.bottom, 24)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .id(navigation.page)
-                    .transition(.opacity)
+            GeometryReader { proxy in
+                ScrollView {
+                    layout(height: proxy.size.height, titleBar: proxy.safeAreaInsets.top)
+                        .id(navigation.page)
+                        .transition(.opacity)
+                }
+                .scrollIndicators(.automatic)
             }
-            .scrollIndicators(.automatic)
         }
         .frame(width: Self.width)
         .frame(minHeight: 420, idealHeight: Self.height, maxHeight: .infinity)
         .onAppear { launchAtLogin.refresh() }
         .id(localization.language)
+    }
+
+    @ViewBuilder
+    private func layout(height: CGFloat, titleBar: CGFloat) -> some View {
+        if navigation.page == .about {
+            page.frame(maxWidth: .infinity, minHeight: height).offset(y: -titleBar / 2)
+        } else {
+            page
+                .padding(.horizontal, Self.pagePadding)
+                .padding(.top, 10)
+                .padding(.bottom, 24)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
     }
 
     @ViewBuilder
@@ -79,7 +90,7 @@ struct SettingsView: View {
         case .panel: SettingsPanelPage(store: store)
         case .accounts: SettingsAccountsPage(store: store, accounts: accounts)
         case .general: SettingsGeneralPage(store: store, launchAtLogin: launchAtLogin)
-        case .about: AboutView().frame(maxWidth: .infinity)
+        case .about: AboutView()
         }
     }
 

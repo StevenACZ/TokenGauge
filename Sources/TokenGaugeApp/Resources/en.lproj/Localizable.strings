@@ -323,12 +323,14 @@
 
 "accounts.title" = "Other Claude accounts";
 "accounts.enable" = "Show other Claude Code logins";
-"accounts.enable_help" = "For people with more than one Claude Code login. Each one shows its 5-hour session and weekly limit under the Claude card. The token is read on the Mac where that login lives and never leaves it.";
+"accounts.enable_help" = "For people with more than one Claude Code login. Each one shows its 5-hour session and weekly limit under the Claude card, following the Claude limits chosen in Settings → Panel. The token is read on the Mac where that login lives and never leaves it.";
 "accounts.add" = "Add account";
 "accounts.name" = "Name";
 "accounts.location_placeholder" = "~/.claude-work";
 "accounts.location_help" = "Location: the login's config folder on this Mac (~/.claude-work), or host:folder to read one on another Mac over SSH (keys only, no password).";
 "accounts.menu_bar" = "Show its 5 h in the menu bar";
+"accounts.look" = "Icon and color";
+"accounts.color" = "Color";
 "accounts.icon" = "Icon";
 "accounts.icon.dot" = "Dot";
 "accounts.icon.balloon" = "Balloon";
@@ -342,6 +344,11 @@
 "accounts.show" = "Show account";
 "accounts.days" = "Shown on";
 "accounts.days_help" = "Turn off the days you do not use this account, for example a work login on weekends. On those days it leaves the panel and the menu bar and is not read.";
+"accounts.days.every" = "Every day";
+"accounts.days.none" = "No days";
+"accounts.days.hidden" = "Hidden";
+"accounts.days.range" = "%@ to %@";
+"accounts.days.count" = "%d days";
 "accounts.unnamed" = "Account";
 "accounts.session" = "5 h";
 "accounts.weekly" = "Weekly";

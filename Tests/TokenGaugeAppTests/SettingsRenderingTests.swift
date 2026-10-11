@@ -23,6 +23,10 @@ final class SettingsRenderingTests: XCTestCase {
                 let pages: [(SettingsPage, AnyView, CGFloat)] = [
                     (.menuBar, AnyView(MenuBarDesigner(store: store, accounts: accounts)), tour),
                     (.panel, AnyView(SettingsPanelPage(store: store)), 0),
+                    (
+                        .accounts,
+                        AnyView(SettingsAccountsPage(store: store, accounts: accounts).defaultAppStorage(defaults)), 0
+                    ),
                     (.general, AnyView(SettingsGeneralPage(store: store, launchAtLogin: launch)), 0),
                 ]
                 for (page, view, extra) in pages {

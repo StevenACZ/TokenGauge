@@ -86,9 +86,11 @@ TokenGauge always shows the Claude Code login in `~/.claude`. If you have more l
 1. Give each extra login its own config folder. Claude Code keeps a separate login per folder: run `CLAUDE_CONFIG_DIR=~/.claude-work claude`, sign in with `/login`, and add an alias such as `alias claude-work='CLAUDE_CONFIG_DIR=~/.claude-work claude'` to keep using it.
 2. Open **Settings → Accounts → Other Claude accounts**, turn on **Show other Claude Code logins**, and press **Add account**.
 3. Type a name and the folder (`~/.claude-work`). For a login that lives on another Mac, type `host:~/.claude-work`; that Mac must accept your SSH key without a password, and macOS asks once for Local Network access.
-4. Pick a color and a mark (its initial, a dot, or an icon), and press the menu bar button to show its 5-hour session next to Claude (the same switch lives in **Settings → Menu bar → Other accounts**).
+4. Click the account's mark to pick its icon (its initial, a dot, or a symbol) and its color, and press the menu bar button to show its 5-hour session next to Claude (the same switch lives in **Settings → Menu bar → Other accounts**).
 
-Each account shows its 5-hour session and its tightest weekly limit under the Claude card. To hide one, press its eye button, or right-click its row in the panel. Under **Shown on**, turn off the days you do not use it (a work login on Saturday and Sunday); on those days it leaves the panel and the menu bar and is not read.
+Each account shows its 5-hour session and its tightest weekly limit under the Claude card. It follows the Claude limits you choose in **Settings → Panel → Limits**: turn one off there (a model's weekly limit, for example) and it leaves every account, so a row can show only its 5-hour session.
+
+To hide an account, right-click its row in the panel, or press its eye button in Settings and turn off **Show account**. That button also holds the weekdays: turn off the days you do not use the account (a work login on Saturday and Sunday), and it reads **Mon to Fri**. On those days the account leaves the panel and the menu bar and is not read.
 
 If you work with a coding agent, you can ask it to do step 1 for you: *"Create a second Claude Code login in `~/.claude-work` with a `claude-work` alias, and tell me the folder to type in TokenGauge."* Steps 2 to 4 are three fields in Settings.
 

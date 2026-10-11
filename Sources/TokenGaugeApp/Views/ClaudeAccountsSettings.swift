@@ -27,139 +27,67 @@ struct ClaudeAccountsSettings: View {
     }
 }
 
-private struct ClaudeAccountEditor: View {
-    let account: ClaudeExtraAccount
-    let state: ClaudeAccountState
-    let store: ClaudeAccountsStore
+@MainActor
+enum AccountSchedule {
+    static let week = [2, 3, 4, 5, 6, 7, 1]
 
-    private static let weekdays = [2, 3, 4, 5, 6, 7, 1]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            fields.opacity(account.hidden ? 0.55 : 1)
-            visibility
+    static func summary(_ account: ClaudeExtraAccount) -> String {
+        if account.hidden { return "accounts.days.hidden".localized }
+        let days = week.indices.filter { !account.hiddenWeekdays.contains(week[$0]) }
+        if days.count == week.count { return "accounts.days.every".localized }
+        guard let first = days.first, let last = days.last else { return "accounts.days.none".localized }
+        if days.count >= 3, last - first == days.count - 1 {
+            return "accounts.days.range".localized(symbol(week[first]), symbol(week[last]))
         }
+        if days.count > 2 { return "accounts.days.count".localized(days.count) }
+        let formatter = ListFormatter()
+        formatter.locale = locale
+        return formatter.string(from: days.map { symbol(week[$0]) }) ?? ""
     }
 
-    private var visibility: some View {
-        HStack(spacing: 6) {
-            Button {
-                var edited = account
-                edited.hidden.toggle()
-                store.update(edited)
-            } label: {
-                Image(systemName: account.hidden ? "eye.slash" : "eye")
-                    .font(.system(size: 11))
-                    .foregroundStyle(account.hidden ? AnyShapeStyle(.secondary) : AnyShapeStyle(account.tint.color))
-                    .frame(width: 18)
-            }
-            .buttonStyle(.borderless)
-            .help((account.hidden ? "accounts.show" : "accounts.hide").localized)
-            .accessibilityLabel((account.hidden ? "accounts.show" : "accounts.hide").localized)
-            Text("accounts.days".localized)
-                .font(.caption).foregroundStyle(.secondary)
-            ForEach(Self.weekdays, id: \.self) { weekday in
-                let shown = !account.hiddenWeekdays.contains(weekday)
-                Button {
-                    var edited = account
-                    edited.hiddenWeekdays.formSymmetricDifference([weekday])
-                    store.update(edited)
-                } label: {
-                    Text(Self.symbol(weekday))
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(shown ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
-                        .frame(width: 30, height: 18)
-                        .background(
-                            RoundedRectangle(cornerRadius: 5).fill(account.tint.color.opacity(shown ? 0.22 : 0))
-                        )
-                        .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Color.primary.opacity(0.12)))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Self.symbol(weekday, wide: true))
-                .accessibilityAddTraits(shown ? [.isSelected] : [])
-            }
-            .disabled(account.hidden)
-        }
-        .padding(.leading, 18)
-        .help("accounts.days_help".localized)
-    }
-
-    private static func symbol(_ weekday: Int, wide: Bool = false) -> String {
+    static func symbol(_ weekday: Int, wide: Bool = false) -> String {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.locale = Locale(identifier: LocalizationManager.shared.language.rawValue)
+        calendar.locale = locale
         let symbols = wide ? calendar.standaloneWeekdaySymbols : calendar.shortStandaloneWeekdaySymbols
         return symbols[weekday - 1].capitalized
     }
 
-    private var fields: some View {
+    private static var locale: Locale { Locale(identifier: LocalizationManager.shared.language.rawValue) }
+}
+
+extension ClaudeAccountsStore {
+    fileprivate func edit(_ account: ClaudeExtraAccount, _ change: (inout ClaudeExtraAccount) -> Void) {
+        var edited = account
+        change(&edited)
+        update(edited)
+    }
+}
+
+private struct ClaudeAccountEditor: View {
+    let account: ClaudeExtraAccount
+    let state: ClaudeAccountState
+    let store: ClaudeAccountsStore
+    @State private var editsDays = false
+
+    var body: some View {
         HStack(spacing: 10) {
-            Circle()
-                .fill(dotColor)
-                .frame(width: 8, height: 8)
-                .help(statusHelp)
-            Menu {
-                ForEach(ClaudeExtraAccount.Icon.allCases, id: \.self) { icon in
-                    Button {
-                        var edited = account
-                        edited.icon = icon
-                        store.update(edited)
-                    } label: {
-                        Label {
-                            Text("accounts.icon.\(icon.rawValue)".localized)
-                        } icon: {
-                            if let image = AccountIconArt.image(
-                                icon, letter: account.initial, color: .labelColor, size: 14)
-                            {
-                                Image(nsImage: image)
-                            }
-                        }
-                    }
-                }
-            } label: {
-                if let image = AccountIconArt.image(
-                    account.icon, letter: account.initial, color: NSColor(account.tint.color), size: 13)
-                {
-                    Image(nsImage: image)
-                }
+            Group {
+                Circle()
+                    .fill(dotColor)
+                    .frame(width: 8, height: 8)
+                    .help(statusHelp)
+                look
+                TextField("accounts.name".localized, text: binding(\.name))
+                    .textFieldStyle(.roundedBorder).controlSize(.small)
+                    .frame(width: 120)
+                TextField("accounts.location_placeholder".localized, text: binding(\.location))
+                    .textFieldStyle(.roundedBorder).controlSize(.small)
+                    .font(.system(size: 11, design: .monospaced))
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .help("accounts.icon".localized)
-            .accessibilityLabel("accounts.icon".localized)
-            TextField("accounts.name".localized, text: binding(\.name))
-                .textFieldStyle(.roundedBorder).controlSize(.small)
-                .frame(width: 120)
-            TextField("accounts.location_placeholder".localized, text: binding(\.location))
-                .textFieldStyle(.roundedBorder).controlSize(.small)
-                .font(.system(size: 11, design: .monospaced))
-            HStack(spacing: 5) {
-                ForEach(ClaudeExtraAccount.Tint.allCases, id: \.self) { tint in
-                    Button {
-                        var edited = account
-                        edited.tint = tint
-                        store.update(edited)
-                    } label: {
-                        Circle()
-                            .fill(tint.color)
-                            .frame(width: 14, height: 14)
-                            .overlay(
-                                Circle().strokeBorder(
-                                    Color.primary.opacity(account.tint == tint ? 0.6 : 0), lineWidth: 2)
-                            )
-                            .padding(2)
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("accounts.tint.\(tint.rawValue)".localized)
-                    .accessibilityAddTraits(account.tint == tint ? [.isSelected] : [])
-                }
-            }
+            .opacity(account.hidden ? 0.55 : 1)
+            days
             Button {
-                var edited = account
-                edited.showsInMenuBar.toggle()
-                store.update(edited)
+                store.edit(account) { $0.showsInMenuBar.toggle() }
             } label: {
                 Image(systemName: "menubar.rectangle")
                     .font(.system(size: 12))
@@ -181,14 +109,77 @@ private struct ClaudeAccountEditor: View {
         }
     }
 
-    private func binding(_ field: WritableKeyPath<ClaudeExtraAccount, String>) -> Binding<String> {
+    private var look: some View {
+        Menu {
+            Picker("accounts.icon".localized, selection: binding(\.icon)) {
+                ForEach(ClaudeExtraAccount.Icon.allCases, id: \.self) { icon in
+                    Label {
+                        Text("accounts.icon.\(icon.rawValue)".localized)
+                    } icon: {
+                        mark(icon, tint: account.tint, size: 14)
+                    }
+                    .tag(icon)
+                }
+            }
+            .pickerStyle(.inline)
+            Picker("accounts.color".localized, selection: binding(\.tint)) {
+                ForEach(ClaudeExtraAccount.Tint.allCases, id: \.self) { tint in
+                    Label {
+                        Text("accounts.tint.\(tint.rawValue)".localized)
+                    } icon: {
+                        Image(nsImage: AccountIconArt.swatch(NSColor(tint.color), size: 14))
+                    }
+                    .tag(tint)
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            mark(account.icon, tint: account.tint, size: 13)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .frame(width: 34, alignment: .leading)
+        .help("accounts.look".localized)
+        .accessibilityLabel("accounts.look".localized)
+    }
+
+    @ViewBuilder
+    private func mark(_ icon: ClaudeExtraAccount.Icon, tint: ClaudeExtraAccount.Tint, size: CGFloat) -> some View {
+        if let image = AccountIconArt.image(icon, letter: account.initial, color: NSColor(tint.color), size: size) {
+            Image(nsImage: image)
+        }
+    }
+
+    private var days: some View {
+        let summary = AccountSchedule.summary(account)
+        return Button {
+            editsDays.toggle()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: account.hidden ? "eye.slash" : "eye").frame(width: 16)
+                Text(summary).lineLimit(1)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
+            }
+            .font(.system(size: 11))
+            .foregroundStyle(account.hidden ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+            .frame(width: Self.daysWidth)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("accounts.days_help".localized)
+        .accessibilityLabel("accounts.days".localized + " · " + summary)
+        .popover(isPresented: $editsDays, arrowEdge: .bottom) {
+            AccountDaysPicker(account: account, store: store)
+        }
+    }
+
+    private static let daysWidth: CGFloat = 116
+
+    private func binding<Value>(_ field: WritableKeyPath<ClaudeExtraAccount, Value>) -> Binding<Value> {
         Binding(
             get: { account[keyPath: field] },
-            set: { value in
-                var edited = account
-                edited[keyPath: field] = value
-                store.update(edited)
-            })
+            set: { value in store.edit(account) { $0[keyPath: field] = value } })
     }
 
     private var dotColor: Color {
@@ -211,5 +202,46 @@ private struct ClaudeAccountEditor: View {
         case .unreachable: "accounts.status.unreachable".localized
         case .invalidLocation: "accounts.status.invalid".localized
         }
+    }
+}
+
+struct AccountDaysPicker: View {
+    let account: ClaudeExtraAccount
+    let store: ClaudeAccountsStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsToggleRow(
+                title: "accounts.show".localized, symbol: "eye",
+                isOn: Binding(get: { !account.hidden }, set: { shown in store.edit(account) { $0.hidden = !shown } }))
+            HStack(spacing: 5) {
+                ForEach(AccountSchedule.week, id: \.self) { weekday in
+                    let shown = !account.hiddenWeekdays.contains(weekday)
+                    Button {
+                        store.edit(account) { $0.hiddenWeekdays.formSymmetricDifference([weekday]) }
+                    } label: {
+                        Text(AccountSchedule.symbol(weekday))
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(shown ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
+                            .frame(width: 34, height: 24)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6).fill(account.tint.color.opacity(shown ? 0.22 : 0))
+                            )
+                            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.primary.opacity(0.12)))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(AccountSchedule.symbol(weekday, wide: true))
+                    .accessibilityAddTraits(shown ? [.isSelected] : [])
+                }
+            }
+            .disabled(account.hidden)
+            .opacity(account.hidden ? 0.45 : 1)
+            Text("accounts.days_help".localized)
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(width: 296)
     }
 }

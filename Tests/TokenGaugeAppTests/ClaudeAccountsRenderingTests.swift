@@ -25,6 +25,15 @@ final class ClaudeAccountsRenderingTests: XCTestCase {
                     }
                 }
             }
+            if let directory = ProcessInfo.processInfo.environment["TOKENGAUGE_SCREENSHOT_DIR"] {
+                store.panelStyle = .standard
+                store.displayMode = .claude
+                store.setClaudeWindow(.weekly, visible: false)
+                _ = try render(
+                    PopoverView(store: store, showSettings: {}, accounts: accounts),
+                    to: URL(fileURLWithPath: directory).appendingPathComponent("accounts-session-only.png"))
+                store.setClaudeWindow(.weekly, visible: true)
+            }
             store.displayMode = .codex
             let codexOnly = fittingSize(PopoverView(store: store, showSettings: {}, accounts: accounts))
             let withoutAccounts = try withEmptyAccounts { empty in
@@ -50,6 +59,11 @@ final class ClaudeAccountsRenderingTests: XCTestCase {
         try render(
             ClaudeAccountsSettings(store: accounts).padding(14).frame(width: SettingsView.contentWidth),
             to: output.appendingPathComponent("accounts-settings.png"))
+        try withEachLanguage { language in
+            try render(
+                AccountDaysPicker(account: try XCTUnwrap(accounts.accounts.first), store: accounts),
+                to: output.appendingPathComponent("accounts-days-\(language.rawValue).png"))
+        }
         let dark = try XCTUnwrap(NSAppearance(named: .darkAqua))
         let marks: [(String, [MenuBarPresentation.Account])] = [
             (

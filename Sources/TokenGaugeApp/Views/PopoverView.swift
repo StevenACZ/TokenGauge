@@ -105,7 +105,7 @@ struct PopoverView: View {
             .frame(maxHeight: providerMaxHeight)
             .animation(animatesMotion ? Theme.Motion.content : nil, value: store.panelStyle)
             if accounts.isShowing, store.displayMode.providers.contains(.claude) {
-                ClaudeAccountsSection(store: accounts)
+                ClaudeAccountsSection(store: accounts, hiddenWindows: store.hiddenClaudeWindows)
             }
             HistoryPanelView(
                 model: history, mode: $store.historyMode,
