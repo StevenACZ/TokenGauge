@@ -11,6 +11,7 @@ extension ClaudeExtraAccount.Icon {
         case .house: "house.fill"
         case .person: "person.fill"
         case .building: "building.2.fill"
+        case .letter: nil
         }
     }
 }
@@ -41,7 +42,37 @@ enum AccountIconArt {
         return path
     }
 
-    static func image(_ icon: ClaudeExtraAccount.Icon, color: NSColor, size: CGFloat) -> NSImage? {
+    static func letterImage(_ letter: String, color: NSColor, size: CGFloat) -> NSImage {
+        let base = NSFont.systemFont(ofSize: (size * 0.86).rounded(), weight: .heavy)
+        let font =
+            base.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: base.pointSize) } ?? base
+        let line = CTLineCreateWithAttributedString(
+            NSAttributedString(
+                string: letter,
+                attributes: [
+                    .font: font, NSAttributedString.Key(kCTForegroundColorFromContextAttributeName as String): true,
+                ]))
+        let ink = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+        return NSImage(size: NSSize(width: ceil(ink.width) + 1, height: size), flipped: false) { rect in
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            context.setFillColor(color.cgColor)
+            context.textPosition = CGPoint(
+                x: (rect.width - ink.width) / 2 - ink.minX, y: (rect.height - ink.height) / 2 - ink.minY)
+            CTLineDraw(line, context)
+            return true
+        }
+    }
+
+    static func swatch(_ color: NSColor, size: CGFloat) -> NSImage {
+        NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
+            color.setFill()
+            NSBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1)).fill()
+            return true
+        }
+    }
+
+    static func image(_ icon: ClaudeExtraAccount.Icon, letter: String = "", color: NSColor, size: CGFloat) -> NSImage? {
+        if icon == .letter { return letterImage(letter, color: color, size: size) }
         guard let symbol = icon.symbol else {
             return NSImage(size: NSSize(width: size * 0.8, height: size), flipped: true) { rect in
                 guard let context = NSGraphicsContext.current?.cgContext else { return false }

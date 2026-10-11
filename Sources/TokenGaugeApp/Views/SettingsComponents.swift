@@ -1,21 +1,77 @@
 import SwiftUI
 import TokenGaugeCore
 
-struct SettingsCard<Content: View>: View {
+struct SettingsPageHeader<Trailing: View>: View {
+    let page: SettingsPage
+    @ViewBuilder var trailing: () -> Trailing
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(page.titleKey.localized).font(.system(size: 20, weight: .semibold))
+                Text(page.subtitleKey.localized).font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            trailing()
+        }
+    }
+}
+
+extension SettingsPageHeader where Trailing == EmptyView {
+    init(page: SettingsPage) {
+        self.init(page: page) { EmptyView() }
+    }
+}
+
+struct SettingsSection<Content: View>: View {
     let title: String
-    let symbol: String
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label(title, systemImage: symbol)
-                .font(.headline)
-            content()
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 12) { content() }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.035)))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.primary.opacity(0.07)))
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.primary.opacity(0.035)))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.primary.opacity(0.07)))
+    }
+}
+
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrange(width: proposal.width ?? .infinity, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let points = arrange(width: bounds.width, subviews: subviews).points
+        for (subview, point) in zip(subviews, points) {
+            subview.place(at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y), proposal: .unspecified)
+        }
+    }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> (size: CGSize, points: [CGPoint]) {
+        var points: [CGPoint] = []
+        var origin = CGPoint.zero
+        var rowHeight: CGFloat = 0
+        var used: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if origin.x > 0, origin.x + size.width > width {
+                origin = CGPoint(x: 0, y: origin.y + rowHeight + spacing)
+                rowHeight = 0
+            }
+            points.append(origin)
+            used = max(used, origin.x + size.width)
+            origin.x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return (CGSize(width: used, height: origin.y + rowHeight), points)
     }
 }
 
@@ -109,6 +165,7 @@ struct QuotaChip: View {
     let title: String
     var detail: String?
     var provider: UsageProvider?
+    var account: ClaudeExtraAccount?
     let tint: Color
     let selected: Bool
     var automatic = false
@@ -120,6 +177,7 @@ struct QuotaChip: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 if let provider { ProviderLogo(provider: provider, size: 14) }
+                if let account { ClaudeAccountIcon(account: account) }
                 Text(title).font(.callout.weight(.semibold))
                 if let detail {
                     Text(detail).font(.caption.monospacedDigit()).foregroundStyle(.secondary)

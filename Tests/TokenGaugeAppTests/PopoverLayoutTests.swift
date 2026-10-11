@@ -56,7 +56,7 @@ final class PopoverLayoutTests: XCTestCase {
         try withEachLanguage { language in
             for style in QuotaPanelStyle.allCases {
                 store.panelStyle = style
-                let view = PopoverView(store: store, showSettings: {}, showAbout: {})
+                let view = PopoverView(store: store, showSettings: {})
                 let content = fittingSize(
                     view.providerContent.frame(width: view.panelWidth - Theme.Layout.panelPadding * 2))
                 XCTAssertLessThanOrEqual(
@@ -87,7 +87,7 @@ final class PopoverLayoutTests: XCTestCase {
                 }
                 for downloading in banner ? [false, true] : [false] {
                     if downloading { UpdateManager.shared.handleDownloadInitiated() }
-                    let view = PopoverView(store: store, showSettings: {}, showAbout: {})
+                    let view = PopoverView(store: store, showSettings: {})
                     let content = fittingSize(
                         view.providerContent.frame(width: view.panelWidth - Theme.Layout.panelPadding * 2))
                     XCTAssertEqual(view.providerMaxHeight, Theme.Layout.ringProviderMaxHeight)
@@ -110,7 +110,7 @@ final class PopoverLayoutTests: XCTestCase {
             for history in [HistoryMode.recent, .calendar] {
                 store.displayMode = mode
                 store.historyMode = history
-                let bitmap = try render(PopoverView(store: store, showSettings: {}, showAbout: {}))
+                let bitmap = try render(PopoverView(store: store, showSettings: {}))
                 let scale = CGFloat(bitmap.pixelsHigh) / bitmap.size.height
                 let rows = Int((Theme.Layout.panelBottomPadding - 2) * scale)
                 let reference = try XCTUnwrap(
@@ -163,7 +163,7 @@ final class PopoverLayoutTests: XCTestCase {
     }
 
     private func assertHeight(_ store: UsageStore, file: StaticString = #filePath, line: UInt = #line) {
-        let view = NSHostingView(rootView: PopoverView(store: store, showSettings: {}, showAbout: {}))
+        let view = NSHostingView(rootView: PopoverView(store: store, showSettings: {}))
         let budget = Theme.Layout.maximumPanelHeight + UpdateBannerView.height(for: UpdateManager.shared.phase)
         XCTAssertGreaterThanOrEqual(view.fittingSize.width, Theme.Layout.compactPanelWidth, file: file, line: line)
         XCTAssertLessThanOrEqual(

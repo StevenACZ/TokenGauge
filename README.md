@@ -36,15 +36,18 @@ TokenGauge lives in your Mac’s menu bar and shows how much Claude Code or Code
 
 - **Stats and forecasts:** flip the panel to see whether each weekly limit and the current 5-hour session will last until its reset, projected from the provider’s own percentage. Stats also compares today with a usual day, charts the last 14 days, and shows streaks, top models, reasoning effort, most used skills, turns, and cache share. Time on another Claude account is marked instead of being mistaken for a reset. Collapse any card you do not need.
 - **Three views:** Codex, Claude, or Unified. Individual views show only that provider; Unified puts both quota cards side by side.
-- **Flexible layouts:** keep the classic panel, choose compact rows, or use separate quota rings. Switch from the panel header or Settings → Panel.
-- **A readable menu bar:** show one or several limits per provider (5-hour, weekly, model weekly), hide either provider, and choose percentages, mini bars, or mini rings with Large, Medium, or Small sizing. Settings previews your real menu bar as you click, and right-clicking the menu bar item changes the same options instantly. Exact percentages remain available on hover and in the panel.
+- **Flexible layouts:** keep the classic panel, choose compact rows, or use separate quota rings. Choose one in Settings → Panel.
+- **A readable menu bar:** show one or several limits per provider (5-hour, weekly, model weekly), hide either provider, and choose percentages, mini bars, or mini rings with Large, Medium, or Small sizing. Settings previews your real menu bar as you click, **See how it works** plays a short tour of every gesture, and right-clicking the menu bar item changes the same options instantly. Exact percentages remain available on hover and in the panel.
+- **Privacy mode:** the eye in the panel header hides the account email, for screenshots and screen sharing.
 - **Quiet by design:** optional brief transitions respect Reduce Motion; menu indicators redraw only when their data or appearance changes.
+- **Several Claude accounts:** add as many extra Claude Code logins as you have, on this Mac or another one, and see each 5-hour session in the menu bar with its own color and mark. Hide an account by hand or on the days you do not use it. See [Several Claude accounts](#several-claude-accounts).
 - **Separate limits:** general weekly quota and additional provider windows stay separate. Hide Luna weekly reserve in Settings if you do not use it.
 - **Browsable activity:** rolling seven days, Monday-based weeks with previous/next navigation, or a yearly calendar that always shows Codex and Claude together, whichever view you are in. Five intensity levels show how much you used that day, colored by the provider with more recorded tokens. Hold the pointer over a day or click it to pin a card with per-provider tokens, percentages, model detail, and your current and best streaks; Esc, a click outside, scrolling, or changing view closes it. Separate month blocks and highlighted weekend rows make the year easier to scan.
 - **Local history:** SQLite preserves daily totals and observed model/reasoning effort metadata after provider logs are trimmed. Missing days remain distinct from recorded zero usage.
 - **Hourly quota pace:** an optional estimate in percentage points per hour for each weekly limit, based on verified recent readings, with a short explanation and dated last-active measurement.
+- **Settings by page:** Menu bar, Panel, Accounts, General, and About, so each screen holds one topic.
 - **English and Spanish:** follows your system language initially, with an explicit language choice in Settings.
-- **Native updates:** daily checks, an in-panel banner with download progress, and manual checks in About.
+- **Native updates:** daily checks, an in-panel banner with download progress, and manual checks in Settings → About.
 - **No telemetry, ads, or model requests.**
 
 ## Install and connect
@@ -56,7 +59,7 @@ Requires **macOS 14 or later and an Apple Silicon Mac**. Intel builds are not cu
 3. Install and sign in to [Codex CLI](https://developers.openai.com/codex/cli/) or [Claude Code](https://code.claude.com/docs/en/quickstart) with the subscription you use. You do not need both.
 4. Select your provider in TokenGauge. It refreshes automatically; use the header refresh button to check immediately.
 
-If Codex was installed using a custom npm prefix, nvm, asdf, or Volta and is not detected, use **Settings → Detection options → Choose Codex executable…** to select the executable you use in Terminal. Automatic detection can be restored from the same row.
+If Codex was installed using a custom npm prefix, nvm, asdf, or Volta and is not detected, use **Settings → Accounts → Detection options → Choose Codex executable…** to select the executable you use in Terminal. Automatic detection can be restored from the same row.
 
 TokenGauge is a usage viewer, not a replacement for either provider. On a Mac without a signed-in provider, it shows an unavailable/sign-in state and keeps the setup links accessible in **Settings**. It never invents a balance or asks for an API key.
 
@@ -64,7 +67,7 @@ TokenGauge is a usage viewer, not a replacement for either provider. On a Mac wi
 
 ### Updates
 
-Release builds check for updates daily. When one is available, a banner appears in the panel with download and extraction progress, then offers **Install now** or **Later**. Installing relaunches the app. If you choose Later, an Install button stays in the panel and in **About TokenGauge** until you use it, including after restarting the app. Automatic checking can be disabled in Settings; a manual check is available in About whenever no update is in progress. There are no separate Sparkle update windows.
+Release builds check for updates daily. When one is available, a banner appears in the panel with download and extraction progress, then offers **Install now** or **Later**. Installing relaunches the app. If you choose Later, an Install button stays in the panel and in **Settings → About** until you use it, including after restarting the app. Automatic checking can be disabled in Settings; a manual check is available in About whenever no update is in progress. There are no separate Sparkle update windows.
 
 Updates use [Sparkle](https://sparkle-project.org), a signed ZIP, and an EdDSA-signed appcast on GitHub Releases. Development builds stay off the public update channel.
 
@@ -75,6 +78,23 @@ The menu bar shows the selected provider’s current balance. Codex uses its gen
 Hourly pace uses at least three verified samples spanning 30 minutes in the last hour. It restarts after quota resets, decreases, or long observation gaps. The info button explains the estimate and shows dated recent and previous measurements. During inactivity or after reopening the app, the last active pace remains explicitly labeled as historical until a new valid measurement with consumption is available. Pace observations, including idle readings, are stored locally without expiry for future daily comparisons. For example, 5 pp/h means an estimated five percentage points of that weekly allowance per hour. Model/effort token totals describe locally observed activity; they do not allocate quota percentages to Medium, High, XHigh, or other efforts. Daily totals use the largest observed provider or local total, without adding overlapping sources. Local effort detail is collected from the last seven days and retained thereafter; unavailable older detail cannot be reconstructed.
 
 If a live read fails, historical balances are not presented as current quota. Authentication required, denied access, stale data, and a locally marked cancelled subscription remain distinct. Cancellation is not inferred from inactivity or a lost session. Each provider has an independent manual cancellation switch in Settings. It preserves local history and your selected view; it does not cancel billing. Tracking resumes only after live access and newly observed activity are confirmed.
+
+### Several Claude accounts
+
+TokenGauge always shows the Claude Code login in `~/.claude`. If you have more logins (a personal plan and a team seat, for example), it can show all of them at once. There is no limit on how many.
+
+1. Give each extra login its own config folder. Claude Code keeps a separate login per folder: run `CLAUDE_CONFIG_DIR=~/.claude-work claude`, sign in with `/login`, and add an alias such as `alias claude-work='CLAUDE_CONFIG_DIR=~/.claude-work claude'` to keep using it.
+2. Open **Settings → Accounts → Other Claude accounts**, turn on **Show other Claude Code logins**, and press **Add account**.
+3. Type a name and the folder (`~/.claude-work`). For a login that lives on another Mac, type `host:~/.claude-work`; that Mac must accept your SSH key without a password, and macOS asks once for Local Network access.
+4. Click the account's mark to pick its icon (its initial, a dot, or a symbol) and its color, and press the menu bar button to show its 5-hour session next to Claude (the same switch lives in **Settings → Menu bar → Other accounts**).
+
+Each account shows its 5-hour session and its tightest weekly limit under the Claude card. It follows the Claude limits you choose in **Settings → Panel → Limits**: turn one off there (a model's weekly limit, for example) and it leaves every account, so a row can show only its 5-hour session.
+
+To hide an account, right-click its row in the panel, or press its eye button in Settings and turn off **Show account**. That button also holds the weekdays: turn off the days you do not use the account (a work login on Saturday and Sunday), and it reads **Mon to Fri**. On those days the account leaves the panel and the menu bar and is not read.
+
+If you work with a coding agent, you can ask it to do step 1 for you: *"Create a second Claude Code login in `~/.claude-work` with a `claude-work` alias, and tell me the folder to type in TokenGauge."* Steps 2 to 4 are three fields in Settings.
+
+The token of an extra account never enters TokenGauge: a short shell command reads it and asks for the usage on the Mac where that login lives, and only percentages and reset times come back.
 
 ## Privacy
 

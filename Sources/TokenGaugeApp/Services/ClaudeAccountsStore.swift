@@ -33,19 +33,24 @@ final class ClaudeAccountsStore: ObservableObject {
     }
     @Published private(set) var accounts: [ClaudeExtraAccount]
     @Published private(set) var states: [UUID: ClaudeAccountState] = [:]
+    @Published private(set) var weekday: Int
 
     private let defaults: UserDefaults
     private let read: @Sendable (ClaudeAccountLocation) async -> ClaudeExtraAccountResult
+    private let currentWeekday: () -> Int
     private var timer: Timer?
     private var inFlight: Set<UUID> = []
     private var pendingEdits: [UUID: Task<Void, Never>] = [:]
 
     init(
         defaults: UserDefaults = .standard,
-        read: @escaping @Sendable (ClaudeAccountLocation) async -> ClaudeExtraAccountResult = ClaudeAccountsStore.fetch
+        read: @escaping @Sendable (ClaudeAccountLocation) async -> ClaudeExtraAccountResult = ClaudeAccountsStore.fetch,
+        currentWeekday: @escaping () -> Int = { Calendar.current.component(.weekday, from: Date()) }
     ) {
         self.defaults = defaults
         self.read = read
+        self.currentWeekday = currentWeekday
+        weekday = currentWeekday()
         enabled = defaults.bool(forKey: Self.enabledKey)
         accounts =
             defaults.data(forKey: Self.accountsKey).flatMap {
@@ -55,7 +60,9 @@ final class ClaudeAccountsStore: ObservableObject {
         if enabled { start() }
     }
 
-    var isShowing: Bool { enabled && !accounts.isEmpty }
+    var visibleAccounts: [ClaudeExtraAccount] { accounts.filter { $0.isVisible(onWeekday: weekday) } }
+
+    var isShowing: Bool { enabled && !visibleAccounts.isEmpty }
 
     func state(for account: ClaudeExtraAccount) -> ClaudeAccountState {
         states[account.id] ?? ClaudeAccountState()
@@ -63,11 +70,11 @@ final class ClaudeAccountsStore: ObservableObject {
 
     var menuBarAccounts: [MenuBarPresentation.Account] {
         guard enabled else { return [] }
-        return accounts.filter(\.showsInMenuBar).map { account in
+        return visibleAccounts.filter(\.showsInMenuBar).map { account in
             let session = state(for: account).windows.first { $0.durationMinutes == 300 }
             return MenuBarPresentation.Account(
                 id: account.id, name: account.name, tint: account.tint, icon: account.icon,
-                remaining: session?.remainingPercentage)
+                letter: account.initial, remaining: session?.remainingPercentage)
         }
     }
 
@@ -85,8 +92,11 @@ final class ClaudeAccountsStore: ObservableObject {
     func update(_ account: ClaudeExtraAccount) {
         guard let index = accounts.firstIndex(where: { $0.id == account.id }) else { return }
         let moved = accounts[index].location != account.location
+        let appeared = !accounts[index].isVisible(onWeekday: weekday) && account.isVisible(onWeekday: weekday)
         accounts[index] = account
         save()
+        if !account.isVisible(onWeekday: weekday) { states[account.id] = nil }
+        if appeared, !moved { Task { await refresh(account.id, force: true) } }
         guard moved else { return }
         states[account.id] = nil
         pendingEdits[account.id]?.cancel()
@@ -99,13 +109,21 @@ final class ClaudeAccountsStore: ObservableObject {
 
     func refreshAll(force: Bool = false) {
         guard enabled else { return }
+        let today = currentWeekday()
+        if today != weekday { weekday = today }
         for account in accounts {
-            Task { await refresh(account.id, force: force) }
+            if account.isVisible(onWeekday: weekday) {
+                Task { await refresh(account.id, force: force) }
+            } else if states[account.id] != nil {
+                states[account.id] = nil
+            }
         }
     }
 
     func refresh(_ id: UUID, force: Bool) async {
-        guard enabled, let account = accounts.first(where: { $0.id == id }), !inFlight.contains(id) else { return }
+        guard enabled, let account = accounts.first(where: { $0.id == id }), account.isVisible(onWeekday: weekday),
+            !inFlight.contains(id)
+        else { return }
         var state = states[id] ?? ClaudeAccountState()
         guard Self.isDue(state, at: Date(), force: force) else { return }
         guard let location = ClaudeAccountLocation.parse(account.location) else {

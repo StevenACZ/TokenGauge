@@ -2,11 +2,11 @@ import Foundation
 
 public struct ClaudeExtraAccount: Codable, Equatable, Identifiable, Sendable {
     public enum Tint: String, Codable, CaseIterable, Sendable {
-        case claude, violet, blue, green
+        case claude, violet, blue, green, teal, pink
     }
 
     public enum Icon: String, Codable, CaseIterable, Sendable {
-        case dot, balloon, briefcase, house, person, building
+        case dot, balloon, briefcase, house, person, building, letter
     }
 
     public var id: UUID
@@ -15,10 +15,12 @@ public struct ClaudeExtraAccount: Codable, Equatable, Identifiable, Sendable {
     public var tint: Tint
     public var icon: Icon
     public var showsInMenuBar: Bool
+    public var hidden: Bool
+    public var hiddenWeekdays: Set<Int>
 
     public init(
         id: UUID = UUID(), name: String, location: String, tint: Tint = .claude, icon: Icon = .dot,
-        showsInMenuBar: Bool = false
+        showsInMenuBar: Bool = false, hidden: Bool = false, hiddenWeekdays: Set<Int> = []
     ) {
         self.id = id
         self.name = name
@@ -26,6 +28,8 @@ public struct ClaudeExtraAccount: Codable, Equatable, Identifiable, Sendable {
         self.tint = tint
         self.icon = icon
         self.showsInMenuBar = showsInMenuBar
+        self.hidden = hidden
+        self.hiddenWeekdays = hiddenWeekdays
     }
 
     public init(from decoder: Decoder) throws {
@@ -36,6 +40,17 @@ public struct ClaudeExtraAccount: Codable, Equatable, Identifiable, Sendable {
         tint = try container.decodeIfPresent(Tint.self, forKey: .tint) ?? .claude
         icon = try container.decodeIfPresent(Icon.self, forKey: .icon) ?? .dot
         showsInMenuBar = try container.decodeIfPresent(Bool.self, forKey: .showsInMenuBar) ?? false
+        hidden = try container.decodeIfPresent(Bool.self, forKey: .hidden) ?? false
+        hiddenWeekdays = try container.decodeIfPresent(Set<Int>.self, forKey: .hiddenWeekdays) ?? []
+    }
+
+    // Weekdays follow Calendar: 1 is Sunday, 7 is Saturday.
+    public func isVisible(onWeekday weekday: Int) -> Bool {
+        !hidden && !hiddenWeekdays.contains(weekday)
+    }
+
+    public var initial: String {
+        name.first { $0.isLetter || $0.isNumber }.map { String($0).uppercased() } ?? "?"
     }
 }
 

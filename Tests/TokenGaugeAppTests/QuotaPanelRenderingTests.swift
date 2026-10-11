@@ -208,7 +208,7 @@ final class QuotaPanelRenderingTests: XCTestCase {
             try withEachLanguage { language in
                 for mode in UsageDisplayMode.allCases {
                     store.displayMode = mode
-                    let size = fittingSize(PopoverView(store: store, showSettings: {}, showAbout: {}))
+                    let size = fittingSize(PopoverView(store: store, showSettings: {}))
                     XCTAssertLessThanOrEqual(
                         size.height, Theme.Layout.maximumPanelHeight, "\(language.rawValue) / \(mode.rawValue)")
                 }

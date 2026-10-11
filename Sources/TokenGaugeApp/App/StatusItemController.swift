@@ -129,9 +129,6 @@ final class StatusItemController: NSObject {
             store: store,
             showSettings: { [weak self] in
                 self?.showSettings()
-            },
-            showAbout: { [weak self] in
-                self?.showAbout()
             }, history: historyModel())
         let controller = NSHostingController(rootView: view)
         controller.sizingOptions = [.preferredContentSize]
@@ -289,16 +286,19 @@ extension StatusItemController {
         menu.addItem(privacy)
         menu.addItem(item("action.refresh".localized, #selector(refreshNow)))
         menu.addItem(.separator())
-        menu.addItem(item("settings.title".localized + "…", #selector(openSettings)))
-        menu.addItem(item("action.quit".localized, #selector(quit)))
+        menu.addItem(item("settings.title".localized + "…", #selector(openSettings), symbol: "gearshape"))
+        menu.addItem(item("about.title".localized, #selector(openAbout), symbol: "info.circle"))
+        menu.addItem(.separator())
+        menu.addItem(item("action.quit".localized, #selector(quit), symbol: "power"))
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
         statusItem.menu = nil
     }
 
-    private func item(_ title: String, _ action: Selector) -> NSMenuItem {
+    private func item(_ title: String, _ action: Selector, symbol: String? = nil) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = self
+        if let symbol { item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil) }
         return item
     }
 
@@ -362,6 +362,7 @@ extension StatusItemController {
     @objc private func togglePrivacy() { store.hideAccountLabel.toggle() }
     @objc private func refreshNow() { store.refresh(force: true) }
     @objc private func openSettings() { showSettings() }
+    @objc private func openAbout() { showAbout() }
     @objc private func quit() { NSApp.terminate(nil) }
 }
 

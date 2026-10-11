@@ -15,7 +15,7 @@ final class ClaudeAccountsRenderingTests: XCTestCase {
                 for mode in [UsageDisplayMode.claude, .unified] {
                     store.panelStyle = style
                     store.displayMode = mode
-                    let view = PopoverView(store: store, showSettings: {}, showAbout: {}, accounts: accounts)
+                    let view = PopoverView(store: store, showSettings: {}, accounts: accounts)
                     let size = fittingSize(view)
                     XCTAssertLessThanOrEqual(size.height, Theme.Layout.maximumPanelHeight, "\(style) \(mode)")
                     if let directory = ProcessInfo.processInfo.environment["TOKENGAUGE_SCREENSHOT_DIR"] {
@@ -25,12 +25,77 @@ final class ClaudeAccountsRenderingTests: XCTestCase {
                     }
                 }
             }
+            if let directory = ProcessInfo.processInfo.environment["TOKENGAUGE_SCREENSHOT_DIR"] {
+                store.panelStyle = .standard
+                store.displayMode = .claude
+                store.setClaudeWindow(.weekly, visible: false)
+                _ = try render(
+                    PopoverView(store: store, showSettings: {}, accounts: accounts),
+                    to: URL(fileURLWithPath: directory).appendingPathComponent("accounts-session-only.png"))
+                store.setClaudeWindow(.weekly, visible: true)
+            }
             store.displayMode = .codex
-            let codexOnly = fittingSize(PopoverView(store: store, showSettings: {}, showAbout: {}, accounts: accounts))
+            let codexOnly = fittingSize(PopoverView(store: store, showSettings: {}, accounts: accounts))
             let withoutAccounts = try withEmptyAccounts { empty in
-                fittingSize(PopoverView(store: store, showSettings: {}, showAbout: {}, accounts: empty))
+                fittingSize(PopoverView(store: store, showSettings: {}, accounts: empty))
             }
             XCTAssertEqual(codexOnly.height, withoutAccounts.height, accuracy: 1)
+        }
+    }
+
+    func testAccountSettingsAndMenuBarMarksRender() async throws {
+        let accounts = try await accountsStore()
+        var hidden = try XCTUnwrap(accounts.accounts.last)
+        hidden.hidden = true
+        accounts.update(hidden)
+        withEachLanguage { language in
+            let settings = ClaudeAccountsSettings(store: accounts).padding(14).frame(width: SettingsView.contentWidth)
+            XCTAssertLessThan(fittingSize(settings).height, 400, "\(language)")
+        }
+        XCTAssertEqual(accounts.visibleAccounts.count, 3)
+        guard let directory = ProcessInfo.processInfo.environment["TOKENGAUGE_SCREENSHOT_DIR"] else { return }
+        let output = URL(fileURLWithPath: directory)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        try render(
+            ClaudeAccountsSettings(store: accounts).padding(14).frame(width: SettingsView.contentWidth),
+            to: output.appendingPathComponent("accounts-settings.png"))
+        try withEachLanguage { language in
+            try render(
+                AccountDaysPicker(account: try XCTUnwrap(accounts.accounts.first), store: accounts),
+                to: output.appendingPathComponent("accounts-days-\(language.rawValue).png"))
+        }
+        let dark = try XCTUnwrap(NSAppearance(named: .darkAqua))
+        let marks: [(String, [MenuBarPresentation.Account])] = [
+            (
+                "letters",
+                [
+                    .init(id: UUID(), name: "Side", tint: .teal, icon: .letter, letter: "S", remaining: 91),
+                    .init(id: UUID(), name: "Team", tint: .pink, icon: .letter, letter: "T", remaining: 74),
+                    .init(id: UUID(), name: "Work", tint: .violet, icon: .balloon, remaining: 55),
+                ]
+            ),
+            (
+                "icons",
+                [
+                    .init(id: UUID(), name: "Side", tint: .teal, icon: .house, remaining: 91),
+                    .init(id: UUID(), name: "Team", tint: .pink, icon: .person, remaining: 74),
+                    .init(id: UUID(), name: "Work", tint: .violet, icon: .balloon, remaining: 55),
+                ]
+            ),
+        ]
+        try withDefaults { defaults in
+            let store = Fixture.store(defaults: defaults, snapshots: [claudeSnapshot(), Fixture.snapshot(.codex)])
+            for (name, list) in marks {
+                for style in QuotaMenuBarStyle.allCases {
+                    let image = MenuBarPresentation(
+                        providers: [.codex, .claude], state: { store.state(for: $0) }, appearance: dark,
+                        size: .large, style: style, accounts: list
+                    ).renderedImage()
+                    try render(
+                        Image(nsImage: image).padding(.horizontal, 14).padding(.vertical, 6).frame(minWidth: 240),
+                        to: output.appendingPathComponent("menubar-\(name)-\(style).png"))
+                }
+            }
         }
     }
 

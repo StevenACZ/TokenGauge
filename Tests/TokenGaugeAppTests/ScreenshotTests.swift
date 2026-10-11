@@ -58,19 +58,18 @@ final class ScreenshotTests: XCTestCase {
         }
         let store = Fixture.store(defaults: defaults, snapshots: snapshots)
         try render(
-            PopoverView(store: store, showSettings: {}, showAbout: {}), to: output.appendingPathComponent("panel.png"))
+            PopoverView(store: store, showSettings: {}), to: output.appendingPathComponent("panel.png"))
         store.displayMode = .claude
         try render(
-            PopoverView(store: store, showSettings: {}, showAbout: {}), to: output.appendingPathComponent("claude.png"))
+            PopoverView(store: store, showSettings: {}), to: output.appendingPathComponent("claude.png"))
         store.displayMode = .unified
         try render(
-            PopoverView(store: store, showSettings: {}, showAbout: {}), to: output.appendingPathComponent("unified.png")
+            PopoverView(store: store, showSettings: {}), to: output.appendingPathComponent("unified.png")
         )
         try render(
-            ScrollView {
-                SettingsView(store: store, launchAtLogin: LaunchAtLoginManager()).defaultAppStorage(defaults)
-            }.frame(width: 600, height: 750),
-            to: output.appendingPathComponent("settings.png"), maximumHeight: 750)
+            SettingsView(store: store, launchAtLogin: LaunchAtLoginManager(), navigation: SettingsNavigation())
+                .defaultAppStorage(defaults),
+            to: output.appendingPathComponent("settings.png"), maximumHeight: SettingsView.height)
         let historical = Fixture.snapshot(
             .claude,
             windows: [
@@ -89,11 +88,11 @@ final class ScreenshotTests: XCTestCase {
             claudeResult: ClaudeUsageResult(snapshot: historical, access: .credentialExpired, lastActivityAt: nil),
             codexState: store.codex)
         try render(
-            PopoverView(store: store, showSettings: {}, showAbout: {}),
+            PopoverView(store: store, showSettings: {}),
             to: output.appendingPathComponent("recovery.png"))
         LocalizationManager.shared.language = .spanish
         try render(
-            PopoverView(store: store, showSettings: {}, showAbout: {}),
+            PopoverView(store: store, showSettings: {}),
             to: output.appendingPathComponent("recovery-es.png"))
         store.applyRefreshResults(
             claudeResult: ClaudeUsageResult(snapshot: historical, access: .live, lastActivityAt: nil),
@@ -106,7 +105,7 @@ final class ScreenshotTests: XCTestCase {
                 for style in QuotaPanelStyle.allCases {
                     store.panelStyle = style
                     try render(
-                        PopoverView(store: store, showSettings: {}, showAbout: {}),
+                        PopoverView(store: store, showSettings: {}),
                         to: output.appendingPathComponent("\(language.rawValue)-\(mode.rawValue)-\(style.rawValue).png")
                     )
                 }
@@ -120,7 +119,7 @@ final class ScreenshotTests: XCTestCase {
         store.showLunaReserve = false
         let resetHistory = HistoryDashboardModel(previewSnapshots: snapshots, mode: .calendar, now: now)
         try render(
-            PopoverView(store: store, showSettings: {}, showAbout: {}, history: resetHistory),
+            PopoverView(store: store, showSettings: {}, history: resetHistory),
             to: output.appendingPathComponent("weekly-resets-three-claude.png"))
         let resetDate = now.addingTimeInterval(21 * 86400)
         try render(
@@ -147,7 +146,7 @@ final class ScreenshotTests: XCTestCase {
                     previewSnapshots: snapshots, mode: historyMode,
                     previewEfforts: efforts, now: now)
                 try render(
-                    PopoverView(store: store, showSettings: {}, showAbout: {}, history: history),
+                    PopoverView(store: store, showSettings: {}, history: history),
                     to: output.appendingPathComponent("history-\(historyMode.rawValue)-\(style.rawValue).png"))
             }
         }
@@ -190,7 +189,7 @@ final class ScreenshotTests: XCTestCase {
         store.showLunaReserve = false
         store.setClaudeWindow(.weekly, visible: false)
         let fitted = try render(
-            PopoverView(store: store, showSettings: {}, showAbout: {}),
+            PopoverView(store: store, showSettings: {}),
             to: output.appendingPathComponent("rings-current.png"))
         let visibleWindows = { (provider: UsageProvider) -> Int in
             max(

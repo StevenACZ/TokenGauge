@@ -8,6 +8,8 @@ extension ClaudeExtraAccount.Tint {
         case .violet: Theme.accountViolet
         case .blue: Theme.codex
         case .green: Theme.accountGreen
+        case .teal: Theme.accountTeal
+        case .pink: Theme.accountPink
         }
     }
 }
@@ -21,6 +23,10 @@ struct ClaudeAccountIcon: View {
             Circle().fill(account.tint.color).frame(width: 7, height: 7)
         case .balloon:
             HotAirBalloonShape().fill(account.tint.color).frame(width: 10, height: 12)
+        case .letter:
+            Text(account.initial)
+                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                .foregroundStyle(account.tint.color)
         default:
             Image(systemName: account.icon.symbol ?? "circle.fill")
                 .font(.system(size: 10, weight: .semibold))
@@ -31,6 +37,7 @@ struct ClaudeAccountIcon: View {
 
 struct ClaudeAccountsSection: View {
     @ObservedObject var store: ClaudeAccountsStore
+    var hiddenWindows: Set<QuotaWindowKind> = []
 
     var body: some View {
         ViewThatFits(in: .vertical) {
@@ -49,9 +56,23 @@ struct ClaudeAccountsSection: View {
     }
 
     private var rows: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            ForEach(store.accounts) { account in
-                ClaudeAccountRow(account: account, state: store.state(for: account))
+        let accounts = store.visibleAccounts
+        let slots =
+            accounts.map { ClaudeAccountRow.columns(store.state(for: $0).windows, hidden: hiddenWindows).count }
+            .max() ?? 0
+        return VStack(alignment: .leading, spacing: 7) {
+            ForEach(accounts) { account in
+                ClaudeAccountRow(
+                    account: account, state: store.state(for: account), hiddenWindows: hiddenWindows, slots: slots
+                )
+                .contentShape(Rectangle())
+                .contextMenu {
+                    Button("accounts.hide".localized) {
+                        var edited = account
+                        edited.hidden = true
+                        store.update(edited)
+                    }
+                }
             }
         }
     }
@@ -60,10 +81,13 @@ struct ClaudeAccountsSection: View {
 struct ClaudeAccountRow: View {
     let account: ClaudeExtraAccount
     let state: ClaudeAccountState
+    var hiddenWindows: Set<QuotaWindowKind> = []
+    var slots = 0
 
-    static func columns(_ windows: [QuotaWindow]) -> [QuotaWindow] {
-        let session = windows.first { $0.durationMinutes == 300 }
-        let weekly = windows.filter { $0.durationMinutes == 10_080 }.min {
+    static func columns(_ windows: [QuotaWindow], hidden: Set<QuotaWindowKind> = []) -> [QuotaWindow] {
+        let shown = windows.filter { window in QuotaWindowKind.of(window).map { !hidden.contains($0) } ?? true }
+        let session = shown.first { $0.durationMinutes == 300 }
+        let weekly = shown.filter { $0.durationMinutes == 10_080 }.min {
             ($0.remainingPercentage, $0.displayName == nil ? 0 : 1) < (
                 $1.remainingPercentage, $1.displayName == nil ? 0 : 1
             )
@@ -81,8 +105,12 @@ struct ClaudeAccountRow: View {
             }
             .frame(width: 74, alignment: .leading)
             if state.status == .ready || !state.windows.isEmpty {
-                ForEach(Self.columns(state.windows)) { window in
+                let columns = Self.columns(state.windows, hidden: hiddenWindows)
+                ForEach(columns) { window in
                     column(window)
+                }
+                ForEach(columns.count..<max(slots, columns.count), id: \.self) { _ in
+                    Color.clear.frame(maxWidth: .infinity)
                 }
             } else {
                 Text(statusText)

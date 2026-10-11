@@ -87,6 +87,45 @@ final class ClaudeAccountsStoreTests: XCTestCase {
         XCTAssertFalse(reloaded.isShowing)
     }
 
+    func testHiddenAccountsLeaveThePanelAndAreNotRead() async {
+        let defaults = UserDefaults(suiteName: temporaryDefaultsSuite())!
+        defaults.set(true, forKey: ClaudeAccountsStore.enabledKey)
+        let reads = ReadCounter()
+        let weekday = Weekday(7)
+        let window = window
+        let store = ClaudeAccountsStore(
+            defaults: defaults,
+            read: { _ in
+                await reads.bump()
+                return .windows([window])
+            }, currentWeekday: { weekday.value })
+        store.add()
+        var account = store.accounts[0]
+        account.name = "Work"
+        account.location = "~/.claude-work"
+        account.showsInMenuBar = true
+        account.hiddenWeekdays = [1, 7]
+        store.update(account)
+        await store.refresh(account.id, force: true)
+        var count = await reads.count
+        XCTAssertEqual(count, 0)
+        XCTAssertFalse(store.isShowing)
+        XCTAssertTrue(store.menuBarAccounts.isEmpty)
+
+        weekday.value = 2
+        store.refreshAll()
+        XCTAssertEqual(store.visibleAccounts, [account])
+        await store.refresh(account.id, force: true)
+        count = await reads.count
+        XCTAssertGreaterThanOrEqual(count, 1)
+        XCTAssertEqual(store.menuBarAccounts.first?.letter, "W")
+
+        account.hidden = true
+        store.update(account)
+        XCTAssertFalse(store.isShowing)
+        XCTAssertEqual(store.state(for: account), ClaudeAccountState())
+    }
+
     func testInvalidLocationNeverRunsAProcess() async {
         let defaults = UserDefaults(suiteName: temporaryDefaultsSuite())!
         defaults.set(true, forKey: ClaudeAccountsStore.enabledKey)
@@ -112,6 +151,48 @@ final class ClaudeAccountsStoreTests: XCTestCase {
             id: "seven_day_fable", usedPercentage: 60, resetsAt: nil, durationMinutes: 10_080, displayName: "Fable")
         XCTAssertEqual(ClaudeAccountRow.columns([weekly, fable, window]).map(\.id), ["five_hour", "seven_day_fable"])
     }
+
+    func testTheLimitsHiddenForClaudeLeaveEveryAccountRow() {
+        let weekly = QuotaWindow(
+            id: "seven_day", usedPercentage: 10, resetsAt: nil, durationMinutes: 10_080, displayName: nil)
+        let fable = QuotaWindow(
+            id: "seven_day_fable", usedPercentage: 60, resetsAt: nil, durationMinutes: 10_080, displayName: "Fable")
+        XCTAssertEqual(ClaudeAccountRow.columns([window, fable], hidden: [.modelWeekly]).map(\.id), ["five_hour"])
+        XCTAssertEqual(
+            ClaudeAccountRow.columns([weekly, fable, window], hidden: [.modelWeekly]).map(\.id),
+            ["five_hour", "seven_day"])
+        XCTAssertEqual(
+            ClaudeAccountRow.columns([weekly, fable, window], hidden: [.session, .weekly]).map(\.id),
+            ["seven_day_fable"])
+    }
+
+    func testTheDaysButtonSummarizesTheWeek() {
+        var account = ClaudeExtraAccount(name: "Side", location: "~/.claude-side")
+        let cases: [(Set<Int>, String, String)] = [
+            ([], "Every day", "Todos los días"),
+            ([7, 1], "Mon to Fri", "Lun a Vie"),
+            ([1], "Mon to Sat", "Lun a Sáb"),
+            ([2, 3, 4, 5, 6], "Sat and Sun", "Sáb y Dom"),
+            ([2, 3, 4, 5, 6, 7], "Sun", "Dom"),
+            ([3, 5, 7, 1], "3 days", "3 días"),
+            ([3, 6], "5 days", "5 días"),
+            (Set(1...7), "No days", "Ningún día"),
+        ]
+        withEachLanguage { language in
+            account.hidden = false
+            for (hidden, english, spanish) in cases {
+                account.hiddenWeekdays = hidden
+                XCTAssertEqual(AccountSchedule.summary(account), language == .english ? english : spanish)
+            }
+            account.hidden = true
+            XCTAssertEqual(AccountSchedule.summary(account), language == .english ? "Hidden" : "Oculta")
+        }
+    }
+}
+
+private final class Weekday: @unchecked Sendable {
+    var value: Int
+    init(_ value: Int) { self.value = value }
 }
 
 private actor ReadCounter {
