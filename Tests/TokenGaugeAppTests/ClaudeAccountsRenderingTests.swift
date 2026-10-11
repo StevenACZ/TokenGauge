@@ -34,6 +34,57 @@ final class ClaudeAccountsRenderingTests: XCTestCase {
         }
     }
 
+    func testAccountSettingsAndMenuBarMarksRender() async throws {
+        let accounts = try await accountsStore()
+        var hidden = try XCTUnwrap(accounts.accounts.last)
+        hidden.hidden = true
+        accounts.update(hidden)
+        try withEachLanguage { language in
+            let settings = ClaudeAccountsSettings(store: accounts).padding(16).frame(width: 772)
+            XCTAssertLessThan(fittingSize(settings).height, 400, "\(language)")
+        }
+        XCTAssertEqual(accounts.visibleAccounts.count, 3)
+        guard let directory = ProcessInfo.processInfo.environment["TOKENGAUGE_SCREENSHOT_DIR"] else { return }
+        let output = URL(fileURLWithPath: directory)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        try render(
+            ClaudeAccountsSettings(store: accounts).padding(16).frame(width: 772),
+            to: output.appendingPathComponent("accounts-settings.png"))
+        let dark = try XCTUnwrap(NSAppearance(named: .darkAqua))
+        let marks: [(String, [MenuBarPresentation.Account])] = [
+            (
+                "letters",
+                [
+                    .init(id: UUID(), name: "Side", tint: .teal, icon: .letter, letter: "S", remaining: 91),
+                    .init(id: UUID(), name: "Team", tint: .pink, icon: .letter, letter: "T", remaining: 74),
+                    .init(id: UUID(), name: "Work", tint: .violet, icon: .balloon, remaining: 55),
+                ]
+            ),
+            (
+                "icons",
+                [
+                    .init(id: UUID(), name: "Side", tint: .teal, icon: .house, remaining: 91),
+                    .init(id: UUID(), name: "Team", tint: .pink, icon: .person, remaining: 74),
+                    .init(id: UUID(), name: "Work", tint: .violet, icon: .balloon, remaining: 55),
+                ]
+            ),
+        ]
+        try withDefaults { defaults in
+            let store = Fixture.store(defaults: defaults, snapshots: [claudeSnapshot(), Fixture.snapshot(.codex)])
+            for (name, list) in marks {
+                for style in QuotaMenuBarStyle.allCases {
+                    let image = MenuBarPresentation(
+                        providers: [.codex, .claude], state: { store.state(for: $0) }, appearance: dark,
+                        size: .large, style: style, accounts: list
+                    ).renderedImage()
+                    try render(
+                        Image(nsImage: image).padding(.horizontal, 14).padding(.vertical, 6).frame(minWidth: 240),
+                        to: output.appendingPathComponent("menubar-\(name)-\(style).png"))
+                }
+            }
+        }
+    }
+
     private func accountsStore() async throws -> ClaudeAccountsStore {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: temporaryDefaultsSuite()))
         defaults.set(true, forKey: ClaudeAccountsStore.enabledKey)

@@ -11,6 +11,7 @@ extension ClaudeExtraAccount.Icon {
         case .house: "house.fill"
         case .person: "person.fill"
         case .building: "building.2.fill"
+        case .letter: nil
         }
     }
 }
@@ -41,7 +42,19 @@ enum AccountIconArt {
         return path
     }
 
-    static func image(_ icon: ClaudeExtraAccount.Icon, color: NSColor, size: CGFloat) -> NSImage? {
+    static func letterImage(_ letter: String, color: NSColor, size: CGFloat) -> NSImage {
+        let base = NSFont.systemFont(ofSize: (size * 0.86).rounded(), weight: .heavy)
+        let font =
+            base.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: base.pointSize) } ?? base
+        let text = NSAttributedString(string: letter, attributes: [.font: font, .foregroundColor: color])
+        return NSImage(size: NSSize(width: ceil(text.size().width), height: size), flipped: false) { rect in
+            text.draw(at: NSPoint(x: 0, y: (rect.height - font.capHeight) / 2 + font.descender))
+            return true
+        }
+    }
+
+    static func image(_ icon: ClaudeExtraAccount.Icon, letter: String = "", color: NSColor, size: CGFloat) -> NSImage? {
+        if icon == .letter { return letterImage(letter, color: color, size: size) }
         guard let symbol = icon.symbol else {
             return NSImage(size: NSSize(width: size * 0.8, height: size), flipped: true) { rect in
                 guard let context = NSGraphicsContext.current?.cgContext else { return false }

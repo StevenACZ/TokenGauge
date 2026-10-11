@@ -225,6 +225,20 @@ final class MenuBarPresentationTests: XCTestCase {
         XCTAssertTrue(presentation.attributedTitle().string.hasSuffix("--"))
     }
 
+    @MainActor func testAnAccountCanBeMarkedByItsInitial() throws {
+        let side = MenuBarPresentation.Account(
+            id: UUID(), name: "Side", tint: .teal, icon: .letter, letter: "S", remaining: 80)
+        for style in QuotaMenuBarStyle.allCases {
+            let presentation = MenuBarPresentation(
+                providers: [.claude], state: { self.state(provider: $0, status: .ready) },
+                appearance: NSAppearance(named: .aqua)!, style: style, accounts: [side])
+            XCTAssertEqual(presentation.groups[1].first?.letter, "S")
+            XCTAssertGreaterThan(presentation.renderedImage().size.width, 40, "\(style)")
+        }
+        let mark = AccountIconArt.letterImage("S", color: .systemTeal, size: 16)
+        XCTAssertGreaterThan(try centerOpacity(mark), 0)
+    }
+
     private func state(provider: UsageProvider, status: ProviderStatus, usedPercentage: Double? = nil)
         -> ProviderViewState
     {

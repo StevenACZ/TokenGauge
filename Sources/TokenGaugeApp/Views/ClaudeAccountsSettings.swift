@@ -32,7 +32,67 @@ private struct ClaudeAccountEditor: View {
     let state: ClaudeAccountState
     let store: ClaudeAccountsStore
 
+    private static let weekdays = [2, 3, 4, 5, 6, 7, 1]
+
     var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            fields.opacity(account.hidden ? 0.55 : 1)
+            visibility
+        }
+    }
+
+    private var visibility: some View {
+        HStack(spacing: 6) {
+            Button {
+                var edited = account
+                edited.hidden.toggle()
+                store.update(edited)
+            } label: {
+                Image(systemName: account.hidden ? "eye.slash" : "eye")
+                    .font(.system(size: 11))
+                    .foregroundStyle(account.hidden ? AnyShapeStyle(.secondary) : AnyShapeStyle(account.tint.color))
+                    .frame(width: 18)
+            }
+            .buttonStyle(.borderless)
+            .help((account.hidden ? "accounts.show" : "accounts.hide").localized)
+            .accessibilityLabel((account.hidden ? "accounts.show" : "accounts.hide").localized)
+            Text("accounts.days".localized)
+                .font(.caption).foregroundStyle(.secondary)
+            ForEach(Self.weekdays, id: \.self) { weekday in
+                let shown = !account.hiddenWeekdays.contains(weekday)
+                Button {
+                    var edited = account
+                    edited.hiddenWeekdays.formSymmetricDifference([weekday])
+                    store.update(edited)
+                } label: {
+                    Text(Self.symbol(weekday))
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(shown ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
+                        .frame(width: 30, height: 18)
+                        .background(
+                            RoundedRectangle(cornerRadius: 5).fill(account.tint.color.opacity(shown ? 0.22 : 0))
+                        )
+                        .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Color.primary.opacity(0.12)))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Self.symbol(weekday, wide: true))
+                .accessibilityAddTraits(shown ? [.isSelected] : [])
+            }
+            .disabled(account.hidden)
+        }
+        .padding(.leading, 18)
+        .help("accounts.days_help".localized)
+    }
+
+    private static func symbol(_ weekday: Int, wide: Bool = false) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: LocalizationManager.shared.language.rawValue)
+        let symbols = wide ? calendar.standaloneWeekdaySymbols : calendar.shortStandaloneWeekdaySymbols
+        return symbols[weekday - 1].capitalized
+    }
+
+    private var fields: some View {
         HStack(spacing: 10) {
             Circle()
                 .fill(dotColor)
@@ -48,7 +108,9 @@ private struct ClaudeAccountEditor: View {
                         Label {
                             Text("accounts.icon.\(icon.rawValue)".localized)
                         } icon: {
-                            if let image = AccountIconArt.image(icon, color: .labelColor, size: 14) {
+                            if let image = AccountIconArt.image(
+                                icon, letter: account.initial, color: .labelColor, size: 14)
+                            {
                                 Image(nsImage: image)
                             }
                         }

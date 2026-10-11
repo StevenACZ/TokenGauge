@@ -87,6 +87,45 @@ final class ClaudeAccountsStoreTests: XCTestCase {
         XCTAssertFalse(reloaded.isShowing)
     }
 
+    func testHiddenAccountsLeaveThePanelAndAreNotRead() async {
+        let defaults = UserDefaults(suiteName: temporaryDefaultsSuite())!
+        defaults.set(true, forKey: ClaudeAccountsStore.enabledKey)
+        let reads = ReadCounter()
+        let weekday = Weekday(7)
+        let window = window
+        let store = ClaudeAccountsStore(
+            defaults: defaults,
+            read: { _ in
+                await reads.bump()
+                return .windows([window])
+            }, currentWeekday: { weekday.value })
+        store.add()
+        var account = store.accounts[0]
+        account.name = "Work"
+        account.location = "~/.claude-work"
+        account.showsInMenuBar = true
+        account.hiddenWeekdays = [1, 7]
+        store.update(account)
+        await store.refresh(account.id, force: true)
+        var count = await reads.count
+        XCTAssertEqual(count, 0)
+        XCTAssertFalse(store.isShowing)
+        XCTAssertTrue(store.menuBarAccounts.isEmpty)
+
+        weekday.value = 2
+        store.refreshAll()
+        XCTAssertEqual(store.visibleAccounts, [account])
+        await store.refresh(account.id, force: true)
+        count = await reads.count
+        XCTAssertGreaterThanOrEqual(count, 1)
+        XCTAssertEqual(store.menuBarAccounts.first?.letter, "W")
+
+        account.hidden = true
+        store.update(account)
+        XCTAssertFalse(store.isShowing)
+        XCTAssertEqual(store.state(for: account), ClaudeAccountState())
+    }
+
     func testInvalidLocationNeverRunsAProcess() async {
         let defaults = UserDefaults(suiteName: temporaryDefaultsSuite())!
         defaults.set(true, forKey: ClaudeAccountsStore.enabledKey)
@@ -112,6 +151,11 @@ final class ClaudeAccountsStoreTests: XCTestCase {
             id: "seven_day_fable", usedPercentage: 60, resetsAt: nil, durationMinutes: 10_080, displayName: "Fable")
         XCTAssertEqual(ClaudeAccountRow.columns([weekly, fable, window]).map(\.id), ["five_hour", "seven_day_fable"])
     }
+}
+
+private final class Weekday: @unchecked Sendable {
+    var value: Int
+    init(_ value: Int) { self.value = value }
 }
 
 private actor ReadCounter {

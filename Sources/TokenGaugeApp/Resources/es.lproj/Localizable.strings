@@ -314,7 +314,12 @@
 "accounts.icon.house" = "Casa";
 "accounts.icon.person" = "Persona";
 "accounts.icon.building" = "Edificio";
+"accounts.icon.letter" = "Inicial";
 "accounts.remove" = "Quitar cuenta";
+"accounts.hide" = "Ocultar cuenta";
+"accounts.show" = "Mostrar cuenta";
+"accounts.days" = "Se muestra";
+"accounts.days_help" = "Apaga los días en que no usas esta cuenta, por ejemplo un login de trabajo el fin de semana. Esos días sale del panel y de la barra de menú y no se lee.";
 "accounts.unnamed" = "Cuenta";
 "accounts.session" = "5 h";
 "accounts.weekly" = "Semanal";
@@ -330,3 +335,5 @@
 "accounts.tint.violet" = "Morado";
 "accounts.tint.blue" = "Azul";
 "accounts.tint.green" = "Verde";
+"accounts.tint.teal" = "Turquesa";
+"accounts.tint.pink" = "Rosa";

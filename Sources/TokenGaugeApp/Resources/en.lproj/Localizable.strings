@@ -314,7 +314,12 @@
 "accounts.icon.house" = "House";
 "accounts.icon.person" = "Person";
 "accounts.icon.building" = "Building";
+"accounts.icon.letter" = "Initial";
 "accounts.remove" = "Remove account";
+"accounts.hide" = "Hide account";
+"accounts.show" = "Show account";
+"accounts.days" = "Shown on";
+"accounts.days_help" = "Turn off the days you do not use this account, for example a work login on weekends. On those days it leaves the panel and the menu bar and is not read.";
 "accounts.unnamed" = "Account";
 "accounts.session" = "5 h";
 "accounts.weekly" = "Weekly";
@@ -330,3 +335,5 @@
 "accounts.tint.violet" = "Violet";
 "accounts.tint.blue" = "Blue";
 "accounts.tint.green" = "Green";
+"accounts.tint.teal" = "Teal";
+"accounts.tint.pink" = "Pink";

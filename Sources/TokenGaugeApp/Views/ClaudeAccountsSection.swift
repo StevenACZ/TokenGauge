@@ -8,6 +8,8 @@ extension ClaudeExtraAccount.Tint {
         case .violet: Theme.accountViolet
         case .blue: Theme.codex
         case .green: Theme.accountGreen
+        case .teal: Theme.accountTeal
+        case .pink: Theme.accountPink
         }
     }
 }
@@ -21,6 +23,10 @@ struct ClaudeAccountIcon: View {
             Circle().fill(account.tint.color).frame(width: 7, height: 7)
         case .balloon:
             HotAirBalloonShape().fill(account.tint.color).frame(width: 10, height: 12)
+        case .letter:
+            Text(account.initial)
+                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                .foregroundStyle(account.tint.color)
         default:
             Image(systemName: account.icon.symbol ?? "circle.fill")
                 .font(.system(size: 10, weight: .semibold))
@@ -50,8 +56,16 @@ struct ClaudeAccountsSection: View {
 
     private var rows: some View {
         VStack(alignment: .leading, spacing: 7) {
-            ForEach(store.accounts) { account in
+            ForEach(store.visibleAccounts) { account in
                 ClaudeAccountRow(account: account, state: store.state(for: account))
+                    .contentShape(Rectangle())
+                    .contextMenu {
+                        Button("accounts.hide".localized) {
+                            var edited = account
+                            edited.hidden = true
+                            store.update(edited)
+                        }
+                    }
             }
         }
     }

@@ -11,6 +11,21 @@ final class ClaudeExtraAccountTests: XCTestCase {
         XCTAssertEqual(accounts.first?.tint, .violet)
         XCTAssertEqual(accounts.first?.showsInMenuBar, false)
         XCTAssertEqual(accounts.first?.icon, .dot)
+        XCTAssertEqual(accounts.first?.hidden, false)
+        XCTAssertEqual(accounts.first?.hiddenWeekdays, [])
+    }
+
+    func testAnAccountHidesByHandOrOnItsOffDays() throws {
+        var account = ClaudeExtraAccount(name: " work", location: "~/.claude-work", hiddenWeekdays: [1, 7])
+        XCTAssertTrue(account.isVisible(onWeekday: 2))
+        XCTAssertFalse(account.isVisible(onWeekday: 7))
+        XCTAssertFalse(account.isVisible(onWeekday: 1))
+        account.hidden = true
+        XCTAssertFalse(account.isVisible(onWeekday: 2))
+        XCTAssertEqual(account.initial, "W")
+        XCTAssertEqual(ClaudeExtraAccount(name: "", location: "").initial, "?")
+        let decoded = try JSONDecoder().decode(ClaudeExtraAccount.self, from: JSONEncoder().encode(account))
+        XCTAssertEqual(decoded, account)
     }
 
     func testLocalAndRemoteLocationsParse() {

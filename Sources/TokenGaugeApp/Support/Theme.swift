@@ -5,6 +5,8 @@ enum Theme {
     static let codex = Color(red: 0.33, green: 0.47, blue: 0.96)
     static let accountViolet = Color(red: 0.58, green: 0.42, blue: 0.92)
     static let accountGreen = Color(red: 0.27, green: 0.68, blue: 0.45)
+    static let accountTeal = Color(red: 0.16, green: 0.66, blue: 0.76)
+    static let accountPink = Color(red: 0.91, green: 0.40, blue: 0.62)
     static let panelBackground = Color(
         nsColor: NSColor(name: "TokenGaugePanelBackground") { appearance in
             appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua

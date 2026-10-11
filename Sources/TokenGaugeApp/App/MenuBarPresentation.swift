@@ -13,6 +13,7 @@ struct MenuBarPresentation: Equatable {
         let graphicColor: NSColor
         var account: UUID?
         var icon: ClaudeExtraAccount.Icon?
+        var letter = ""
     }
 
     struct Account: Equatable {
@@ -20,6 +21,7 @@ struct MenuBarPresentation: Equatable {
         let name: String
         let tint: ClaudeExtraAccount.Tint
         var icon: ClaudeExtraAccount.Icon = .dot
+        var letter = ""
         let remaining: Double?
     }
 
@@ -73,7 +75,8 @@ struct MenuBarPresentation: Equatable {
         return Segment(
             provider: .claude, label: nil, text: text, color: color,
             description: "\(name) · \("accounts.session".localized) · \(text)", remainingPercentage: account.remaining,
-            graphicColor: graphicColor, account: account.id, icon: account.icon == .dot ? nil : account.icon)
+            graphicColor: graphicColor, account: account.id, icon: account.icon == .dot ? nil : account.icon,
+            letter: account.letter)
     }
 
     private static func segment(
@@ -189,7 +192,9 @@ struct MenuBarPresentation: Equatable {
     }
 
     private func accountMark(_ segment: Segment) -> NSImage {
-        segment.icon.flatMap { AccountIconArt.image($0, color: segment.graphicColor, size: size.iconSize) }
+        segment.icon.flatMap {
+            AccountIconArt.image($0, letter: segment.letter, color: segment.graphicColor, size: size.iconSize)
+        }
             ?? Self.dot(segment.graphicColor)
     }
 
@@ -267,7 +272,9 @@ struct MenuBarPresentation: Equatable {
                 lineWidth: lineWidth, remaining: remaining, segment: segment)
             let logoSize = min(14, diameter - 6)
             let logo =
-                segment.icon.flatMap { AccountIconArt.image($0, color: segment.graphicColor, size: logoSize) }
+                segment.icon.flatMap {
+                    AccountIconArt.image($0, letter: segment.letter, color: segment.graphicColor, size: logoSize)
+                }
                 ?? ProviderLogoAssets.menuBarImage(for: segment.provider, size: logoSize)
             NSGraphicsContext.saveGraphicsState()
             NSBezierPath(ovalIn: NSRect(origin: .zero, size: imageSize).insetBy(dx: 3, dy: 3)).addClip()
