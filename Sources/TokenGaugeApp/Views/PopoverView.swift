@@ -5,7 +5,6 @@ import TokenGaugeCore
 struct PopoverView: View {
     @ObservedObject var store: UsageStore
     let showSettings: () -> Void
-    let showAbout: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var updates = UpdateManager.shared
     @ObservedObject private var localization = LocalizationManager.shared
@@ -15,13 +14,12 @@ struct PopoverView: View {
     @State private var showsStats = false
 
     init(
-        store: UsageStore, showSettings: @escaping () -> Void, showAbout: @escaping () -> Void,
+        store: UsageStore, showSettings: @escaping () -> Void,
         history: HistoryDashboardModel? = nil, accounts: ClaudeAccountsStore? = nil
     ) {
         self.store = store
         _accounts = ObservedObject(wrappedValue: accounts ?? .shared)
         self.showSettings = showSettings
-        self.showAbout = showAbout
         let preview = store.historyReadsEnabled ? nil : [store.claude.snapshot, store.codex.snapshot].compactMap { $0 }
         _history = StateObject(
             wrappedValue: history
@@ -280,33 +278,32 @@ struct PopoverView: View {
 
             statsButton
 
-            Menu {
-                Picker("settings.panel_style".localized, selection: $store.panelStyle) {
-                    ForEach(QuotaPanelStyle.allCases) { style in
-                        Label(style.titleKey.localized, systemImage: style.symbol).tag(style)
-                    }
-                }
+            Button {
+                store.hideAccountLabel.toggle()
             } label: {
-                Image(systemName: store.panelStyle.symbol)
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                Image(systemName: store.hideAccountLabel ? "eye.slash" : "eye")
+                    .font(.system(size: 12, weight: store.hideAccountLabel ? .semibold : .regular))
+                    .foregroundStyle(store.hideAccountLabel ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 20, height: 16)
+                    .contentShape(Rectangle())
             }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-            .help("settings.panel_style".localized)
-            .accessibilityLabel("settings.panel_style".localized)
-            .accessibilityIdentifier("TokenGauge.panelStyle")
+            .buttonStyle(.plain)
+            .help("panel.privacy_help".localized)
+            .accessibilityLabel("settings.hide_account".localized)
+            .accessibilityAddTraits(store.hideAccountLabel ? [.isSelected] : [])
+            .accessibilityIdentifier("TokenGauge.privacy")
 
-            Menu {
-                Toggle("settings.hide_account".localized, isOn: $store.hideAccountLabel)
-                Divider()
-                Button("settings.title".localized, action: showSettings)
-                Button("about.title".localized, action: showAbout)
-                Divider()
-                Button("action.quit".localized) { NSApp.terminate(nil) }
-            } label: {
-                Image(systemName: "gearshape").font(.system(size: 12)).foregroundStyle(.secondary)
+            Button(action: showSettings) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                    .frame(width: 18, height: 16)
+                    .contentShape(Rectangle())
             }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .buttonStyle(.plain)
+            .help("settings.title".localized)
             .accessibilityLabel("settings.title".localized)
+            .accessibilityIdentifier("TokenGauge.settings")
 
             Button {
                 store.refresh(force: true)

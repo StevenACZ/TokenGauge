@@ -117,7 +117,11 @@ private struct ClaudeAccountEditor: View {
                     }
                 }
             } label: {
-                ClaudeAccountIcon(account: account)
+                if let image = AccountIconArt.image(
+                    account.icon, letter: account.initial, color: NSColor(account.tint.color), size: 13)
+                {
+                    Image(nsImage: image)
+                }
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
@@ -126,7 +130,7 @@ private struct ClaudeAccountEditor: View {
             .accessibilityLabel("accounts.icon".localized)
             TextField("accounts.name".localized, text: binding(\.name))
                 .textFieldStyle(.roundedBorder).controlSize(.small)
-                .frame(width: 140)
+                .frame(width: 120)
             TextField("accounts.location_placeholder".localized, text: binding(\.location))
                 .textFieldStyle(.roundedBorder).controlSize(.small)
                 .font(.system(size: 11, design: .monospaced))

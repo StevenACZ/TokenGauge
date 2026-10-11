@@ -15,7 +15,7 @@ final class ClaudeAccountsRenderingTests: XCTestCase {
                 for mode in [UsageDisplayMode.claude, .unified] {
                     store.panelStyle = style
                     store.displayMode = mode
-                    let view = PopoverView(store: store, showSettings: {}, showAbout: {}, accounts: accounts)
+                    let view = PopoverView(store: store, showSettings: {}, accounts: accounts)
                     let size = fittingSize(view)
                     XCTAssertLessThanOrEqual(size.height, Theme.Layout.maximumPanelHeight, "\(style) \(mode)")
                     if let directory = ProcessInfo.processInfo.environment["TOKENGAUGE_SCREENSHOT_DIR"] {
@@ -26,9 +26,9 @@ final class ClaudeAccountsRenderingTests: XCTestCase {
                 }
             }
             store.displayMode = .codex
-            let codexOnly = fittingSize(PopoverView(store: store, showSettings: {}, showAbout: {}, accounts: accounts))
+            let codexOnly = fittingSize(PopoverView(store: store, showSettings: {}, accounts: accounts))
             let withoutAccounts = try withEmptyAccounts { empty in
-                fittingSize(PopoverView(store: store, showSettings: {}, showAbout: {}, accounts: empty))
+                fittingSize(PopoverView(store: store, showSettings: {}, accounts: empty))
             }
             XCTAssertEqual(codexOnly.height, withoutAccounts.height, accuracy: 1)
         }
@@ -39,8 +39,8 @@ final class ClaudeAccountsRenderingTests: XCTestCase {
         var hidden = try XCTUnwrap(accounts.accounts.last)
         hidden.hidden = true
         accounts.update(hidden)
-        try withEachLanguage { language in
-            let settings = ClaudeAccountsSettings(store: accounts).padding(16).frame(width: 772)
+        withEachLanguage { language in
+            let settings = ClaudeAccountsSettings(store: accounts).padding(14).frame(width: SettingsView.contentWidth)
             XCTAssertLessThan(fittingSize(settings).height, 400, "\(language)")
         }
         XCTAssertEqual(accounts.visibleAccounts.count, 3)
@@ -48,7 +48,7 @@ final class ClaudeAccountsRenderingTests: XCTestCase {
         let output = URL(fileURLWithPath: directory)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         try render(
-            ClaudeAccountsSettings(store: accounts).padding(16).frame(width: 772),
+            ClaudeAccountsSettings(store: accounts).padding(14).frame(width: SettingsView.contentWidth),
             to: output.appendingPathComponent("accounts-settings.png"))
         let dark = try XCTUnwrap(NSAppearance(named: .darkAqua))
         let marks: [(String, [MenuBarPresentation.Account])] = [

@@ -12,6 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extra Claude accounts can be hidden: by hand with an eye button in Settings or a right-click on the account in the panel, or on the weekdays you choose (a work login on weekends). A hidden account leaves the panel and the menu bar and is not read.
 - An extra account can be marked with its initial in the menu bar, and there are two more colors (teal and pink), so several accounts are easy to tell apart.
 - The README explains how to add more Claude accounts.
+- Privacy mode has its own eye button in the panel header.
+- Settings → Menu bar lists your extra accounts, so you can put each one in the menu bar from there.
+
+### Changed
+
+- Settings is organized in pages (Menu bar, Panel, Accounts, General, About) with a sidebar, instead of one long window. About and Quit live there too.
+- The menu bar example in Settings is now a slim live preview. **See how it works** plays a short tour on demand: click, the panel header, right-click and hover.
+- The gear in the panel header opens Settings directly, and the panel view is chosen in Settings → Panel.
+
+### Fixed
+
+- Mini rings: an account's initial is no longer stretched, sits centered in its ring and keeps its color when the ring turns red.
 
 ## [1.9.1] - 2026-10-09
 

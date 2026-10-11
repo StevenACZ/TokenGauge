@@ -46,9 +46,19 @@ enum AccountIconArt {
         let base = NSFont.systemFont(ofSize: (size * 0.86).rounded(), weight: .heavy)
         let font =
             base.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: base.pointSize) } ?? base
-        let text = NSAttributedString(string: letter, attributes: [.font: font, .foregroundColor: color])
-        return NSImage(size: NSSize(width: ceil(text.size().width), height: size), flipped: false) { rect in
-            text.draw(at: NSPoint(x: 0, y: (rect.height - font.capHeight) / 2 + font.descender))
+        let line = CTLineCreateWithAttributedString(
+            NSAttributedString(
+                string: letter,
+                attributes: [
+                    .font: font, NSAttributedString.Key(kCTForegroundColorFromContextAttributeName as String): true,
+                ]))
+        let ink = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+        return NSImage(size: NSSize(width: ceil(ink.width) + 1, height: size), flipped: false) { rect in
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            context.setFillColor(color.cgColor)
+            context.textPosition = CGPoint(
+                x: (rect.width - ink.width) / 2 - ink.minX, y: (rect.height - ink.height) / 2 - ink.minY)
+            CTLineDraw(line, context)
             return true
         }
     }

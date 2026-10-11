@@ -29,7 +29,7 @@ final class ClaudeAccountHeaderRenderingTests: XCTestCase {
             store.setPreviewAccountLabel(label)
             XCTAssertEqual(store.claudeAccountLabel, label)
             XCTAssertNil(store.claudeAccountFingerprint)
-            let size = fittingSize(PopoverView(store: store, showSettings: {}, showAbout: {}))
+            let size = fittingSize(PopoverView(store: store, showSettings: {}))
             XCTAssertLessThanOrEqual(size.height, Theme.Layout.maximumPanelHeight)
         }
     }

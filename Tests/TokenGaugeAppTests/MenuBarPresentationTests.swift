@@ -239,6 +239,61 @@ final class MenuBarPresentationTests: XCTestCase {
         XCTAssertGreaterThan(try centerOpacity(mark), 0)
     }
 
+    @MainActor func testRingKeepsTheAccountInitialUnstretchedAndCentered() throws {
+        XCTAssertEqual(
+            MenuBarPresentation.centered(NSSize(width: 6, height: 14), fitting: 14, in: 22),
+            NSRect(x: 8, y: 4, width: 6, height: 14))
+        XCTAssertEqual(
+            MenuBarPresentation.centered(NSSize(width: 28, height: 14), fitting: 14, in: 22),
+            NSRect(x: 4, y: 7.5, width: 14, height: 7))
+        for letter in ["H", "S", "I", "W"] {
+            let account = MenuBarPresentation.Account(
+                id: UUID(), name: letter, tint: .teal, icon: .letter, letter: letter, remaining: 5)
+            let presentation = MenuBarPresentation(
+                providers: [.claude], state: { self.state(provider: $0, status: .ready) },
+                appearance: NSAppearance(named: .aqua)!, style: .rings, accounts: [account])
+            let segment = try XCTUnwrap(presentation.segments.last)
+            let ring = try XCTUnwrap(presentation.quotaImage(for: segment))
+            let ink = try inkBounds(ring) { $0.greenComponent > $0.redComponent && $0.alphaComponent > 0.5 }
+            XCTAssertEqual(ink.midX, ring.size.width / 2, accuracy: 0.75, letter)
+            XCTAssertEqual(ink.midY, ring.size.height / 2, accuracy: 0.75, letter)
+            let natural = try inkBounds(AccountIconArt.letterImage(letter, color: .systemTeal, size: 14)) {
+                $0.alphaComponent > 0.5
+            }
+            XCTAssertEqual(ink.width / ink.height, natural.width / natural.height, accuracy: 0.12, letter)
+        }
+    }
+
+    private func inkBounds(_ image: NSImage, where matches: (NSColor) -> Bool) throws -> CGRect {
+        let scale: CGFloat = 8
+        let width = Int(image.size.width * scale)
+        let height = Int(image.size.height * scale)
+        let bitmap = try XCTUnwrap(
+            NSBitmapImageRep(
+                bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8, samplesPerPixel: 4,
+                hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        bitmap.size = image.size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
+        image.draw(in: NSRect(origin: .zero, size: image.size))
+        NSGraphicsContext.restoreGraphicsState()
+        var columns = [Int]()
+        var rows = [Int]()
+        for y in 0..<height {
+            for x in 0..<width {
+                guard let color = bitmap.colorAt(x: x, y: y), matches(color) else { continue }
+                columns.append(x)
+                rows.append(y)
+            }
+        }
+        let left = try XCTUnwrap(columns.min())
+        let top = try XCTUnwrap(rows.min())
+        return CGRect(
+            x: CGFloat(left) / scale, y: CGFloat(top) / scale,
+            width: CGFloat(try XCTUnwrap(columns.max()) - left + 1) / scale,
+            height: CGFloat(try XCTUnwrap(rows.max()) - top + 1) / scale)
+    }
+
     private func state(provider: UsageProvider, status: ProviderStatus, usedPercentage: Double? = nil)
         -> ProviderViewState
     {

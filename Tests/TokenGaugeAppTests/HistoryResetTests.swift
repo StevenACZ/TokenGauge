@@ -62,7 +62,7 @@ final class HistoryResetTests: XCTestCase {
             }
             let store = Fixture.store(defaults: defaults, snapshots: snapshots)
             store.displayMode = .unified
-            let view = PopoverView(store: store, showSettings: {}, showAbout: {})
+            let view = PopoverView(store: store, showSettings: {})
             XCTAssertGreaterThan(view.upcomingResets.filter { $0.provider == .claude }.count, 3)
             store.setCancelled(true, for: .claude)
             XCTAssertFalse(view.upcomingResets.contains { $0.provider == .claude })

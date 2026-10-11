@@ -14,6 +14,7 @@ struct MenuBarPresentation: Equatable {
         var account: UUID?
         var icon: ClaudeExtraAccount.Icon?
         var letter = ""
+        var markColor: NSColor?
     }
 
     struct Account: Equatable {
@@ -66,9 +67,11 @@ struct MenuBarPresentation: Equatable {
         case .some(let value) where value < 30: color = .systemOrange
         default: break
         }
-        var graphicColor = (account.remaining ?? 100) < 12 ? NSColor.systemRed : NSColor(account.tint.color)
+        var markColor = NSColor(account.tint.color)
+        var graphicColor = (account.remaining ?? 100) < 12 ? NSColor.systemRed : markColor
         appearance.performAsCurrentDrawingAppearance {
             graphicColor = graphicColor.usingColorSpace(.sRGB) ?? graphicColor
+            markColor = markColor.usingColorSpace(.sRGB) ?? markColor
             color = color.usingColorSpace(.sRGB) ?? color
         }
         let name = account.name.isEmpty ? "accounts.unnamed".localized : account.name
@@ -76,7 +79,7 @@ struct MenuBarPresentation: Equatable {
             provider: .claude, label: nil, text: text, color: color,
             description: "\(name) · \("accounts.session".localized) · \(text)", remainingPercentage: account.remaining,
             graphicColor: graphicColor, account: account.id, icon: account.icon == .dot ? nil : account.icon,
-            letter: account.letter)
+            letter: account.letter, markColor: markColor)
     }
 
     private static func segment(
@@ -192,10 +195,18 @@ struct MenuBarPresentation: Equatable {
     }
 
     private func accountMark(_ segment: Segment) -> NSImage {
-        segment.icon.flatMap {
-            AccountIconArt.image($0, letter: segment.letter, color: segment.graphicColor, size: size.iconSize)
-        }
-            ?? Self.dot(segment.graphicColor)
+        let color = segment.markColor ?? segment.graphicColor
+        return segment.icon.flatMap {
+            AccountIconArt.image($0, letter: segment.letter, color: color, size: size.iconSize)
+        } ?? Self.dot(color)
+    }
+
+    static func centered(_ size: NSSize, fitting side: CGFloat, in diameter: CGFloat) -> NSRect {
+        let scale = min(side / max(size.width, 1), side / max(size.height, 1), 1)
+        let fitted = NSSize(width: size.width * scale, height: size.height * scale)
+        return NSRect(
+            x: (diameter - fitted.width) / 2, y: (diameter - fitted.height) / 2, width: fitted.width,
+            height: fitted.height)
     }
 
     private static func dot(_ color: NSColor) -> NSImage {
@@ -273,14 +284,13 @@ struct MenuBarPresentation: Equatable {
             let logoSize = min(14, diameter - 6)
             let logo =
                 segment.icon.flatMap {
-                    AccountIconArt.image($0, letter: segment.letter, color: segment.graphicColor, size: logoSize)
+                    AccountIconArt.image(
+                        $0, letter: segment.letter, color: segment.markColor ?? segment.graphicColor, size: logoSize)
                 }
                 ?? ProviderLogoAssets.menuBarImage(for: segment.provider, size: logoSize)
             NSGraphicsContext.saveGraphicsState()
             NSBezierPath(ovalIn: NSRect(origin: .zero, size: imageSize).insetBy(dx: 3, dy: 3)).addClip()
-            logo?.draw(
-                in: NSRect(
-                    x: (diameter - logoSize) / 2, y: (diameter - logoSize) / 2, width: logoSize, height: logoSize))
+            if let logo { logo.draw(in: Self.centered(logo.size, fitting: logoSize, in: diameter)) }
             NSGraphicsContext.restoreGraphicsState()
         } else {
             let lineWidth: CGFloat = values.count == 2 ? 2.5 : 2

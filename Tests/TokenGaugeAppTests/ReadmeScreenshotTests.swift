@@ -65,7 +65,7 @@ final class ReadmeScreenshotTests: XCTestCase {
         store.animateChanges = false
         let history = HistoryDashboardModel(previewSnapshots: snapshots, mode: .calendar, now: now)
         try render(
-            PopoverView(store: store, showSettings: {}, showAbout: {}, history: history),
+            PopoverView(store: store, showSettings: {}, history: history),
             to: output.appendingPathComponent("readme-year.png"))
     }
 

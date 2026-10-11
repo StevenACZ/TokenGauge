@@ -6,8 +6,8 @@ import SwiftUI
 final class AppWindows {
     private let store: UsageStore
     private let launchAtLogin: LaunchAtLoginManager
+    private let navigation = SettingsNavigation()
     private var settings: NSWindow?
-    private var about: NSWindow?
     private var languageObservation: AnyCancellable?
 
     init(store: UsageStore, launchAtLogin: LaunchAtLoginManager) {
@@ -15,44 +15,40 @@ final class AppWindows {
         self.launchAtLogin = launchAtLogin
         languageObservation = LocalizationManager.shared.$bundle.sink { [weak self] bundle in
             self?.settings?.title = bundle.localizedString(forKey: "settings.title", value: nil, table: nil)
-            self?.about?.title = bundle.localizedString(forKey: "about.title", value: nil, table: nil)
         }
     }
 
-    func showSettings() {
-        if settings == nil {
-            settings = makeWindow(
-                title: "settings.title".localized, size: NSSize(width: SettingsView.width, height: 1020),
-                view: SettingsView(store: store, launchAtLogin: launchAtLogin))
+    func showSettings(_ page: SettingsPage? = nil) {
+        if let page {
+            navigation.page = page
+        } else if settings?.isVisible != true {
+            navigation.page = .menuBar
         }
-        present(settings)
+        if settings == nil { settings = makeWindow() }
+        NSApp.activate(ignoringOtherApps: true)
+        settings?.makeKeyAndOrderFront(nil)
     }
 
     func showAbout() {
-        if about == nil {
-            about = makeWindow(title: "about.title".localized, size: NSSize(width: 420, height: 560), view: AboutView())
-        }
-        present(about)
+        showSettings(.about)
     }
 
-    private func makeWindow(title: String, size: NSSize, view: some View) -> NSWindow {
+    private func makeWindow() -> NSWindow {
         let window = NSWindow(
             contentRect: .zero, styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
-        window.title = title
+        window.title = "settings.title".localized
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
-        let hosting = NSHostingView(rootView: ScrollView { view }.scrollIndicators(.automatic))
+        let hosting = NSHostingView(
+            rootView: SettingsView(store: store, launchAtLogin: launchAtLogin, navigation: navigation))
         hosting.sizingOptions = []
         window.contentView = hosting
         window.setContentSize(
-            NSSize(width: size.width, height: min(size.height, (NSScreen.main?.visibleFrame.height ?? 900) - 40)))
+            NSSize(
+                width: SettingsView.width,
+                height: min(SettingsView.height, (NSScreen.main?.visibleFrame.height ?? 900) - 40)))
         window.center()
         return window
-    }
-
-    private func present(_ window: NSWindow?) {
-        NSApp.activate(ignoringOtherApps: true)
-        window?.makeKeyAndOrderFront(nil)
     }
 }
