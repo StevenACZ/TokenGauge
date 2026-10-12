@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP_PATH="$HOME/Applications/TokenGauge.app"
+APP_PATH="/Applications/TokenGauge.app"
 SIGN_IDENTITY="${TOKENGAUGE_SIGN_IDENTITY:-${SIGN_IDENTITY:-}}"
 
 if [[ -z "$SIGN_IDENTITY" ]]; then
@@ -15,7 +15,9 @@ fi
 
 cd "$ROOT_DIR"
 SIGN_IDENTITY="$SIGN_IDENTITY" ./scripts/build_and_run.sh install
-if [[ "${TOKENGAUGE_INSTALL_CLAUDE_STATUSLINE:-0}" == 1 ]]; then
+STATUS_SCRIPT="${CLAUDE_STATUSLINE_SCRIPT:-$HOME/.claude/statusline-command.sh}"
+if [[ "${TOKENGAUGE_INSTALL_CLAUDE_STATUSLINE:-0}" == 1 ]] \
+    || grep -qs 'TokenGauge.app/Contents/MacOS/TokenGaugeCapture' "$STATUS_SCRIPT"; then
     ./scripts/install_claude_statusline.sh
 fi
 
