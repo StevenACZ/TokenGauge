@@ -105,10 +105,9 @@ fi
 echo "Built and verified: $output"
 
 if [[ "$mode" == install ]]; then
-    installed="$HOME/Applications/TokenGauge.app"
+    installed="/Applications/TokenGauge.app"
     pkill -x TokenGauge >/dev/null 2>&1 || true
-    mkdir -p "$HOME/Applications"
-    backup="$(mktemp -d "$HOME/Applications/.tokengauge-install.XXXXXX")"
+    backup="$(mktemp -d "/Applications/.tokengauge-install.XXXXXX")"
     if [[ -e "$installed" ]]; then mv "$installed" "$backup/TokenGauge.app"; fi
     if ! ditto "$output" "$installed" || ! codesign --verify --deep --strict "$installed"; then
         rm -rf "$installed"
@@ -117,6 +116,7 @@ if [[ "$mode" == install ]]; then
         exit 74
     fi
     rm -rf "$backup"
+    rm -rf "$HOME/Applications/TokenGauge.app"
     open -n "$installed"
 elif [[ "$mode" == run || "$mode" == verify ]]; then
     open -n "$output"

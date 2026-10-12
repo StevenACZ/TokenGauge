@@ -117,7 +117,7 @@ make ci-check
 make install-dev
 ```
 
-The development installer requires an Apple Development signing identity and installs to `~/Applications/TokenGauge.app`. It does not modify Claude Code’s configuration. To stage a local bundle without installing, use `make stage`.
+The development installer requires an Apple Development signing identity and installs to `/Applications/TokenGauge.app`, where macOS lets menu bar managers keep its icon visible, and removes an older copy in `~/Applications`. It touches Claude Code’s configuration only when the status-line script already runs the TokenGauge capture, to keep that path current. To stage a local bundle without installing, use `make stage`.
 
 The optional `scripts/install_claude_statusline.sh` supports an existing shell status-line script containing `input=$(cat)`. It adds a normalized quota capture fallback and creates a backup; it is not needed for normal live quota reads. It refuses unsupported scripts instead of overwriting a custom setup. Do not replace someone’s status-line configuration merely to enable the fallback.
 
