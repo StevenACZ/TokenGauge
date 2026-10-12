@@ -43,6 +43,22 @@ final class ClaudeAccountsRenderingTests: XCTestCase {
         }
     }
 
+    func testThreeAccountsFitWithoutTheInnerScroll() {
+        let resets = Date().addingTimeInterval(3 * 3600)
+        let windows = [
+            Fixture.window(id: "five_hour", usedPercentage: 12, resetsAt: resets, durationMinutes: 300),
+            Fixture.window(id: "seven_day", usedPercentage: 8, resetsAt: resets, durationMinutes: 10_080),
+        ]
+        let account = ClaudeExtraAccount(name: "Side", location: "~/.claude-side")
+        let row = ClaudeAccountRow(
+            account: account, state: ClaudeAccountState(status: .ready, windows: windows, capturedAt: Date()))
+        let rows = VStack(alignment: .leading, spacing: Theme.Layout.accountsRowSpacing) {
+            row; row; row
+        }.frame(width: 520)
+        let height = fittingSize(rows).height
+        XCTAssertLessThanOrEqual(height, Theme.Layout.accountsMaxHeight)
+    }
+
     func testAccountSettingsAndMenuBarMarksRender() async throws {
         let accounts = try await accountsStore()
         var hidden = try XCTUnwrap(accounts.accounts.last)

@@ -48,7 +48,7 @@ struct ClaudeAccountsSection: View {
         }
         .frame(maxHeight: Theme.Layout.accountsMaxHeight)
         .padding(.horizontal, Theme.Layout.cardPadding)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
         .background(RoundedRectangle(cornerRadius: Theme.Layout.cardRadius).fill(Theme.Layout.cardFill))
         .overlay(RoundedRectangle(cornerRadius: Theme.Layout.cardRadius).strokeBorder(Theme.Layout.cardStroke))
         .accessibilityElement(children: .contain)
@@ -60,7 +60,7 @@ struct ClaudeAccountsSection: View {
         let slots =
             accounts.map { ClaudeAccountRow.columns(store.state(for: $0).windows, hidden: hiddenWindows).count }
             .max() ?? 0
-        return VStack(alignment: .leading, spacing: 7) {
+        return VStack(alignment: .leading, spacing: Theme.Layout.accountsRowSpacing) {
             ForEach(accounts) { account in
                 ClaudeAccountRow(
                     account: account, state: store.state(for: account), hiddenWindows: hiddenWindows, slots: slots

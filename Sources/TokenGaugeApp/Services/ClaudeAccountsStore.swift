@@ -11,6 +11,8 @@ struct ClaudeAccountState: Equatable {
     var capturedAt: Date?
     var nextRead = Date.distantPast
     var failures = 0
+    var nextRenewal = Date.distantPast
+    var renewalFailures = 0
 }
 
 // Other Claude Code logins, opt-in: each one is read every few minutes through the
@@ -39,18 +41,23 @@ final class ClaudeAccountsStore: ObservableObject {
 
     private let defaults: UserDefaults
     private let read: @Sendable (ClaudeAccountLocation) async -> ClaudeExtraAccountResult
+    private let renew: @Sendable (ClaudeAccountLocation) async -> ClaudeExtraAccountResult?
     private let currentWeekday: () -> Int
     private var timer: Timer?
     private var inFlight: Set<UUID> = []
+    private var renewing = false
     private var pendingEdits: [UUID: Task<Void, Never>] = [:]
 
     init(
         defaults: UserDefaults = .standard,
         read: @escaping @Sendable (ClaudeAccountLocation) async -> ClaudeExtraAccountResult = ClaudeAccountsStore.fetch,
+        renew: @escaping @Sendable (ClaudeAccountLocation) async -> ClaudeExtraAccountResult? = ClaudeAccountsStore
+            .renewThroughCLI,
         currentWeekday: @escaping () -> Int = { Calendar.current.component(.weekday, from: Date()) }
     ) {
         self.defaults = defaults
         self.read = read
+        self.renew = renew
         self.currentWeekday = currentWeekday
         weekday = currentWeekday()
         enabled = defaults.bool(forKey: Self.enabledKey)
@@ -160,7 +167,19 @@ final class ClaudeAccountsStore: ObservableObject {
             return
         }
         inFlight.insert(id)
-        let result = await read(location)
+        var result = await read(location)
+        if result == .expired, location.host == nil, !renewing, Date() >= state.nextRenewal,
+            AppPreferences(defaults: defaults).claudeAutomaticRecovery
+        {
+            renewing = true
+            let renewed = await renew(location)
+            renewing = false
+            state.renewalFailures = renewed == nil ? state.renewalFailures + 1 : 0
+            state.nextRenewal =
+                renewed == nil
+                ? Date().addingTimeInterval([300.0, 900, 3600][min(state.renewalFailures, 3) - 1]) : .distantPast
+            if let renewed { result = renewed }
+        }
         inFlight.remove(id)
         guard accounts.contains(where: { $0.id == id && $0.location == account.location }) else { return }
         states[id] = Self.apply(result, to: state, at: Date())
@@ -198,6 +217,33 @@ final class ClaudeAccountsStore: ObservableObject {
         state.capturedAt = nil
         state.nextRead = now.addingTimeInterval(minimumGap)
         return state
+    }
+
+    // A long-lived Claude Code session renews its token in memory only, so the stored one
+    // expires while the account keeps working; a brief official CLI startup persists it again.
+    nonisolated static func renewThroughCLI(_ location: ClaudeAccountLocation) async -> ClaudeExtraAccountResult? {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        guard location.host == nil, let executable = ClaudeSessionRecovery.executable(homeDirectory: home) else {
+            return nil
+        }
+        let directory =
+            location.directory == "~"
+            ? home.path
+            : location.directory.hasPrefix("~/")
+                ? home.appending(path: String(location.directory.dropFirst(2))).path : location.directory
+        let (shell, arguments) = location.processArguments
+        return try? await BlockingWork.run {
+            var renewed: ClaudeExtraAccountResult?
+            _ = ClaudeRecoveryProcess.run(executable: executable, homeDirectory: home, configDirectory: directory) {
+                let result = ClaudeExtraAccountParser.parse(
+                    ClaudeOAuthTokenReader.boundedPayload(
+                        executable: URL(fileURLWithPath: shell), arguments: arguments, timeout: 25))
+                guard result != .expired else { return false }
+                renewed = result
+                return true
+            }
+            return renewed
+        }
     }
 
     static func viewState(_ state: ClaudeAccountState, now: Date = Date()) -> ProviderViewState {

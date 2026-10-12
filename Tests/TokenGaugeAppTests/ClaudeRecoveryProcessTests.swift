@@ -84,6 +84,27 @@ final class ClaudeRecoveryProcessTests: XCTestCase {
         )
     }
 
+    func testConfigDirectoryReachesOnlyTheChildItTargets() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let executable = directory.appending(path: "fake-claude")
+        try "#!/bin/sh\nprintf '%s' \"${CLAUDE_CONFIG_DIR-unset}\" > \"$HOME/dir\"\nsleep 10\n"
+            .write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+        let marker = directory.appending(path: "dir")
+        for expected in ["/tmp/account-dir", "unset"] {
+            try? FileManager.default.removeItem(at: marker)
+            XCTAssertTrue(
+                ClaudeRecoveryProcess.run(
+                    executable: executable, homeDirectory: directory,
+                    configDirectory: expected == "unset" ? nil : expected, timeout: 4
+                ) { FileManager.default.fileExists(atPath: marker.path) }
+            )
+            usleep(100_000)
+            XCTAssertEqual(try String(contentsOf: marker, encoding: .utf8), expected)
+        }
+    }
+
     func testCancellationAfterStartupStopsAndReapsChildPromptly() throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

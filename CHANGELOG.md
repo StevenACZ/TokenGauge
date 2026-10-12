@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.1] - 2026-10-12
+
+### Changed
+
+- The extra accounts card is taller: three accounts show without the inner scroll.
+
+### Fixed
+
+- An extra Claude account on this Mac no longer shows as signed out while its sessions keep working. A long-running Claude Code session renews its login only in memory; with automatic recovery on, TokenGauge now briefly starts Claude Code for that account so the renewed login is saved, then reads it again.
+
 ## [1.11.0] - 2026-10-11
 
 ### Added

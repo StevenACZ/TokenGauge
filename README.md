@@ -98,6 +98,8 @@ If you work with a coding agent, you can ask it to do step 1 for you: *"Create a
 
 The token of an extra account never enters TokenGauge: a short shell command reads it and asks for the usage on the Mac where that login lives, and only percentages and reset times come back.
 
+A Claude Code session that runs for hours renews its login only in memory, so the saved login of an idle account can expire while the account still works. With automatic recovery on, TokenGauge briefly starts Claude Code for an extra account on this Mac so the renewed login is saved, then reads it again. A login on another Mac shows a note instead: start a new Claude Code session there.
+
 ## Privacy
 
 Codex metrics come from the local `codex app-server` account methods. Claude quota comes from its read-only usage endpoint, using the existing credential only in memory. This integration depends on provider behavior and is not an official provider product.
