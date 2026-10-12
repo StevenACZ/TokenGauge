@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.2] - 2026-10-12
+
+### Changed
+
+- `make install-dev` installs the development app to `/Applications`, where macOS lets menu bar managers keep its icon visible, and removes an older copy in `~/Applications`. It updates the Claude Code status line only when that script already runs the TokenGauge capture.
+
 ## [1.11.1] - 2026-10-12
 
 ### Changed
