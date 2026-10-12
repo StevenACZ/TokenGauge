@@ -92,6 +92,8 @@ Each account shows its 5-hour session and its tightest weekly limit under the Cl
 
 To hide an account, right-click its row in the panel, or press its eye button in Settings and turn off **Show account**. That button also holds the weekdays: turn off the days you do not use the account (a work login on Saturday and Sunday), and it reads **Mon to Fri**. On those days the account leaves the panel and the menu bar and is not read.
 
+To make an extra account the main one, press its star in **Settings → Accounts**. It takes over the large Claude card and the Claude number in the menu bar, and the login in `~/.claude` is hidden. Press the star again, or **Use this Mac's login** on the Claude card in the same page, to switch back. Pace and forecasts come from the history of the `~/.claude` login, so they are hidden while another account is the main one.
+
 If you work with a coding agent, you can ask it to do step 1 for you: *"Create a second Claude Code login in `~/.claude-work` with a `claude-work` alias, and tell me the folder to type in TokenGauge."* Steps 2 to 4 are three fields in Settings.
 
 The token of an extra account never enters TokenGauge: a short shell command reads it and asks for the usage on the Mac where that login lives, and only percentages and reset times come back.

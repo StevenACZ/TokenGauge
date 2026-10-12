@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-10-11
+
+### Added
+
+- Any extra Claude account can become the main one: press its star in Settings → Accounts, or right-click its row in the panel. It takes over the large Claude card and the Claude number in the menu bar, and the login in `~/.claude` is hidden. **Use this Mac's login** switches back.
+
 ## [1.10.0] - 2026-10-11
 
 ### Added
