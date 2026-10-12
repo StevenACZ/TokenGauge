@@ -4,12 +4,14 @@ import TokenGaugeCore
 
 enum ClaudeRecoveryProcess {
     static func run(
-        executable: URL, homeDirectory: URL, timeout: TimeInterval = 25,
+        executable: URL, homeDirectory: URL, configDirectory: String? = nil, timeout: TimeInterval = 25,
         shouldContinue: () -> Bool = { true }, recovered: () -> Bool
     ) -> Bool {
-        run(
+        var environment = ProcessInfo.processInfo.environment.filter { $0.key != "CLAUDE_CONFIG_DIR" }
+        environment["CLAUDE_CONFIG_DIR"] = configDirectory
+        return run(
             executable: executable, homeDirectory: homeDirectory, timeout: timeout,
-            arguments: ["--safe-mode"], environment: ProcessInfo.processInfo.environment,
+            arguments: ["--safe-mode"], environment: environment,
             shouldContinue: shouldContinue, recovered: recovered
         )
     }
@@ -90,7 +92,9 @@ enum ClaudeRecoveryProcess {
     private static func cleanEnvironment(
         executable: URL, homeDirectory: URL, inherited: [String: String]
     ) -> [String: String] {
-        var result = inherited.filter { ["USER", "LOGNAME", "TMPDIR", "LANG", "LC_ALL"].contains($0.key) }
+        var result = inherited.filter {
+            ["USER", "LOGNAME", "TMPDIR", "LANG", "LC_ALL", "CLAUDE_CONFIG_DIR"].contains($0.key)
+        }
         result["HOME"] = homeDirectory.path
         result["TERM"] = "xterm-256color"
         result["LANG"] = result["LANG"] ?? "en_US.UTF-8"

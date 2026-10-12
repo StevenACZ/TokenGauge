@@ -255,6 +255,63 @@ final class ClaudeAccountsStoreTests: XCTestCase {
     }
 }
 
+extension ClaudeAccountsStoreTests {
+    private func renewalStore(
+        location: String, optIn: Bool, renewed: ClaudeExtraAccountResult?, renewals: ReadCounter
+    ) -> (ClaudeAccountsStore, ClaudeExtraAccount) {
+        let defaults = UserDefaults(suiteName: temporaryDefaultsSuite())!
+        defaults.set(true, forKey: ClaudeAccountsStore.enabledKey)
+        defaults.set(optIn, forKey: "claudeAutomaticRecovery")
+        let store = ClaudeAccountsStore(
+            defaults: defaults, read: { _ in .expired },
+            renew: { _ in
+                await renewals.bump()
+                return renewed
+            })
+        store.add()
+        var account = store.accounts[0]
+        account.location = location
+        store.update(account)
+        return (store, account)
+    }
+
+    func testExpiredLocalLoginIsRenewedThroughTheCLIWhenOptedIn() async {
+        let renewals = ReadCounter()
+        let (store, account) = renewalStore(
+            location: "~/.claude-work", optIn: true, renewed: .windows([window]), renewals: renewals)
+        await store.refresh(account.id, force: true)
+        let count = await renewals.count
+        XCTAssertEqual(count, 1)
+        XCTAssertEqual(store.state(for: account).status, .ready)
+        XCTAssertEqual(store.state(for: account).windows, [window])
+    }
+
+    func testFailedRenewalShowsExpiredAndBacksOff() async {
+        let renewals = ReadCounter()
+        let (store, account) = renewalStore(
+            location: "~/.claude-work", optIn: true, renewed: nil, renewals: renewals)
+        await store.refresh(account.id, force: true)
+        let state = store.state(for: account)
+        XCTAssertEqual(state.status, .expired)
+        XCTAssertEqual(state.renewalFailures, 1)
+        XCTAssertGreaterThan(state.nextRenewal, Date().addingTimeInterval(290))
+        let count = await renewals.count
+        XCTAssertEqual(count, 1)
+    }
+
+    func testNoRenewalWithoutOptInOrForRemoteLogins() async {
+        let renewals = ReadCounter()
+        for (location, optIn) in [("~/.claude-work", false), ("other-mac:~/.claude-work", true)] {
+            let (store, account) = renewalStore(
+                location: location, optIn: optIn, renewed: .windows([window]), renewals: renewals)
+            await store.refresh(account.id, force: true)
+            XCTAssertEqual(store.state(for: account).status, .expired)
+        }
+        let count = await renewals.count
+        XCTAssertEqual(count, 0)
+    }
+}
+
 private final class Weekday: @unchecked Sendable {
     var value: Int
     init(_ value: Int) { self.value = value }
