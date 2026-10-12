@@ -341,6 +341,11 @@
 "accounts.icon.letter" = "Inicial";
 "accounts.remove" = "Quitar cuenta";
 "accounts.hide" = "Ocultar cuenta";
+"accounts.make_primary" = "Hacer principal";
+"accounts.primary" = "Cuenta principal";
+"accounts.primary_help" = "Muestra esta cuenta en la tarjeta grande de Claude y en la barra de menús. La sesión de esta Mac se oculta mientras sea la principal.";
+"accounts.primary_active" = "%@ es la cuenta principal de Claude. La sesión de esta Mac está oculta.";
+"accounts.primary_reset" = "Volver a esta Mac";
 "accounts.show" = "Mostrar cuenta";
 "accounts.days" = "Se muestra";
 "accounts.days_help" = "Apaga los días en que no usas esta cuenta, por ejemplo un login de trabajo el fin de semana. Esos días sale del panel y de la barra de menú y no se lee.";

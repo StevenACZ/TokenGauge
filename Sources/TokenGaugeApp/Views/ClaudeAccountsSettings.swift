@@ -86,6 +86,7 @@ private struct ClaudeAccountEditor: View {
             }
             .opacity(account.hidden ? 0.55 : 1)
             days
+            primaryButton
             Button {
                 store.edit(account) { $0.showsInMenuBar.toggle() }
             } label: {
@@ -107,6 +108,21 @@ private struct ClaudeAccountEditor: View {
             .help("accounts.remove".localized)
             .accessibilityLabel("accounts.remove".localized)
         }
+    }
+
+    private var primaryButton: some View {
+        let isPrimary = store.primaryID == account.id
+        return Button {
+            store.setPrimary(isPrimary ? nil : account.id)
+        } label: {
+            Image(systemName: isPrimary ? "star.fill" : "star")
+                .font(.system(size: 12))
+                .foregroundStyle(isPrimary ? AnyShapeStyle(account.tint.color) : AnyShapeStyle(.tertiary))
+        }
+        .buttonStyle(.borderless)
+        .help("accounts.primary_help".localized)
+        .accessibilityLabel("accounts.primary".localized)
+        .accessibilityAddTraits(isPrimary ? [.isSelected] : [])
     }
 
     private var look: some View {

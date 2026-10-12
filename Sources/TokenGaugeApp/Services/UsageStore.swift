@@ -22,6 +22,11 @@ struct ProviderViewState: Equatable, Sendable {
     static let loading = ProviderViewState(snapshot: nil, status: .loading, isRefreshing: true)
 }
 
+struct ClaudePrimaryAccount: Equatable, Sendable {
+    var name: String
+    var state: ProviderViewState
+}
+
 @MainActor
 final class UsageStore: ObservableObject {
     @Published private(set) var claude: ProviderViewState = .loading
@@ -89,6 +94,7 @@ final class UsageStore: ObservableObject {
         }
     }
     @Published private(set) var claudeAccountLabel: String?
+    @Published private(set) var claudePrimary: ClaudePrimaryAccount?
     @Published private(set) var claudeAccountFingerprint: String?
     @Published private(set) var claudeCancelledAt: Date?
     @Published private(set) var codexCancelledAt: Date?
@@ -479,7 +485,18 @@ final class UsageStore: ObservableObject {
     }
 
     func state(for provider: UsageProvider) -> ProviderViewState {
-        provider == .codex ? codex : claude
+        provider == .codex ? codex : claudePrimary?.state ?? claude
+    }
+
+    func setClaudePrimary(_ primary: ClaudePrimaryAccount?) {
+        if claudePrimary != primary { claudePrimary = primary }
+    }
+
+    var claudeDisplayLabel: String? { claudePrimary?.name ?? claudeAccountLabel }
+
+    // Pace, forecasts and past sessions come from this Mac's login, never a promoted account.
+    func usesLocalHistory(_ provider: UsageProvider) -> Bool {
+        provider == .codex || claudePrimary == nil
     }
 
     func isCancelled(provider: UsageProvider) -> Bool {

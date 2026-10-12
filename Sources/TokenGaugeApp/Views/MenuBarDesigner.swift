@@ -166,7 +166,7 @@ struct MenuBarDesigner: View {
                 .frame(width: 112, height: 28, alignment: .leading)
             Rectangle().fill(Color.primary.opacity(0.12)).frame(width: 1, height: 18).padding(.top, 5)
             FlowLayout(spacing: 6) {
-                ForEach(accounts.accounts) { account in
+                ForEach(accounts.accounts.filter { $0.id != accounts.primaryAccount?.id }) { account in
                     let today = account.isVisible(onWeekday: accounts.weekday)
                     let session = accounts.state(for: account).windows.first { $0.durationMinutes == 300 }
                     QuotaChip(
