@@ -22,6 +22,7 @@ final class ClaudeAccountsStore: ObservableObject {
 
     static let enabledKey = "claudeExtraAccountsEnabled"
     static let accountsKey = "claudeExtraAccounts"
+    static let primaryKey = "claudePrimaryAccount"
     static let interval: TimeInterval = 300
     static let minimumGap: TimeInterval = 120
 
@@ -33,6 +34,7 @@ final class ClaudeAccountsStore: ObservableObject {
     }
     @Published private(set) var accounts: [ClaudeExtraAccount]
     @Published private(set) var states: [UUID: ClaudeAccountState] = [:]
+    @Published private(set) var primaryID: UUID?
     @Published private(set) var weekday: Int
 
     private let defaults: UserDefaults
@@ -57,10 +59,35 @@ final class ClaudeAccountsStore: ObservableObject {
                 try? JSONDecoder().decode([ClaudeExtraAccount].self, from: $0)
             }
             ?? []
+        primaryID = defaults.string(forKey: Self.primaryKey).flatMap(UUID.init(uuidString:))
         if enabled { start() }
     }
 
-    var visibleAccounts: [ClaudeExtraAccount] { accounts.filter { $0.isVisible(onWeekday: weekday) } }
+    var primaryAccount: ClaudeExtraAccount? {
+        guard enabled, let primaryID else { return nil }
+        return accounts.first { $0.id == primaryID && $0.isVisible(onWeekday: weekday) }
+    }
+
+    var visibleAccounts: [ClaudeExtraAccount] {
+        let primary = primaryAccount?.id
+        return accounts.filter { $0.id != primary && $0.isVisible(onWeekday: weekday) }
+    }
+
+    var primary: ClaudePrimaryAccount? {
+        primaryAccount.map { ClaudePrimaryAccount(name: $0.name, state: Self.viewState(state(for: $0))) }
+    }
+
+    func setPrimary(_ id: UUID?) {
+        primaryID = id
+        defaults.set(id?.uuidString, forKey: Self.primaryKey)
+        guard let id, var account = accounts.first(where: { $0.id == id }) else { return }
+        if account.hidden {
+            account.hidden = false
+            update(account)
+        } else {
+            Task { await refresh(id, force: true) }
+        }
+    }
 
     var isShowing: Bool { enabled && !visibleAccounts.isEmpty }
 
@@ -86,6 +113,7 @@ final class ClaudeAccountsStore: ObservableObject {
     func remove(_ id: UUID) {
         accounts.removeAll { $0.id == id }
         states[id] = nil
+        if primaryID == id { setPrimary(nil) }
         save()
     }
 
@@ -170,6 +198,24 @@ final class ClaudeAccountsStore: ObservableObject {
         state.capturedAt = nil
         state.nextRead = now.addingTimeInterval(minimumGap)
         return state
+    }
+
+    static func viewState(_ state: ClaudeAccountState, now: Date = Date()) -> ProviderViewState {
+        let snapshot =
+            state.capturedAt == nil
+            ? nil
+            : ProviderUsageSnapshot(
+                provider: .claude, windows: state.windows, dailyUsage: [], summary: nil, availableResetCredits: nil,
+                creditBalance: nil, capturedAt: state.capturedAt, activityReadSucceeded: false)
+        let status: ProviderStatus
+        switch state.status {
+        case .loading: status = .loading
+        case .ready: status = snapshot.map { ProviderStateResolver.claudeStatus(snapshot: $0, now: now) } ?? .waiting
+        case .signedOut, .expired: status = .authenticationRequired
+        case .noAccess: status = .accessDenied
+        case .rateLimited, .unreachable, .invalidLocation: status = .unavailable
+        }
+        return ProviderViewState(snapshot: snapshot, status: status, isRefreshing: state.status == .loading)
     }
 
     private func start() {

@@ -20,7 +20,9 @@ struct StatsView: View {
     private var forecasts: [QuotaForecast] {
         let states = providers.compactMap { provider -> (UsageProvider, [QuotaWindow])? in
             let state = store.state(for: provider)
-            guard state.status == .ready, let snapshot = state.snapshot else { return nil }
+            guard store.usesLocalHistory(provider), state.status == .ready, let snapshot = state.snapshot else {
+                return nil
+            }
             return (
                 provider,
                 WindowVisibility.visible(

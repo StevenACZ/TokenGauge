@@ -341,6 +341,11 @@
 "accounts.icon.letter" = "Initial";
 "accounts.remove" = "Remove account";
 "accounts.hide" = "Hide account";
+"accounts.make_primary" = "Make primary";
+"accounts.primary" = "Primary account";
+"accounts.primary_help" = "Show this account in the large Claude card and in the menu bar. This Mac's login is hidden while it is primary.";
+"accounts.primary_active" = "%@ is the primary Claude account. This Mac's login is hidden.";
+"accounts.primary_reset" = "Use this Mac's login";
 "accounts.show" = "Show account";
 "accounts.days" = "Shown on";
 "accounts.days_help" = "Turn off the days you do not use this account, for example a work login on weekends. On those days it leaves the panel and the menu bar and is not read.";

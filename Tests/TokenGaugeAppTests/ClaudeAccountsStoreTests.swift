@@ -126,6 +126,71 @@ final class ClaudeAccountsStoreTests: XCTestCase {
         XCTAssertEqual(store.state(for: account), ClaudeAccountState())
     }
 
+    func testAPrimaryAccountReplacesThisMacInTheClaudeCard() async {
+        let suite = temporaryDefaultsSuite()
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.set(true, forKey: ClaudeAccountsStore.enabledKey)
+        let weekday = Weekday(2)
+        let window = window
+        let store = ClaudeAccountsStore(
+            defaults: defaults, read: { _ in .windows([window]) }, currentWeekday: { weekday.value })
+        store.add()
+        var account = store.accounts[0]
+        account.name = "Main"
+        account.location = "~/.claude-main"
+        account.showsInMenuBar = true
+        account.hidden = true
+        store.update(account)
+
+        store.setPrimary(account.id)
+        XCTAssertFalse(store.accounts[0].hidden)
+        await store.refresh(account.id, force: true)
+        XCTAssertEqual(store.primaryAccount?.id, account.id)
+        XCTAssertTrue(store.visibleAccounts.isEmpty)
+        XCTAssertTrue(store.menuBarAccounts.isEmpty)
+        XCTAssertEqual(store.primary?.name, "Main")
+        XCTAssertEqual(store.primary?.state.status, .ready)
+        XCTAssertEqual(store.primary?.state.snapshot?.windows, [window])
+
+        let usage = UsageStore(defaults: UserDefaults(suiteName: temporaryDefaultsSuite())!, liveReadsEnabled: false)
+        usage.setClaudePrimary(store.primary)
+        XCTAssertEqual(usage.state(for: .claude).snapshot?.windows, [window])
+        XCTAssertEqual(usage.claudeDisplayLabel, "Main")
+        XCTAssertFalse(usage.usesLocalHistory(.claude))
+        XCTAssertTrue(usage.usesLocalHistory(.codex))
+
+        let reloaded = ClaudeAccountsStore(
+            defaults: defaults, read: { _ in .windows([]) }, currentWeekday: { weekday.value })
+        XCTAssertEqual(reloaded.primaryID, account.id)
+
+        weekday.value = 1
+        account = store.accounts[0]
+        account.hiddenWeekdays = [1]
+        store.update(account)
+        store.refreshAll()
+        XCTAssertNil(store.primary)
+        usage.setClaudePrimary(store.primary)
+        XCTAssertTrue(usage.usesLocalHistory(.claude))
+
+        store.remove(account.id)
+        XCTAssertNil(store.primaryID)
+        XCTAssertNil(defaults.string(forKey: ClaudeAccountsStore.primaryKey))
+    }
+
+    func testAnAccountReadMapsToTheClaudeCardStatus() {
+        let ready = ClaudeAccountState(status: .ready, windows: [window], capturedAt: now)
+        XCTAssertEqual(ClaudeAccountsStore.viewState(ready, now: now).status, .ready)
+        XCTAssertEqual(ClaudeAccountsStore.viewState(ClaudeAccountState(), now: now).status, .loading)
+        XCTAssertEqual(
+            ClaudeAccountsStore.viewState(ClaudeAccountState(status: .expired), now: now).status,
+            .authenticationRequired)
+        XCTAssertEqual(
+            ClaudeAccountsStore.viewState(ClaudeAccountState(status: .noAccess), now: now).status, .accessDenied)
+        let failed = ClaudeAccountsStore.viewState(ClaudeAccountState(status: .unreachable), now: now)
+        XCTAssertEqual(failed.status, .unavailable)
+        XCTAssertNil(failed.snapshot)
+    }
+
     func testInvalidLocationNeverRunsAProcess() async {
         let defaults = UserDefaults(suiteName: temporaryDefaultsSuite())!
         defaults.set(true, forKey: ClaudeAccountsStore.enabledKey)

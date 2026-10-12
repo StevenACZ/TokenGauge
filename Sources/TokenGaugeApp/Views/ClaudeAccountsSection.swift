@@ -67,6 +67,7 @@ struct ClaudeAccountsSection: View {
                 )
                 .contentShape(Rectangle())
                 .contextMenu {
+                    Button("accounts.make_primary".localized) { store.setPrimary(account.id) }
                     Button("accounts.hide".localized) {
                         var edited = account
                         edited.hidden = true

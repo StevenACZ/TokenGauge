@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -6,10 +7,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let launchAtLogin = LaunchAtLoginManager()
     private var statusController: StatusItemController?
     private var wakeObserver: (any NSObjectProtocol)?
+    private var primaryObservation: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         signal(SIGPIPE, SIG_IGN)
         NSApp.setActivationPolicy(.accessory)
+        let accounts = ClaudeAccountsStore.shared
+        store.setClaudePrimary(accounts.primary)
+        primaryObservation = accounts.objectWillChange.receive(on: RunLoop.main).sink { [weak self] _ in
+            self?.store.setClaudePrimary(accounts.primary)
+        }
         statusController = StatusItemController(store: store, launchAtLogin: launchAtLogin)
         guard store.liveReadsEnabled else { return }
         store.start()

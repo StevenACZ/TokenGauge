@@ -84,7 +84,7 @@ struct SettingsPanelPage: View {
 
 struct SettingsAccountsPage: View {
     @ObservedObject var store: UsageStore
-    var accounts = ClaudeAccountsStore.shared
+    @ObservedObject var accounts = ClaudeAccountsStore.shared
     @AppStorage(AppPreferences.Key.codexExecutablePath) private var codexExecutablePath = ""
 
     var body: some View {
@@ -139,6 +139,15 @@ struct SettingsAccountsPage: View {
                 SettingsToggleRow(
                     title: "settings.claude_recovery".localized, symbol: "arrow.triangle.2.circlepath",
                     help: "settings.claude_recovery_help".localized, isOn: $store.claudeAutomaticRecovery)
+                if let primary = accounts.primaryAccount {
+                    HStack(spacing: 8) {
+                        Image(systemName: "star.fill").foregroundStyle(primary.tint.color).frame(width: 20)
+                        Text("accounts.primary_active".localized(primary.name)).font(.callout)
+                        Spacer(minLength: 6)
+                        Button("accounts.primary_reset".localized) { accounts.setPrimary(nil) }
+                            .controlSize(.small)
+                    }
+                }
             }
         }
         .padding(12)

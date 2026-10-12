@@ -201,7 +201,7 @@ struct PopoverView: View {
                     showHourlyPace: store.showHourlyPace,
                     showsSessionForecast: store.showHourlyPace && store.displayMode != .unified,
                     stretchesHeight: store.displayMode == .unified && store.panelStyle != .compact,
-                    accountLabel: store.claudeAccountLabel,
+                    accountLabel: store.claudeDisplayLabel,
                     paces: paces(for: provider), previousPaces: previousPaces(for: provider)
                 )
                 .frame(width: ringCardWidth(for: provider))
@@ -210,7 +210,7 @@ struct PopoverView: View {
     }
 
     private func paces(for provider: UsageProvider) -> [String: QuotaPace] {
-        guard store.state(for: provider).status == .ready else { return [:] }
+        guard store.usesLocalHistory(provider), store.state(for: provider).status == .ready else { return [:] }
         var result: [String: QuotaPace] = [:]
         for window in store.state(for: provider).snapshot?.windows ?? [] {
             result[window.id] = history.pace(
@@ -220,6 +220,7 @@ struct PopoverView: View {
     }
 
     private func previousPaces(for provider: UsageProvider) -> [String: QuotaPace] {
+        guard store.usesLocalHistory(provider) else { return [:] }
         let current = paces(for: provider)
         var result: [String: QuotaPace] = [:]
         for window in store.state(for: provider).snapshot?.windows ?? [] {

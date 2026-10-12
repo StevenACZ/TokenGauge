@@ -83,7 +83,8 @@ final class StatusItemController: NSObject {
         }
 
         Publishers.CombineLatest4(
-            store.$claude, store.$codex, store.$displayMode, LocalizationManager.shared.$bundle
+            store.$claude.combineLatest(store.$claudePrimary), store.$codex, store.$displayMode,
+            LocalizationManager.shared.$bundle
         )
         .receive(on: RunLoop.main)
         .combineLatest(
