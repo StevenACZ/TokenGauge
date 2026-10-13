@@ -209,6 +209,25 @@ final class ClaudeAccountsStoreTests: XCTestCase {
         XCTAssertEqual(count, 0)
     }
 
+    func testMovingAnAccountKeepsTheNewOrder() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: temporaryDefaultsSuite()))
+        let store = ClaudeAccountsStore(defaults: defaults) { _ in .windows([]) }
+        for name in ["A", "B", "C", "D"] {
+            store.add()
+            var account = store.accounts[store.accounts.count - 1]
+            account.name = name
+            store.update(account)
+        }
+        store.move(store.accounts[3].id, to: 0)
+        XCTAssertEqual(store.accounts.map(\.name), ["D", "A", "B", "C"])
+        store.move(store.accounts[0].id, to: 2)
+        XCTAssertEqual(store.accounts.map(\.name), ["A", "B", "D", "C"])
+        store.move(store.accounts[3].id, to: 9)
+        XCTAssertEqual(store.accounts.map(\.name), ["A", "B", "D", "C"])
+        let reloaded = ClaudeAccountsStore(defaults: defaults) { _ in .windows([]) }
+        XCTAssertEqual(reloaded.accounts.map(\.name), ["A", "B", "D", "C"])
+    }
+
     func testTheSessionAndTheTightestWeeklyFillTheRow() {
         let weekly = QuotaWindow(
             id: "seven_day", usedPercentage: 10, resetsAt: nil, durationMinutes: 10_080, displayName: nil)

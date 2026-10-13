@@ -42,7 +42,7 @@ struct ClaudeAccountsSection: View {
     var body: some View {
         ViewThatFits(in: .vertical) {
             rows
-            ScrollView { rows }
+            ScrollView { rows.padding(.trailing, 10) }
                 .scrollIndicators(.automatic)
                 .frame(height: Theme.Layout.accountsMaxHeight)
         }
@@ -56,24 +56,18 @@ struct ClaudeAccountsSection: View {
     }
 
     private var rows: some View {
-        let accounts = store.visibleAccounts
-        let slots =
-            accounts.map { ClaudeAccountRow.columns(store.state(for: $0).windows, hidden: hiddenWindows).count }
-            .max() ?? 0
-        return VStack(alignment: .leading, spacing: Theme.Layout.accountsRowSpacing) {
-            ForEach(accounts) { account in
-                ClaudeAccountRow(
-                    account: account, state: store.state(for: account), hiddenWindows: hiddenWindows, slots: slots
-                )
-                .contentShape(Rectangle())
-                .contextMenu {
-                    Button("accounts.make_primary".localized) { store.setPrimary(account.id) }
-                    Button("accounts.hide".localized) {
-                        var edited = account
-                        edited.hidden = true
-                        store.update(edited)
+        VStack(alignment: .leading, spacing: Theme.Layout.accountsRowSpacing) {
+            ForEach(store.visibleAccounts) { account in
+                ClaudeAccountRow(account: account, state: store.state(for: account), hiddenWindows: hiddenWindows)
+                    .contentShape(Rectangle())
+                    .contextMenu {
+                        Button("accounts.make_primary".localized) { store.setPrimary(account.id) }
+                        Button("accounts.hide".localized) {
+                            var edited = account
+                            edited.hidden = true
+                            store.update(edited)
+                        }
                     }
-                }
             }
         }
     }
@@ -83,7 +77,6 @@ struct ClaudeAccountRow: View {
     let account: ClaudeExtraAccount
     let state: ClaudeAccountState
     var hiddenWindows: Set<QuotaWindowKind> = []
-    var slots = 0
 
     static func columns(_ windows: [QuotaWindow], hidden: Set<QuotaWindowKind> = []) -> [QuotaWindow] {
         let shown = windows.filter { window in QuotaWindowKind.of(window).map { !hidden.contains($0) } ?? true }
@@ -105,14 +98,9 @@ struct ClaudeAccountRow: View {
                     .lineLimit(1)
             }
             .frame(width: 74, alignment: .leading)
-            if state.status == .ready || !state.windows.isEmpty {
-                let columns = Self.columns(state.windows, hidden: hiddenWindows)
-                ForEach(columns) { window in
-                    column(window)
-                }
-                ForEach(columns.count..<max(slots, columns.count), id: \.self) { _ in
-                    Color.clear.frame(maxWidth: .infinity)
-                }
+            let columns = Self.columns(state.windows, hidden: hiddenWindows)
+            if let main = columns.first, state.status == .ready || !state.windows.isEmpty {
+                quota(main, extra: columns.dropFirst().first)
             } else {
                 Text(statusText)
                     .font(.system(size: 10))
@@ -123,10 +111,10 @@ struct ClaudeAccountRow: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func column(_ window: QuotaWindow) -> some View {
+    private func quota(_ window: QuotaWindow, extra: QuotaWindow?) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(window.durationMinutes == 300 ? "accounts.session".localized : weeklyLabel(window))
+                Text(label(window))
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -139,12 +127,51 @@ struct ClaudeAccountRow: View {
             GaugeBar(
                 fraction: window.remainingPercentage / 100,
                 tint: Theme.severity(remaining: window.remainingPercentage) ?? account.tint.color)
+            ViewThatFits(in: .horizontal) {
+                footer(window, extra: extra, bar: true)
+                footer(window, extra: extra, bar: false)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func footer(_ window: QuotaWindow, extra: QuotaWindow?, bar: Bool) -> some View {
+        HStack(spacing: 6) {
             Text(UsageFormatters.reset(window.resetsAt))
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+            Spacer(minLength: 0)
+            if let extra { badge(extra, bar: bar) }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func badge(_ window: QuotaWindow, bar: Bool) -> some View {
+        let tint = Theme.severity(remaining: window.remainingPercentage) ?? account.tint.color
+        return HStack(spacing: 4) {
+            Text(label(window))
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.secondary)
+            if bar {
+                Capsule()
+                    .fill(Color.primary.opacity(0.09))
+                    .overlay(alignment: .leading) {
+                        Capsule().fill(tint).frame(width: 26 * min(max(window.remainingPercentage / 100, 0), 1))
+                    }
+                    .frame(width: 26, height: 3)
+            }
+            Text(UsageFormatters.percentage(window.remainingPercentage))
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(Theme.severity(remaining: window.remainingPercentage) ?? .primary)
+        }
+        .lineLimit(1)
+        .fixedSize()
+        .help(UsageFormatters.reset(window.resetsAt))
+    }
+
+    private func label(_ window: QuotaWindow) -> String {
+        window.durationMinutes == 300 ? "accounts.session".localized : weeklyLabel(window)
     }
 
     private func weeklyLabel(_ window: QuotaWindow) -> String {

@@ -342,6 +342,10 @@
 "accounts.remove" = "Remove account";
 "accounts.hide" = "Hide account";
 "accounts.make_primary" = "Make primary";
+"accounts.reorder" = "Reorder";
+"accounts.reorder_help" = "Drag to change the order of the accounts in the panel and the menu bar.";
+"accounts.move_up" = "Move up";
+"accounts.move_down" = "Move down";
 "accounts.primary" = "Primary account";
 "accounts.primary_help" = "Show this account in the large Claude card and in the menu bar. This Mac's login is hidden while it is primary.";
 "accounts.primary_active" = "%@ is the primary Claude account. This Mac's login is hidden.";

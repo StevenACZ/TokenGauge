@@ -307,13 +307,30 @@ struct MenuBarPresentation: Equatable {
         return image
     }
 
+    static let trackAlpha: CGFloat = 0.32
+
+    static func isExhausted(_ remaining: Double) -> Bool { remaining < 0.5 }
+
+    private func trackColor(_ remaining: Double, segment: Segment) -> NSColor {
+        (remaining < 12 ? segment.graphicColor : labelColor).withAlphaComponent(Self.trackAlpha)
+    }
+
     private func drawBar(_ rect: NSRect, remaining: Double, segment: Segment) {
         let fraction = min(max(remaining / 100, 0), 1)
         let radius = rect.height / 2
         let track = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
-        segment.color.withAlphaComponent(0.2).setFill()
+        if Self.isExhausted(remaining) {
+            segment.graphicColor.withAlphaComponent(0.45).setFill()
+            track.fill()
+            let edge = NSBezierPath(
+                roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: radius - 0.5, yRadius: radius - 0.5)
+            edge.lineWidth = 1
+            segment.graphicColor.setStroke()
+            edge.stroke()
+            return
+        }
+        trackColor(remaining, segment: segment).setFill()
         track.fill()
-        guard fraction > 0 else { return }
         NSGraphicsContext.saveGraphicsState()
         track.addClip()
         segment.graphicColor.setFill()
@@ -325,9 +342,13 @@ struct MenuBarPresentation: Equatable {
         let fraction = min(max(remaining / 100, 0), 1)
         let track = NSBezierPath(ovalIn: rect)
         track.lineWidth = lineWidth
-        segment.color.withAlphaComponent(0.2).setStroke()
+        if Self.isExhausted(remaining) {
+            segment.graphicColor.setStroke()
+            track.stroke()
+            return
+        }
+        trackColor(remaining, segment: segment).setStroke()
         track.stroke()
-        guard fraction > 0 else { return }
         segment.graphicColor.setStroke()
         if fraction == 1 {
             track.stroke()

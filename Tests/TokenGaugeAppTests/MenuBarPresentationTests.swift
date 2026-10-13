@@ -134,6 +134,21 @@ final class MenuBarPresentationTests: XCTestCase {
         }
     }
 
+    @MainActor func testAnExhaustedQuotaDrawsASolidRedGraphic() throws {
+        for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
+            for style in [QuotaMenuBarStyle.bars, .rings] {
+                var redInk = [Double]()
+                for used in [100.0, 92.0] {
+                    let presentation = MenuBarPresentation(
+                        providers: [.claude], state: { self.state(provider: $0, status: .ready, usedPercentage: used) },
+                        appearance: NSAppearance(named: appearanceName)!, style: style)
+                    redInk.append(try opaqueRedInk(XCTUnwrap(presentation.quotaImage(for: presentation.segments[0]))))
+                }
+                XCTAssertGreaterThan(redInk[0], redInk[1] * 1.5, "\(appearanceName.rawValue) \(style)")
+            }
+        }
+    }
+
     @MainActor func testGraphicsNeverRepresentUnavailableOrStaleBalances() {
         for style in [QuotaMenuBarStyle.bars, .rings] {
             for status in [ProviderStatus.unavailable, .stale, .authenticationRequired, .credentialExpired, .cancelled]
@@ -192,6 +207,18 @@ final class MenuBarPresentationTests: XCTestCase {
                 if annulusOnly && hypot(pointX, pointY) < image.size.width / 2 - 2.2 { continue }
                 let color = try XCTUnwrap(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
                 total += max(0, color.blueComponent - color.redComponent) * color.alphaComponent
+            }
+        }
+        return total
+    }
+
+    @MainActor private func opaqueRedInk(_ image: NSImage) throws -> Double {
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: XCTUnwrap(image.tiffRepresentation)))
+        var total = 0.0
+        for y in 0..<bitmap.pixelsHigh {
+            for x in 0..<bitmap.pixelsWide {
+                let color = try XCTUnwrap(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
+                if color.alphaComponent > 0.4, color.redComponent - color.blueComponent > 0.5 { total += 1 }
             }
         }
         return total

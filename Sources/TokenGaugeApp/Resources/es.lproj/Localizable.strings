@@ -342,6 +342,10 @@
 "accounts.remove" = "Quitar cuenta";
 "accounts.hide" = "Ocultar cuenta";
 "accounts.make_primary" = "Hacer principal";
+"accounts.reorder" = "Ordenar";
+"accounts.reorder_help" = "Arrastra para cambiar el orden de las cuentas en el panel y en la barra de menús.";
+"accounts.move_up" = "Subir";
+"accounts.move_down" = "Bajar";
 "accounts.primary" = "Cuenta principal";
 "accounts.primary_help" = "Muestra esta cuenta en la tarjeta grande de Claude y en la barra de menús. La sesión de esta Mac se oculta mientras sea la principal.";
 "accounts.primary_active" = "%@ es la cuenta principal de Claude. La sesión de esta Mac está oculta.";

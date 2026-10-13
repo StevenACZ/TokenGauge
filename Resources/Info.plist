@@ -38,6 +38,19 @@
     <true/>
     <key>SUEnableSystemProfiling</key>
     <false/>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.stevenacz.TokenGauge.account</string>
+            <key>UTTypeDescription</key>
+            <string>TokenGauge account</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.data</string>
+            </array>
+        </dict>
+    </array>
     <key>TokenGaugeDevelopmentBuild</key>
     <true/>
 </dict>

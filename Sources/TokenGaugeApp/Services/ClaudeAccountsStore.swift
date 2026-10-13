@@ -124,6 +124,14 @@ final class ClaudeAccountsStore: ObservableObject {
         save()
     }
 
+    func move(_ id: UUID, to index: Int) {
+        guard let from = accounts.firstIndex(where: { $0.id == id }) else { return }
+        let to = min(max(index, 0), accounts.count - 1)
+        guard to != from else { return }
+        accounts.insert(accounts.remove(at: from), at: to)
+        save()
+    }
+
     func update(_ account: ClaudeExtraAccount) {
         guard let index = accounts.firstIndex(where: { $0.id == account.id }) else { return }
         let moved = accounts[index].location != account.location

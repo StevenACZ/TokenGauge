@@ -43,20 +43,30 @@ final class ClaudeAccountsRenderingTests: XCTestCase {
         }
     }
 
-    func testThreeAccountsFitWithoutTheInnerScroll() {
+    func testFourAccountsFitWithoutTheInnerScroll() {
         let resets = Date().addingTimeInterval(3 * 3600)
-        let windows = [
-            Fixture.window(id: "five_hour", usedPercentage: 12, resetsAt: resets, durationMinutes: 300),
-            Fixture.window(id: "seven_day", usedPercentage: 8, resetsAt: resets, durationMinutes: 10_080),
-        ]
+        let session = Fixture.window(
+            id: "five_hour", usedPercentage: 12, resetsAt: Date().addingTimeInterval(18 * 60 + 30), durationMinutes: 300
+        )
+        let weekly = Fixture.window(
+            id: "seven_day_fable", usedPercentage: 0, resetsAt: resets, durationMinutes: 10_080, displayName: "Fable")
         let account = ClaudeExtraAccount(name: "Side", location: "~/.claude-side")
-        let row = ClaudeAccountRow(
-            account: account, state: ClaudeAccountState(status: .ready, windows: windows, capturedAt: Date()))
-        let rows = VStack(alignment: .leading, spacing: Theme.Layout.accountsRowSpacing) {
-            row; row; row
-        }.frame(width: 520)
-        let height = fittingSize(rows).height
-        XCTAssertLessThanOrEqual(height, Theme.Layout.accountsMaxHeight)
+        let both = ClaudeAccountRow(
+            account: account, state: ClaudeAccountState(status: .ready, windows: [session, weekly], capturedAt: Date()))
+        let single = ClaudeAccountRow(
+            account: account, state: ClaudeAccountState(status: .ready, windows: [session], capturedAt: Date()))
+        for width in [Theme.Layout.panelWidth - 2 * (Theme.Layout.panelPadding + Theme.Layout.cardPadding), 520] {
+            let rows = VStack(alignment: .leading, spacing: Theme.Layout.accountsRowSpacing) {
+                single; both; single; single
+            }.frame(width: width)
+            XCTAssertLessThanOrEqual(fittingSize(rows).height, Theme.Layout.accountsMaxHeight, "\(width)")
+            XCTAssertEqual(fittingSize(both).height, fittingSize(single).height, accuracy: 0.5, "\(width)")
+            if let directory = ProcessInfo.processInfo.environment["TOKENGAUGE_SCREENSHOT_DIR"] {
+                _ = try? render(
+                    rows.padding(12),
+                    to: URL(fileURLWithPath: directory).appendingPathComponent("accounts-rows-\(Int(width)).png"))
+            }
+        }
     }
 
     func testAccountSettingsAndMenuBarMarksRender() async throws {
@@ -96,6 +106,14 @@ final class ClaudeAccountsRenderingTests: XCTestCase {
                     .init(id: UUID(), name: "Side", tint: .teal, icon: .house, remaining: 91),
                     .init(id: UUID(), name: "Team", tint: .pink, icon: .person, remaining: 74),
                     .init(id: UUID(), name: "Work", tint: .violet, icon: .balloon, remaining: 55),
+                ]
+            ),
+            (
+                "critical",
+                [
+                    .init(id: UUID(), name: "Side", tint: .pink, icon: .letter, letter: "S", remaining: 0),
+                    .init(id: UUID(), name: "Team", tint: .green, icon: .letter, letter: "T", remaining: 8),
+                    .init(id: UUID(), name: "Work", tint: .violet, icon: .balloon, remaining: 72),
                 ]
             ),
         ]

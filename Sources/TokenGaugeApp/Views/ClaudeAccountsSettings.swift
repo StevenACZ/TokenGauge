@@ -1,5 +1,6 @@
 import SwiftUI
 import TokenGaugeCore
+import UniformTypeIdentifiers
 
 struct ClaudeAccountsSettings: View {
     @ObservedObject var store: ClaudeAccountsStore
@@ -69,8 +70,11 @@ private struct ClaudeAccountEditor: View {
     let store: ClaudeAccountsStore
     @State private var editsDays = false
 
+    @State private var dropTargeted = false
+
     var body: some View {
         HStack(spacing: 10) {
+            grip
             Group {
                 Circle()
                     .fill(dotColor)
@@ -79,7 +83,7 @@ private struct ClaudeAccountEditor: View {
                 look
                 TextField("accounts.name".localized, text: binding(\.name))
                     .textFieldStyle(.roundedBorder).controlSize(.small)
-                    .frame(width: 120)
+                    .frame(width: 108)
                 TextField("accounts.location_placeholder".localized, text: binding(\.location))
                     .textFieldStyle(.roundedBorder).controlSize(.small)
                     .font(.system(size: 11, design: .monospaced))
@@ -108,6 +112,42 @@ private struct ClaudeAccountEditor: View {
             .help("accounts.remove".localized)
             .accessibilityLabel("accounts.remove".localized)
         }
+        .background(
+            RoundedRectangle(cornerRadius: 7)
+                .fill(Color.accentColor.opacity(dropTargeted ? 0.16 : 0))
+                .padding(.horizontal, -6).padding(.vertical, -3)
+        )
+        .dropDestination(for: AccountDrag.self) { items, _ in
+            guard let id = items.first?.id, let target = store.accounts.firstIndex(where: { $0.id == account.id })
+            else { return false }
+            store.move(id, to: target)
+            return true
+        } isTargeted: {
+            dropTargeted = $0
+        }
+    }
+
+    private var grip: some View {
+        let index = store.accounts.firstIndex { $0.id == account.id } ?? 0
+        return Image(systemName: "line.3.horizontal")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.tertiary)
+            .frame(width: 14, height: 22)
+            .contentShape(Rectangle())
+            .grabCursor()
+            .draggable(AccountDrag(id: account.id)) {
+                HStack(spacing: 6) {
+                    mark(account.icon, tint: account.tint, size: 13)
+                    Text(account.name.isEmpty ? "accounts.unnamed".localized : account.name)
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 7).fill(.regularMaterial))
+            }
+            .help("accounts.reorder_help".localized)
+            .accessibilityLabel("accounts.reorder".localized)
+            .accessibilityAction(named: "accounts.move_up".localized) { store.move(account.id, to: index - 1) }
+            .accessibilityAction(named: "accounts.move_down".localized) { store.move(account.id, to: index + 1) }
     }
 
     private var primaryButton: some View {
@@ -218,6 +258,24 @@ private struct ClaudeAccountEditor: View {
         case .unreachable: "accounts.status.unreachable".localized
         case .invalidLocation: "accounts.status.invalid".localized
         }
+    }
+}
+
+struct AccountDrag: Codable, Transferable {
+    static let type = UTType(exportedAs: "com.stevenacz.TokenGauge.account")
+    let id: UUID
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: type)
+    }
+}
+
+extension View {
+    fileprivate func grabCursor() -> some View {
+        if #available(macOS 15, *) {
+            return AnyView(pointerStyle(.grabIdle))
+        }
+        return AnyView(self)
     }
 }
 

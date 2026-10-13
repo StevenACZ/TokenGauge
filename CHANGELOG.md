@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Extra Claude accounts can be reordered by dragging their handle in Settings → Accounts; the panel and the menu bar follow that order.
+
+### Changed
+
+- The extra accounts card shows four accounts without the inner scroll. Each account keeps one uniform row: the 5 h bar spans the row, and a weekly limit appears as a small inline badge only on the accounts that have one.
+- Menu bar rings and bars are easier to read over light wallpapers: an exhausted quota draws a solid red ring or an outlined red bar, and the empty part of every track is stronger.
+
 ## [1.11.2] - 2026-10-12
 
 ### Changed
