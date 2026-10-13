@@ -30,6 +30,7 @@ struct MenuBarPresentation: Equatable {
     let size: MenuBarSize
     let style: QuotaMenuBarStyle
     let labelColor: NSColor
+    let alertColor: NSColor
 
     init(
         providers: [UsageProvider], state: (UsageProvider) -> ProviderViewState,
@@ -39,10 +40,13 @@ struct MenuBarPresentation: Equatable {
         self.size = size
         self.style = style
         var labelColor = NSColor.labelColor
+        var alertColor = NSColor.systemRed
         appearance.performAsCurrentDrawingAppearance {
             labelColor = labelColor.usingColorSpace(.sRGB) ?? labelColor
+            alertColor = alertColor.usingColorSpace(.sRGB) ?? alertColor
         }
         self.labelColor = labelColor
+        self.alertColor = alertColor
         let providerSegments = providers.flatMap { provider -> [Segment] in
             let windows = ProviderStateResolver.menuBarWindows(
                 state: state(provider), selection: selection[provider] ?? [])
@@ -68,7 +72,7 @@ struct MenuBarPresentation: Equatable {
         default: break
         }
         var markColor = NSColor(account.tint.color)
-        var graphicColor = (account.remaining ?? 100) < 12 ? NSColor.systemRed : markColor
+        var graphicColor = markColor
         appearance.performAsCurrentDrawingAppearance {
             graphicColor = graphicColor.usingColorSpace(.sRGB) ?? graphicColor
             markColor = markColor.usingColorSpace(.sRGB) ?? markColor
@@ -94,7 +98,6 @@ struct MenuBarPresentation: Equatable {
         default: break
         }
         var graphicColor: NSColor = provider == .codex ? .systemBlue : .systemOrange
-        if let remaining, remaining < 12 { graphicColor = .systemRed }
         appearance.performAsCurrentDrawingAppearance {
             graphicColor = graphicColor.usingColorSpace(.sRGB) ?? graphicColor
             color = color.usingColorSpace(.sRGB) ?? color
@@ -311,25 +314,21 @@ struct MenuBarPresentation: Equatable {
 
     static func isExhausted(_ remaining: Double) -> Bool { remaining < 0.5 }
 
-    private func trackColor(_ remaining: Double, segment: Segment) -> NSColor {
-        (remaining < 12 ? segment.graphicColor : labelColor).withAlphaComponent(Self.trackAlpha)
-    }
-
     private func drawBar(_ rect: NSRect, remaining: Double, segment: Segment) {
         let fraction = min(max(remaining / 100, 0), 1)
         let radius = rect.height / 2
         let track = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
         if Self.isExhausted(remaining) {
-            segment.graphicColor.withAlphaComponent(0.45).setFill()
+            alertColor.withAlphaComponent(0.45).setFill()
             track.fill()
             let edge = NSBezierPath(
                 roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: radius - 0.5, yRadius: radius - 0.5)
             edge.lineWidth = 1
-            segment.graphicColor.setStroke()
+            alertColor.setStroke()
             edge.stroke()
             return
         }
-        trackColor(remaining, segment: segment).setFill()
+        labelColor.withAlphaComponent(Self.trackAlpha).setFill()
         track.fill()
         NSGraphicsContext.saveGraphicsState()
         track.addClip()
@@ -343,11 +342,11 @@ struct MenuBarPresentation: Equatable {
         let track = NSBezierPath(ovalIn: rect)
         track.lineWidth = lineWidth
         if Self.isExhausted(remaining) {
-            segment.graphicColor.setStroke()
+            alertColor.setStroke()
             track.stroke()
             return
         }
-        trackColor(remaining, segment: segment).setStroke()
+        labelColor.withAlphaComponent(Self.trackAlpha).setStroke()
         track.stroke()
         segment.graphicColor.setStroke()
         if fraction == 1 {

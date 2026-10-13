@@ -138,13 +138,14 @@ final class MenuBarPresentationTests: XCTestCase {
         for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
             for style in [QuotaMenuBarStyle.bars, .rings] {
                 var redInk = [Double]()
-                for used in [100.0, 92.0] {
+                for used in [100.0, 95.0] {
                     let presentation = MenuBarPresentation(
-                        providers: [.claude], state: { self.state(provider: $0, status: .ready, usedPercentage: used) },
+                        providers: [.codex], state: { self.state(provider: $0, status: .ready, usedPercentage: used) },
                         appearance: NSAppearance(named: appearanceName)!, style: style)
                     redInk.append(try opaqueRedInk(XCTUnwrap(presentation.quotaImage(for: presentation.segments[0]))))
                 }
-                XCTAssertGreaterThan(redInk[0], redInk[1] * 1.5, "\(appearanceName.rawValue) \(style)")
+                XCTAssertGreaterThan(redInk[0], 10, "\(appearanceName.rawValue) \(style)")
+                XCTAssertEqual(redInk[1], 0, "a low quota keeps its own color: \(appearanceName.rawValue) \(style)")
             }
         }
     }
@@ -275,7 +276,7 @@ final class MenuBarPresentationTests: XCTestCase {
             NSRect(x: 4, y: 7.5, width: 14, height: 7))
         for letter in ["H", "S", "I", "W"] {
             let account = MenuBarPresentation.Account(
-                id: UUID(), name: letter, tint: .teal, icon: .letter, letter: letter, remaining: 5)
+                id: UUID(), name: letter, tint: .teal, icon: .letter, letter: letter, remaining: 0)
             let presentation = MenuBarPresentation(
                 providers: [.claude], state: { self.state(provider: $0, status: .ready) },
                 appearance: NSAppearance(named: .aqua)!, style: .rings, accounts: [account])

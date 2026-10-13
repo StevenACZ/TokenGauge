@@ -98,8 +98,20 @@ final class ClaudeAccountsStore: ObservableObject {
 
     var isShowing: Bool { enabled && !visibleAccounts.isEmpty }
 
-    func state(for account: ClaudeExtraAccount) -> ClaudeAccountState {
-        states[account.id] ?? ClaudeAccountState()
+    func state(for account: ClaudeExtraAccount, at now: Date = Date()) -> ClaudeAccountState {
+        var state = states[account.id] ?? ClaudeAccountState()
+        state.windows = Self.rolledOver(state.windows, at: now)
+        return state
+    }
+
+    // A window whose reset has passed starts over empty, as the endpoint reports it until the next read.
+    static func rolledOver(_ windows: [QuotaWindow], at now: Date) -> [QuotaWindow] {
+        windows.map { window in
+            guard let reset = window.resetsAt, reset <= now else { return window }
+            return QuotaWindow(
+                id: window.id, usedPercentage: 0, resetsAt: nil, durationMinutes: window.durationMinutes,
+                displayName: window.displayName)
+        }
     }
 
     var menuBarAccounts: [MenuBarPresentation.Account] {

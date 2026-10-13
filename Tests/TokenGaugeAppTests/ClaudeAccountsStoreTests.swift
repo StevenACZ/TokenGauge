@@ -209,6 +209,23 @@ final class ClaudeAccountsStoreTests: XCTestCase {
         XCTAssertEqual(count, 0)
     }
 
+    func testAWindowPastItsResetStartsOverEmpty() {
+        let now = Date()
+        let windows = [
+            QuotaWindow(
+                id: "five_hour", usedPercentage: 100, resetsAt: now.addingTimeInterval(-5), durationMinutes: 300,
+                displayName: nil),
+            QuotaWindow(
+                id: "seven_day", usedPercentage: 42, resetsAt: now.addingTimeInterval(3600), durationMinutes: 10_080,
+                displayName: nil),
+        ]
+        let rolled = ClaudeAccountsStore.rolledOver(windows, at: now)
+        XCTAssertEqual(rolled.map(\.id), ["five_hour", "seven_day"])
+        XCTAssertEqual(rolled[0].usedPercentage, 0)
+        XCTAssertNil(rolled[0].resetsAt)
+        XCTAssertEqual(rolled[1], windows[1])
+    }
+
     func testMovingAnAccountKeepsTheNewOrder() throws {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: temporaryDefaultsSuite()))
         let store = ClaudeAccountsStore(defaults: defaults) { _ in .windows([]) }

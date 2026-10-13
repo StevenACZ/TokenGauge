@@ -14,7 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The extra accounts card shows four accounts without the inner scroll. Each account keeps one uniform row: the 5 h bar spans the row, and a weekly limit appears as a small inline badge only on the accounts that have one.
-- Menu bar rings and bars are easier to read over light wallpapers: an exhausted quota draws a solid red ring or an outlined red bar, and the empty part of every track is stronger.
+- Menu bar rings and bars are easier to read over light wallpapers: only an exhausted quota turns red (a solid red ring or an outlined red bar), a low one keeps its own color, and the empty part of every track is stronger.
+
+### Fixed
+
+- When an extra or primary Claude account passes its reset, its card and menu bar indicator show the fresh window instead of going blank until the next read.
 
 ## [1.11.2] - 2026-10-12
 
