@@ -68,7 +68,7 @@ struct MenuBarPresentation: Equatable {
         default: break
         }
         var markColor = NSColor(account.tint.color)
-        var graphicColor = (account.remaining ?? 100) < 12 ? NSColor.systemRed : markColor
+        var graphicColor = markColor
         appearance.performAsCurrentDrawingAppearance {
             graphicColor = graphicColor.usingColorSpace(.sRGB) ?? graphicColor
             markColor = markColor.usingColorSpace(.sRGB) ?? markColor
@@ -94,7 +94,6 @@ struct MenuBarPresentation: Equatable {
         default: break
         }
         var graphicColor: NSColor = provider == .codex ? .systemBlue : .systemOrange
-        if let remaining, remaining < 12 { graphicColor = .systemRed }
         appearance.performAsCurrentDrawingAppearance {
             graphicColor = graphicColor.usingColorSpace(.sRGB) ?? graphicColor
             color = color.usingColorSpace(.sRGB) ?? color
@@ -147,11 +146,11 @@ struct MenuBarPresentation: Equatable {
                     title.append(gap)
                 }
                 if group.count > 1 {
-                    appendLogo(provider, to: title, font: font)
+                    appendLogo(provider, to: title, font: font, dimmed: isSpent(group))
                     title.append(NSAttributedString(string: " ", attributes: attributes))
                 }
                 let image =
-                    quotaImage(for: group) ?? ProviderLogoAssets.menuBarImage(for: provider, size: size.iconSize)
+                    quotaImage(for: group) ?? logo(provider, dimmed: false)
                 if let image {
                     append(image, to: title, font: font)
                 } else {
@@ -168,11 +167,12 @@ struct MenuBarPresentation: Equatable {
                 gap.addAttribute(.kern, value: 3, range: NSRange(location: 0, length: 1))
                 title.append(gap)
                 if group[0].account != nil {
-                    append(accountMark(group[0]), to: title, font: font)
+                    append(accountMark(group[0], dimmed: isSpent(group)), to: title, font: font)
                 } else {
-                    appendLogo(provider, to: title, font: font)
+                    appendLogo(provider, to: title, font: font, dimmed: isSpent(group))
                 }
             }
+            if style == .bars, isSpent(group) { continue }
             if style != .numbers, let image = quotaImage(for: group) {
                 title.append(NSAttributedString(string: " ", attributes: attributes))
                 append(image, to: title, font: font)
@@ -194,8 +194,33 @@ struct MenuBarPresentation: Equatable {
         return title
     }
 
-    private func accountMark(_ segment: Segment) -> NSImage {
-        let color = segment.markColor ?? segment.graphicColor
+    // A group with a spent window cannot be used until it resets, so its marks fade.
+    func isSpent(_ group: [Segment]) -> Bool {
+        group.contains { $0.remainingPercentage.map(Self.isExhausted) ?? false }
+    }
+
+    var leadingSpent: Bool { groups.first.map(isSpent) ?? false }
+
+    func leadingLogo() -> NSImage? {
+        segments.first.flatMap { logo($0.provider, dimmed: leadingSpent) }
+    }
+
+    static let spentAlpha: CGFloat = 0.38
+
+    private func logo(_ provider: UsageProvider, dimmed: Bool) -> NSImage? {
+        guard let image = ProviderLogoAssets.menuBarImage(for: provider, size: size.iconSize) else { return nil }
+        return dimmed ? Self.faded(image) : image
+    }
+
+    static func faded(_ image: NSImage) -> NSImage {
+        NSImage(size: image.size, flipped: false) { rect in
+            image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: spentAlpha)
+            return true
+        }
+    }
+
+    private func accountMark(_ segment: Segment, dimmed: Bool) -> NSImage {
+        let color = (segment.markColor ?? segment.graphicColor).withAlphaComponent(dimmed ? Self.spentAlpha : 1)
         return segment.icon.flatMap {
             AccountIconArt.image($0, letter: segment.letter, color: color, size: size.iconSize)
         } ?? Self.dot(color)
@@ -217,9 +242,11 @@ struct MenuBarPresentation: Equatable {
         }
     }
 
-    private func appendLogo(_ provider: UsageProvider, to title: NSMutableAttributedString, font: NSFont) {
+    private func appendLogo(
+        _ provider: UsageProvider, to title: NSMutableAttributedString, font: NSFont, dimmed: Bool = false
+    ) {
         let attachment = NSTextAttachment()
-        attachment.image = ProviderLogoAssets.menuBarImage(for: provider, size: size.iconSize)
+        attachment.image = logo(provider, dimmed: dimmed)
         attachment.bounds = NSRect(
             x: 0, y: (font.capHeight - size.iconSize) / 2, width: size.iconSize, height: size.iconSize)
         title.append(NSAttributedString(attachment: attachment))
@@ -235,9 +262,7 @@ struct MenuBarPresentation: Equatable {
 
     func renderedImage() -> NSImage {
         let title = attributedTitle()
-        let logo =
-            style == .rings
-            ? nil : segments.first.flatMap { ProviderLogoAssets.menuBarImage(for: $0.provider, size: size.iconSize) }
+        let logo = style == .rings ? nil : leadingLogo()
         let titleSize = title.size()
         let logoWidth = logo == nil ? 0 : size.iconSize
         let height = max(22, ceil(titleSize.height))
@@ -282,12 +307,12 @@ struct MenuBarPresentation: Equatable {
                 NSRect(origin: .zero, size: imageSize).insetBy(dx: lineWidth / 2, dy: lineWidth / 2),
                 lineWidth: lineWidth, remaining: remaining, segment: segment)
             let logoSize = min(14, diameter - 6)
+            let spent = Self.isExhausted(remaining)
+            let mark = (segment.markColor ?? segment.graphicColor).withAlphaComponent(spent ? Self.spentAlpha : 1)
+            let providerLogo = ProviderLogoAssets.menuBarImage(for: segment.provider, size: logoSize)
             let logo =
-                segment.icon.flatMap {
-                    AccountIconArt.image(
-                        $0, letter: segment.letter, color: segment.markColor ?? segment.graphicColor, size: logoSize)
-                }
-                ?? ProviderLogoAssets.menuBarImage(for: segment.provider, size: logoSize)
+                segment.icon.flatMap { AccountIconArt.image($0, letter: segment.letter, color: mark, size: logoSize) }
+                ?? (spent ? providerLogo.map(Self.faded) : providerLogo)
             NSGraphicsContext.saveGraphicsState()
             NSBezierPath(ovalIn: NSRect(origin: .zero, size: imageSize).insetBy(dx: 3, dy: 3)).addClip()
             if let logo { logo.draw(in: Self.centered(logo.size, fitting: logoSize, in: diameter)) }
@@ -307,13 +332,17 @@ struct MenuBarPresentation: Equatable {
         return image
     }
 
+    static let trackAlpha: CGFloat = 0.32
+
+    static func isExhausted(_ remaining: Double) -> Bool { remaining < 0.5 }
+
     private func drawBar(_ rect: NSRect, remaining: Double, segment: Segment) {
         let fraction = min(max(remaining / 100, 0), 1)
         let radius = rect.height / 2
         let track = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
-        segment.color.withAlphaComponent(0.2).setFill()
+        labelColor.withAlphaComponent(Self.trackAlpha).setFill()
         track.fill()
-        guard fraction > 0 else { return }
+        guard !Self.isExhausted(remaining) else { return }
         NSGraphicsContext.saveGraphicsState()
         track.addClip()
         segment.graphicColor.setFill()
@@ -325,9 +354,9 @@ struct MenuBarPresentation: Equatable {
         let fraction = min(max(remaining / 100, 0), 1)
         let track = NSBezierPath(ovalIn: rect)
         track.lineWidth = lineWidth
-        segment.color.withAlphaComponent(0.2).setStroke()
+        labelColor.withAlphaComponent(Self.trackAlpha).setStroke()
         track.stroke()
-        guard fraction > 0 else { return }
+        guard !Self.isExhausted(remaining) else { return }
         segment.graphicColor.setStroke()
         if fraction == 1 {
             track.stroke()

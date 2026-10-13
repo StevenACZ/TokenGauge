@@ -17,9 +17,9 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.11.2</string>
+    <string>1.12.0</string>
     <key>CFBundleVersion</key>
-    <string>18</string>
+    <string>19</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSLocalNetworkUsageDescription</key>
@@ -38,6 +38,19 @@
     <true/>
     <key>SUEnableSystemProfiling</key>
     <false/>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.stevenacz.TokenGauge.account</string>
+            <key>UTTypeDescription</key>
+            <string>TokenGauge account</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.data</string>
+            </array>
+        </dict>
+    </array>
     <key>TokenGaugeDevelopmentBuild</key>
     <true/>
 </dict>

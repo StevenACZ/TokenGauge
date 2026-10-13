@@ -16,59 +16,29 @@ final class UsageFormattersTests: XCTestCase {
         LocalizationManager.shared.language = .spanish
     }
 
-    func testUnderAnHourShowsMinutesAndTheClockTime() {
-        let reset = now.addingTimeInterval(43 * 60)
-
-        let text = UsageFormatters.reset(reset, now: now, calendar: calendar)
-
-        XCTAssertTrue(text.contains("43"), text)
-        XCTAssertTrue(text.contains(clock(reset)), text)
+    func testUnderAnHourShowsOnlyMinutes() {
+        XCTAssertEqual(UsageFormatters.reset(now.addingTimeInterval(43 * 60 + 50), now: now), "Reinicia en 43 min")
+        XCTAssertEqual(UsageFormatters.reset(now.addingTimeInterval(30), now: now), "Reinicia en 1 min")
     }
 
-    func testSameDayShowsHoursAndTheClockTime() {
-        let reset = now.addingTimeInterval(5 * 3_600)
-
-        let text = UsageFormatters.reset(reset, now: now, calendar: calendar)
-
-        XCTAssertTrue(text.contains(clock(reset)), text)
-        XCTAssertFalse(text.contains("mañana"), text)
+    func testUnderADayShowsHoursAndMinutesWithoutTheClock() {
+        XCTAssertEqual(
+            UsageFormatters.reset(now.addingTimeInterval(2 * 3_600 + 40 * 60), now: now), "Reinicia en 2 h 40 min")
+        XCTAssertEqual(UsageFormatters.reset(now.addingTimeInterval(5 * 3_600 + 20), now: now), "Reinicia en 5 h")
     }
 
-    func testNextCalendarDayShowsTomorrowAndTheClockTime() {
-        let reset = day(offset: 1).addingTimeInterval(9 * 3_600 + 15 * 60)
-
-        let text = UsageFormatters.reset(reset, now: now, calendar: calendar)
-
-        XCTAssertTrue(text.contains("mañana"), text)
-        XCTAssertTrue(text.contains(clock(reset)), text)
-    }
-
-    func testTwoOrMoreDaysAwayShowsOnlyDays() {
-        let reset = day(offset: 3).addingTimeInterval(9 * 3_600)
-
-        let text = UsageFormatters.reset(reset, now: now, calendar: calendar)
-
-        XCTAssertTrue(text.contains("3"), text)
-        XCTAssertFalse(text.contains(clock(reset)), text)
-        XCTAssertFalse(text.contains("mañana"), text)
-    }
-
-    func testFarResetsCountRealDaysNotMidnightCrossings() {
-        let lateNow = calendar.startOfDay(for: now).addingTimeInterval(22 * 3_600)
-        let reset = day(offset: 3).addingTimeInterval(6 * 3_600)
-
-        let text = UsageFormatters.reset(reset, now: lateNow, calendar: calendar)
-
-        XCTAssertTrue(text.contains("2"), text)
-        XCTAssertFalse(text.contains("3"), text)
+    func testDaysAwayShowDaysAndHours() {
+        let text = UsageFormatters.reset(now.addingTimeInterval(3 * 86_400 + 4 * 3_600 + 59 * 60), now: now)
+        XCTAssertEqual(text, "Reinicia en 3 d 4 h")
+        XCTAssertEqual(UsageFormatters.reset(now.addingTimeInterval(86_400 + 15 * 60), now: now), "Reinicia en 1 d")
+        LocalizationManager.shared.language = .english
+        defer { LocalizationManager.shared.language = .spanish }
+        XCTAssertEqual(UsageFormatters.reset(now.addingTimeInterval(80 * 60), now: now), "Resets in 1h 20m")
     }
 
     func testExpiredAndMissingResetsKeepTheirOwnPhrases() {
-        XCTAssertEqual(UsageFormatters.reset(nil, now: now, calendar: calendar), "reset.unknown".localized)
-        XCTAssertEqual(
-            UsageFormatters.reset(now.addingTimeInterval(-60), now: now, calendar: calendar),
-            "reset.pending".localized
-        )
+        XCTAssertEqual(UsageFormatters.reset(nil, now: now), "reset.unknown".localized)
+        XCTAssertEqual(UsageFormatters.reset(now.addingTimeInterval(-60), now: now), "reset.pending".localized)
     }
 
     func testServerReserveIdentifierHasItsOwnLabelAndExplanationInBothLanguages() {
@@ -85,17 +55,5 @@ final class UsageFormattersTests: XCTestCase {
                 durationMinutes: 10_080, displayName: nil)
             XCTAssertEqual(UsageFormatters.windowName(general), "window.general_weekly".localized)
         }
-    }
-
-    private func day(offset: Int) -> Date {
-        calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)) ?? now
-    }
-
-    private func clock(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "es")
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
     }
 }

@@ -252,12 +252,10 @@ final class StatusItemController: NSObject {
         guard presentation != displayedPresentation else { return }
         if displayedPresentation?.segments.first?.provider != presentation.segments.first?.provider
             || displayedPresentation?.size != presentation.size
-            || displayedPresentation?.style != presentation.style,
-            let provider = presentation.segments.first?.provider
+            || displayedPresentation?.style != presentation.style
+            || displayedPresentation?.leadingSpent != presentation.leadingSpent
         {
-            button.image =
-                presentation.style == .rings
-                ? nil : ProviderLogoAssets.menuBarImage(for: provider, size: presentation.size.iconSize)
+            button.image = presentation.style == .rings ? nil : presentation.leadingLogo()
         }
         button.attributedTitle = presentation.attributedTitle()
         button.toolTip = presentation.accessibilityLabel

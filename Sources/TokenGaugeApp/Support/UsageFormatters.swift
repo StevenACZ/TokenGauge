@@ -32,33 +32,15 @@ enum UsageFormatters {
         return value.formatted(integer)
     }
 
-    @MainActor static func reset(
-        _ date: Date?,
-        now: Date = Date(),
-        calendar: Calendar = .current
-    ) -> String {
+    @MainActor static func reset(_ date: Date?, now: Date = Date()) -> String {
         guard let date else { return "reset.unknown".localized }
         let remaining = date.timeIntervalSince(now)
         guard remaining > 0 else { return "reset.pending".localized }
 
-        if remaining < 86_400 {
-            let units: NSCalendar.Unit = remaining < 3_600 ? [.minute] : [.hour]
-            guard let span = span(remaining, units: units) else { return "reset.unknown".localized }
-            return "reset.in_at".localized(span, clock(date))
-        }
-
-        let dayDelta =
-            calendar.dateComponents(
-                [.day],
-                from: calendar.startOfDay(for: now),
-                to: calendar.startOfDay(for: date)
-            ).day ?? 0
-        if dayDelta == 1 {
-            return "reset.tomorrow_at".localized(clock(date))
-        }
-
-        let days = max(1, Int((remaining / 86_400).rounded()))
-        guard let span = span(Double(days) * 86_400, units: [.day]) else { return "reset.unknown".localized }
+        let minutes = Int(remaining / 60)
+        let units: NSCalendar.Unit = minutes < 60 ? [.minute] : minutes < 1_440 ? [.hour, .minute] : [.day, .hour]
+        let shown = minutes < 1_440 ? Double(minutes) * 60 : Double(minutes / 60) * 3_600
+        guard let span = span(shown, units: units) else { return "reset.unknown".localized }
         return "reset.in".localized(span)
     }
 
@@ -66,10 +48,6 @@ enum UsageFormatters {
         let formatter = LocalizedFormatters.current.span
         formatter.allowedUnits = units
         return formatter.string(from: max(interval, 60))
-    }
-
-    @MainActor private static func clock(_ date: Date) -> String {
-        LocalizedFormatters.current.clock.string(from: date)
     }
 
     @MainActor static func resetCredits(_ count: Int) -> String {
@@ -130,7 +108,6 @@ enum UsageFormatters {
 @MainActor
 private struct LocalizedFormatters {
     let span: DateComponentsFormatter
-    let clock: DateFormatter
     let relative: RelativeDateTimeFormatter
 
     private static var cache: [AppLanguage: LocalizedFormatters] = [:]
@@ -147,11 +124,8 @@ private struct LocalizedFormatters {
         span = DateComponentsFormatter()
         span.calendar?.locale = locale
         span.unitsStyle = .abbreviated
-        span.maximumUnitCount = 1
-        clock = DateFormatter()
-        clock.locale = locale
-        clock.dateStyle = .none
-        clock.timeStyle = .short
+        span.maximumUnitCount = 2
+        span.zeroFormattingBehavior = .dropAll
         relative = RelativeDateTimeFormatter()
         relative.locale = locale
         relative.unitsStyle = .short

@@ -209,6 +209,52 @@ final class ClaudeAccountsStoreTests: XCTestCase {
         XCTAssertEqual(count, 0)
     }
 
+    func testActivityReadsWaitForTheGapAfterTheLastRead() {
+        let now = Date()
+        let ready = ClaudeAccountsStore.apply(.windows([window]), to: ClaudeAccountState(), at: now)
+        XCTAssertEqual(
+            ClaudeAccountsStore.readableAt(ready).timeIntervalSince(now), ClaudeAccountsStore.minimumGap, accuracy: 0.01
+        )
+        let limited = ClaudeAccountsStore.apply(.rateLimited(retryAfter: nil), to: ready, at: now)
+        XCTAssertEqual(ClaudeAccountsStore.readableAt(limited), limited.nextRead)
+    }
+
+    func testAWindowPastItsResetStartsOverEmpty() {
+        let now = Date()
+        let windows = [
+            QuotaWindow(
+                id: "five_hour", usedPercentage: 100, resetsAt: now.addingTimeInterval(-5), durationMinutes: 300,
+                displayName: nil),
+            QuotaWindow(
+                id: "seven_day", usedPercentage: 42, resetsAt: now.addingTimeInterval(3600), durationMinutes: 10_080,
+                displayName: nil),
+        ]
+        let rolled = ClaudeAccountsStore.rolledOver(windows, at: now)
+        XCTAssertEqual(rolled.map(\.id), ["five_hour", "seven_day"])
+        XCTAssertEqual(rolled[0].usedPercentage, 0)
+        XCTAssertNil(rolled[0].resetsAt)
+        XCTAssertEqual(rolled[1], windows[1])
+    }
+
+    func testMovingAnAccountKeepsTheNewOrder() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: temporaryDefaultsSuite()))
+        let store = ClaudeAccountsStore(defaults: defaults) { _ in .windows([]) }
+        for name in ["A", "B", "C", "D"] {
+            store.add()
+            var account = store.accounts[store.accounts.count - 1]
+            account.name = name
+            store.update(account)
+        }
+        store.move(store.accounts[3].id, to: 0)
+        XCTAssertEqual(store.accounts.map(\.name), ["D", "A", "B", "C"])
+        store.move(store.accounts[0].id, to: 2)
+        XCTAssertEqual(store.accounts.map(\.name), ["A", "B", "D", "C"])
+        store.move(store.accounts[3].id, to: 9)
+        XCTAssertEqual(store.accounts.map(\.name), ["A", "B", "D", "C"])
+        let reloaded = ClaudeAccountsStore(defaults: defaults) { _ in .windows([]) }
+        XCTAssertEqual(reloaded.accounts.map(\.name), ["A", "B", "D", "C"])
+    }
+
     func testTheSessionAndTheTightestWeeklyFillTheRow() {
         let weekly = QuotaWindow(
             id: "seven_day", usedPercentage: 10, resetsAt: nil, durationMinutes: 10_080, displayName: nil)

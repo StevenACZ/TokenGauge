@@ -134,6 +134,43 @@ final class MenuBarPresentationTests: XCTestCase {
         }
     }
 
+    @MainActor func testASpentQuotaFadesInsteadOfTurningRed() throws {
+        for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
+            let appearance = NSAppearance(named: appearanceName)!
+            var redInk = [Double]()
+            var blue = [Double]()
+            for used in [100.0, 95.0] {
+                let presentation = MenuBarPresentation(
+                    providers: [.codex], state: { self.state(provider: $0, status: .ready, usedPercentage: used) },
+                    appearance: appearance, style: .rings)
+                let ring = try XCTUnwrap(presentation.quotaImage(for: presentation.segments[0]))
+                redInk.append(try opaqueRedInk(ring))
+                blue.append(try blueInk(ring, annulusOnly: true))
+            }
+            XCTAssertEqual(redInk, [0, 0], appearanceName.rawValue)
+            XCTAssertEqual(blue[0], 0, "a spent ring is only its gray track: \(appearanceName.rawValue)")
+            XCTAssertGreaterThan(blue[1], 0, "a low ring keeps its own color: \(appearanceName.rawValue)")
+            let accounts: [MenuBarPresentation.Account] = [
+                .init(id: UUID(), name: "Side", tint: .teal, icon: .letter, letter: "S", remaining: 0),
+                .init(id: UUID(), name: "Team", tint: .pink, icon: .letter, letter: "T", remaining: 5),
+            ]
+            let bars = MenuBarPresentation(
+                providers: [.codex], state: { self.state(provider: $0, status: .ready, usedPercentage: 100) },
+                appearance: appearance, style: .bars, accounts: accounts)
+            XCTAssertEqual(bars.groups.map(bars.isSpent), [true, true, false])
+            XCTAssertTrue(bars.leadingSpent)
+            XCTAssertEqual(attachmentCount(bars.attributedTitle()), 3, "spent bars leave only their marks")
+        }
+    }
+
+    @MainActor private func attachmentCount(_ title: NSAttributedString) -> Int {
+        var count = 0
+        title.enumerateAttribute(.attachment, in: NSRange(location: 0, length: title.length)) { value, _, _ in
+            if value is NSTextAttachment { count += 1 }
+        }
+        return count
+    }
+
     @MainActor func testGraphicsNeverRepresentUnavailableOrStaleBalances() {
         for style in [QuotaMenuBarStyle.bars, .rings] {
             for status in [ProviderStatus.unavailable, .stale, .authenticationRequired, .credentialExpired, .cancelled]
@@ -197,6 +234,22 @@ final class MenuBarPresentationTests: XCTestCase {
         return total
     }
 
+    @MainActor private func opaqueRedInk(_ image: NSImage) throws -> Double {
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: XCTUnwrap(image.tiffRepresentation)))
+        var total = 0.0
+        for y in 0..<bitmap.pixelsHigh {
+            for x in 0..<bitmap.pixelsWide {
+                let color = try XCTUnwrap(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
+                if color.alphaComponent > 0.4, color.redComponent - color.blueComponent > 0.25,
+                    color.redComponent - color.greenComponent > 0.25
+                {
+                    total += 1
+                }
+            }
+        }
+        return total
+    }
+
     @MainActor private func centerOpacity(_ image: NSImage) throws -> Double {
         let bitmap = try XCTUnwrap(NSBitmapImageRep(data: XCTUnwrap(image.tiffRepresentation)))
         var opacity = 0.0
@@ -248,13 +301,13 @@ final class MenuBarPresentationTests: XCTestCase {
             NSRect(x: 4, y: 7.5, width: 14, height: 7))
         for letter in ["H", "S", "I", "W"] {
             let account = MenuBarPresentation.Account(
-                id: UUID(), name: letter, tint: .teal, icon: .letter, letter: letter, remaining: 5)
+                id: UUID(), name: letter, tint: .teal, icon: .letter, letter: letter, remaining: 0)
             let presentation = MenuBarPresentation(
                 providers: [.claude], state: { self.state(provider: $0, status: .ready) },
                 appearance: NSAppearance(named: .aqua)!, style: .rings, accounts: [account])
             let segment = try XCTUnwrap(presentation.segments.last)
             let ring = try XCTUnwrap(presentation.quotaImage(for: segment))
-            let ink = try inkBounds(ring) { $0.greenComponent > $0.redComponent && $0.alphaComponent > 0.5 }
+            let ink = try inkBounds(ring) { $0.greenComponent > $0.redComponent && $0.alphaComponent > 0.2 }
             XCTAssertEqual(ink.midX, ring.size.width / 2, accuracy: 0.75, letter)
             XCTAssertEqual(ink.midY, ring.size.height / 2, accuracy: 0.75, letter)
             let natural = try inkBounds(AccountIconArt.letterImage(letter, color: .systemTeal, size: 14)) {

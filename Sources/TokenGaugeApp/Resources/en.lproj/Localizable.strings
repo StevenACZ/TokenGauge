@@ -22,8 +22,6 @@
 "reset.unknown" = "Reset not provided";
 "reset.pending" = "Resetting";
 "reset.in" = "Resets in %@";
-"reset.in_at" = "Resets in %1$@ · %2$@";
-"reset.tomorrow_at" = "Resets tomorrow · %@";
 "reset_credits.one" = "1 reset";
 "reset_credits.many" = "%d resets";
 "reset_credits.available_one" = "1 limit reset available";
@@ -342,6 +340,10 @@
 "accounts.remove" = "Remove account";
 "accounts.hide" = "Hide account";
 "accounts.make_primary" = "Make primary";
+"accounts.reorder" = "Reorder";
+"accounts.reorder_help" = "Drag to change the order of the accounts in the panel and the menu bar.";
+"accounts.move_up" = "Move up";
+"accounts.move_down" = "Move down";
 "accounts.primary" = "Primary account";
 "accounts.primary_help" = "Show this account in the large Claude card and in the menu bar. This Mac's login is hidden while it is primary.";
 "accounts.primary_active" = "%@ is the primary Claude account. This Mac's login is hidden.";
