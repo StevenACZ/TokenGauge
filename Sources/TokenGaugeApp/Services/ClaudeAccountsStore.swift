@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import TokenGaugeCore
 
 struct ClaudeAccountState: Equatable {
@@ -26,6 +27,7 @@ final class ClaudeAccountsStore: ObservableObject {
     static let accountsKey = "claudeExtraAccounts"
     static let primaryKey = "claudePrimaryAccount"
     static let interval: TimeInterval = 300
+    private static let log = Logger(subsystem: "com.stevenacz.TokenGauge", category: "accounts")
     static let minimumGap: TimeInterval = 120
 
     @Published var enabled: Bool {
@@ -35,7 +37,9 @@ final class ClaudeAccountsStore: ObservableObject {
         }
     }
     @Published private(set) var accounts: [ClaudeExtraAccount]
-    @Published private(set) var states: [UUID: ClaudeAccountState] = [:]
+    @Published private(set) var states: [UUID: ClaudeAccountState] = [:] {
+        didSet { scheduleResetTick() }
+    }
     @Published private(set) var primaryID: UUID?
     @Published private(set) var weekday: Int
 
@@ -47,6 +51,9 @@ final class ClaudeAccountsStore: ObservableObject {
     private var inFlight: Set<UUID> = []
     private var renewing = false
     private var pendingEdits: [UUID: Task<Void, Never>] = [:]
+    private var pendingReads: [UUID: Task<Void, Never>] = [:]
+    private var monitors: [UUID: (path: String, monitor: DirectoryActivityMonitor)] = [:]
+    private var resetTimer: Timer?
 
     init(
         defaults: UserDefaults = .standard,
@@ -129,6 +136,79 @@ final class ClaudeAccountsStore: ObservableObject {
         save()
     }
 
+    // Reads as soon as the 120 s gap allows, or once when it opens; repeated requests share that read.
+    func requestRead(_ id: UUID) {
+        guard enabled, pendingReads[id] == nil, !inFlight.contains(id) else { return }
+        let state = states[id] ?? ClaudeAccountState()
+        let wait = Self.isDue(state, at: Date(), force: true) ? 0 : Self.readableAt(state).timeIntervalSinceNow
+        Self.log.debug("read requested, starts in \(Int(max(wait, 0)), privacy: .public) s")
+        pendingReads[id] = Task { [weak self] in
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+            guard !Task.isCancelled else { return }
+            self?.pendingReads[id] = nil
+            await self?.refresh(id, force: true)
+        }
+    }
+
+    static func readableAt(_ state: ClaudeAccountState) -> Date {
+        guard state.status == .ready, state.failures == 0 else { return state.nextRead }
+        return state.nextRead.addingTimeInterval(minimumGap - interval)
+    }
+
+    private func scheduleResetTick() {
+        resetTimer?.invalidate()
+        resetTimer = nil
+        let now = Date()
+        guard
+            let next = states.values.flatMap(\.windows).compactMap(\.resetsAt).filter({ $0 > now }).min()
+        else { return }
+        let timer = Timer(fire: next.addingTimeInterval(1), interval: 0, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.resetPassed() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        resetTimer = timer
+    }
+
+    // The rolled-over windows show at once; a fresh read replaces them when the gap allows.
+    private func resetPassed() {
+        objectWillChange.send()
+        let now = Date()
+        for (id, state) in states where state.windows.contains(where: { ($0.resetsAt ?? .distantFuture) <= now }) {
+            requestRead(id)
+        }
+        scheduleResetTick()
+    }
+
+    private func syncMonitors() {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        var wanted: [UUID: String] = [:]
+        if enabled {
+            for account in accounts where account.isVisible(onWeekday: weekday) {
+                guard let location = ClaudeAccountLocation.parse(account.location), location.host == nil else {
+                    continue
+                }
+                let directory =
+                    location.directory == "~"
+                    ? home.path
+                    : location.directory.hasPrefix("~/")
+                        ? home.appending(path: String(location.directory.dropFirst(2))).path : location.directory
+                wanted[account.id] = URL(fileURLWithPath: directory).appending(path: "projects").path
+            }
+        }
+        for (id, entry) in monitors where wanted[id] != entry.path {
+            entry.monitor.stop()
+            monitors[id] = nil
+        }
+        for (id, path) in wanted where monitors[id] == nil {
+            let monitor = DirectoryActivityMonitor(url: URL(fileURLWithPath: path)) { [weak self] in
+                Task { @MainActor in self?.requestRead(id) }
+            }
+            monitor.start()
+            monitors[id] = (path, monitor)
+        }
+        Self.log.debug("watching \(self.monitors.count, privacy: .public) local logins")
+    }
+
     func remove(_ id: UUID) {
         accounts.removeAll { $0.id == id }
         states[id] = nil
@@ -165,7 +245,10 @@ final class ClaudeAccountsStore: ObservableObject {
     func refreshAll(force: Bool = false) {
         guard enabled else { return }
         let today = currentWeekday()
-        if today != weekday { weekday = today }
+        if today != weekday {
+            weekday = today
+            syncMonitors()
+        }
         for account in accounts {
             if account.isVisible(onWeekday: weekday) {
                 Task { await refresh(account.id, force: force) }
@@ -290,16 +373,21 @@ final class ClaudeAccountsStore: ObservableObject {
             Task { @MainActor in self?.refreshAll() }
         }
         refreshAll()
+        syncMonitors()
     }
 
     private func stop() {
         timer?.invalidate()
         timer = nil
+        pendingReads.values.forEach { $0.cancel() }
+        pendingReads = [:]
         states = [:]
+        syncMonitors()
     }
 
     private func save() {
         if let data = try? JSONEncoder().encode(accounts) { defaults.set(data, forKey: Self.accountsKey) }
+        syncMonitors()
     }
 
     nonisolated static func fetch(_ location: ClaudeAccountLocation) async -> ClaudeExtraAccountResult {

@@ -134,29 +134,41 @@ final class MenuBarPresentationTests: XCTestCase {
         }
     }
 
-    @MainActor func testAnExhaustedQuotaDrawsASolidRedGraphic() throws {
+    @MainActor func testASpentQuotaFadesInsteadOfTurningRed() throws {
         for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
-            for style in [QuotaMenuBarStyle.bars, .rings] {
-                var redInk = [Double]()
-                for used in [100.0, 95.0] {
-                    let presentation = MenuBarPresentation(
-                        providers: [.codex], state: { self.state(provider: $0, status: .ready, usedPercentage: used) },
-                        appearance: NSAppearance(named: appearanceName)!, style: style)
-                    redInk.append(try opaqueRedInk(XCTUnwrap(presentation.quotaImage(for: presentation.segments[0]))))
-                }
-                XCTAssertGreaterThan(redInk[0], 10, "\(appearanceName.rawValue) \(style)")
-                XCTAssertEqual(redInk[1], 0, "a low quota keeps its own color: \(appearanceName.rawValue) \(style)")
-                let spent = MenuBarPresentation(
-                    providers: [.codex], state: { self.state(provider: $0, status: .ready, usedPercentage: 100) },
-                    appearance: NSAppearance(named: appearanceName)!, style: style,
-                    accounts: [
-                        .init(id: UUID(), name: "Side", tint: .teal, icon: .letter, letter: "S", remaining: 0),
-                        .init(id: UUID(), name: "Team", tint: .pink, icon: .letter, letter: "T", remaining: 5),
-                    ])
-                XCTAssertEqual(spent.groups.map(spent.isSpent), [true, true, false])
-                XCTAssertTrue(spent.leadingSpent)
+            let appearance = NSAppearance(named: appearanceName)!
+            var redInk = [Double]()
+            var blue = [Double]()
+            for used in [100.0, 95.0] {
+                let presentation = MenuBarPresentation(
+                    providers: [.codex], state: { self.state(provider: $0, status: .ready, usedPercentage: used) },
+                    appearance: appearance, style: .rings)
+                let ring = try XCTUnwrap(presentation.quotaImage(for: presentation.segments[0]))
+                redInk.append(try opaqueRedInk(ring))
+                blue.append(try blueInk(ring, annulusOnly: true))
             }
+            XCTAssertEqual(redInk, [0, 0], appearanceName.rawValue)
+            XCTAssertEqual(blue[0], 0, "a spent ring is only its gray track: \(appearanceName.rawValue)")
+            XCTAssertGreaterThan(blue[1], 0, "a low ring keeps its own color: \(appearanceName.rawValue)")
+            let accounts: [MenuBarPresentation.Account] = [
+                .init(id: UUID(), name: "Side", tint: .teal, icon: .letter, letter: "S", remaining: 0),
+                .init(id: UUID(), name: "Team", tint: .pink, icon: .letter, letter: "T", remaining: 5),
+            ]
+            let bars = MenuBarPresentation(
+                providers: [.codex], state: { self.state(provider: $0, status: .ready, usedPercentage: 100) },
+                appearance: appearance, style: .bars, accounts: accounts)
+            XCTAssertEqual(bars.groups.map(bars.isSpent), [true, true, false])
+            XCTAssertTrue(bars.leadingSpent)
+            XCTAssertEqual(attachmentCount(bars.attributedTitle()), 3, "spent bars leave only their marks")
         }
+    }
+
+    @MainActor private func attachmentCount(_ title: NSAttributedString) -> Int {
+        var count = 0
+        title.enumerateAttribute(.attachment, in: NSRange(location: 0, length: title.length)) { value, _, _ in
+            if value is NSTextAttachment { count += 1 }
+        }
+        return count
     }
 
     @MainActor func testGraphicsNeverRepresentUnavailableOrStaleBalances() {

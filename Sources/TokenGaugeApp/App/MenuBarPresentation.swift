@@ -30,7 +30,6 @@ struct MenuBarPresentation: Equatable {
     let size: MenuBarSize
     let style: QuotaMenuBarStyle
     let labelColor: NSColor
-    let alertColor: NSColor
 
     init(
         providers: [UsageProvider], state: (UsageProvider) -> ProviderViewState,
@@ -40,15 +39,10 @@ struct MenuBarPresentation: Equatable {
         self.size = size
         self.style = style
         var labelColor = NSColor.labelColor
-        var alertColor = NSColor.systemRed
         appearance.performAsCurrentDrawingAppearance {
             labelColor = labelColor.usingColorSpace(.sRGB) ?? labelColor
-            let red = NSColor.systemRed.usingColorSpace(.sRGB) ?? .systemRed
-            let gray = NSColor.systemGray.usingColorSpace(.sRGB) ?? .systemGray
-            alertColor = red.blended(withFraction: 0.45, of: gray) ?? red
         }
         self.labelColor = labelColor
-        self.alertColor = alertColor
         let providerSegments = providers.flatMap { provider -> [Segment] in
             let windows = ProviderStateResolver.menuBarWindows(
                 state: state(provider), selection: selection[provider] ?? [])
@@ -178,6 +172,7 @@ struct MenuBarPresentation: Equatable {
                     appendLogo(provider, to: title, font: font, dimmed: isSpent(group))
                 }
             }
+            if style == .bars, isSpent(group) { continue }
             if style != .numbers, let image = quotaImage(for: group) {
                 title.append(NSAttributedString(string: " ", attributes: attributes))
                 append(image, to: title, font: font)
@@ -345,18 +340,9 @@ struct MenuBarPresentation: Equatable {
         let fraction = min(max(remaining / 100, 0), 1)
         let radius = rect.height / 2
         let track = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
-        if Self.isExhausted(remaining) {
-            alertColor.withAlphaComponent(0.3).setFill()
-            track.fill()
-            let edge = NSBezierPath(
-                roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: radius - 0.5, yRadius: radius - 0.5)
-            edge.lineWidth = 1
-            alertColor.setStroke()
-            edge.stroke()
-            return
-        }
         labelColor.withAlphaComponent(Self.trackAlpha).setFill()
         track.fill()
+        guard !Self.isExhausted(remaining) else { return }
         NSGraphicsContext.saveGraphicsState()
         track.addClip()
         segment.graphicColor.setFill()
@@ -368,13 +354,9 @@ struct MenuBarPresentation: Equatable {
         let fraction = min(max(remaining / 100, 0), 1)
         let track = NSBezierPath(ovalIn: rect)
         track.lineWidth = lineWidth
-        if Self.isExhausted(remaining) {
-            alertColor.setStroke()
-            track.stroke()
-            return
-        }
         labelColor.withAlphaComponent(Self.trackAlpha).setStroke()
         track.stroke()
+        guard !Self.isExhausted(remaining) else { return }
         segment.graphicColor.setStroke()
         if fraction == 1 {
             track.stroke()

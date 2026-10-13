@@ -14,7 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The extra accounts card shows four accounts without the inner scroll. Each account keeps one uniform row: the 5 h bar spans the row, and a weekly limit appears as a small inline badge only on the accounts that have one.
-- Menu bar rings and bars are easier to read over light wallpapers: only an exhausted quota turns a muted red (a full ring or an outlined bar) and its account or provider mark fades, so the usable ones stand out; a low quota keeps its own color, and the empty part of every track is stronger.
+- Menu bar rings and bars are easier to read over light wallpapers: an exhausted quota is never red: its ring keeps only the gray track, its bar hides, and its account or provider mark fades, so the usable ones stand out; a low quota keeps its own color, and the empty part of every track is stronger.
+- Reset times read as the real remaining time, such as «Resets in 2h 40m» or «43m», without the clock time.
+- Extra accounts on this Mac update while they are in use: activity in their Claude Code folder triggers a read, at most every two minutes, and a passed reset shows at once and is read again.
 
 ### Fixed
 

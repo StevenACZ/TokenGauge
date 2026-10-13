@@ -209,6 +209,16 @@ final class ClaudeAccountsStoreTests: XCTestCase {
         XCTAssertEqual(count, 0)
     }
 
+    func testActivityReadsWaitForTheGapAfterTheLastRead() {
+        let now = Date()
+        let ready = ClaudeAccountsStore.apply(.windows([window]), to: ClaudeAccountState(), at: now)
+        XCTAssertEqual(
+            ClaudeAccountsStore.readableAt(ready).timeIntervalSince(now), ClaudeAccountsStore.minimumGap, accuracy: 0.01
+        )
+        let limited = ClaudeAccountsStore.apply(.rateLimited(retryAfter: nil), to: ready, at: now)
+        XCTAssertEqual(ClaudeAccountsStore.readableAt(limited), limited.nextRead)
+    }
+
     func testAWindowPastItsResetStartsOverEmpty() {
         let now = Date()
         let windows = [

@@ -22,8 +22,6 @@
 "reset.unknown" = "Reset not provided";
 "reset.pending" = "Resetting";
 "reset.in" = "Resets in %@";
-"reset.in_at" = "Resets in %1$@ · %2$@";
-"reset.tomorrow_at" = "Resets tomorrow · %@";
 "reset_credits.one" = "1 reset";
 "reset_credits.many" = "%d resets";
 "reset_credits.available_one" = "1 limit reset available";
