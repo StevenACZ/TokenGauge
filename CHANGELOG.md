@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-10-13
+
 ### Added
 
 - Extra Claude accounts can be reordered by dragging their handle in Settings → Accounts; the panel and the menu bar follow that order.
