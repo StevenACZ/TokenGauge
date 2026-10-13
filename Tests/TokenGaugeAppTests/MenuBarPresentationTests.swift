@@ -146,6 +146,15 @@ final class MenuBarPresentationTests: XCTestCase {
                 }
                 XCTAssertGreaterThan(redInk[0], 10, "\(appearanceName.rawValue) \(style)")
                 XCTAssertEqual(redInk[1], 0, "a low quota keeps its own color: \(appearanceName.rawValue) \(style)")
+                let spent = MenuBarPresentation(
+                    providers: [.codex], state: { self.state(provider: $0, status: .ready, usedPercentage: 100) },
+                    appearance: NSAppearance(named: appearanceName)!, style: style,
+                    accounts: [
+                        .init(id: UUID(), name: "Side", tint: .teal, icon: .letter, letter: "S", remaining: 0),
+                        .init(id: UUID(), name: "Team", tint: .pink, icon: .letter, letter: "T", remaining: 5),
+                    ])
+                XCTAssertEqual(spent.groups.map(spent.isSpent), [true, true, false])
+                XCTAssertTrue(spent.leadingSpent)
             }
         }
     }
@@ -219,7 +228,11 @@ final class MenuBarPresentationTests: XCTestCase {
         for y in 0..<bitmap.pixelsHigh {
             for x in 0..<bitmap.pixelsWide {
                 let color = try XCTUnwrap(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB))
-                if color.alphaComponent > 0.4, color.redComponent - color.blueComponent > 0.5 { total += 1 }
+                if color.alphaComponent > 0.4, color.redComponent - color.blueComponent > 0.25,
+                    color.redComponent - color.greenComponent > 0.25
+                {
+                    total += 1
+                }
             }
         }
         return total
@@ -282,7 +295,7 @@ final class MenuBarPresentationTests: XCTestCase {
                 appearance: NSAppearance(named: .aqua)!, style: .rings, accounts: [account])
             let segment = try XCTUnwrap(presentation.segments.last)
             let ring = try XCTUnwrap(presentation.quotaImage(for: segment))
-            let ink = try inkBounds(ring) { $0.greenComponent > $0.redComponent && $0.alphaComponent > 0.5 }
+            let ink = try inkBounds(ring) { $0.greenComponent > $0.redComponent && $0.alphaComponent > 0.2 }
             XCTAssertEqual(ink.midX, ring.size.width / 2, accuracy: 0.75, letter)
             XCTAssertEqual(ink.midY, ring.size.height / 2, accuracy: 0.75, letter)
             let natural = try inkBounds(AccountIconArt.letterImage(letter, color: .systemTeal, size: 14)) {
