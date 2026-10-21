@@ -356,6 +356,37 @@ extension ClaudeAccountsStoreTests {
         let count = await renewals.count
         XCTAssertEqual(count, 0)
     }
+
+    func testExportWritesReadingsOnlyWhileSwitchedOn() async throws {
+        let defaults = UserDefaults(suiteName: temporaryDefaultsSuite())!
+        defaults.set(true, forKey: ClaudeAccountsStore.enabledKey)
+        defaults.set(true, forKey: ClaudeAccountsStore.exportKey)
+        let directory = FileManager.default.temporaryDirectory.appending(path: "TokenGaugeExport-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appending(path: "claude-accounts.json")
+        let window = window
+        let store = ClaudeAccountsStore(defaults: defaults, exportURL: url) { _ in .windows([window]) }
+        store.add()
+        var account = store.accounts[0]
+        account.name = "Side"
+        account.location = "~/.claude-side"
+        store.update(account)
+        await store.refresh(account.id, force: true)
+
+        let export = try SecureMetricStore.read(ClaudeAccountsExport.self, from: url)
+        XCTAssertEqual(export.version, ClaudeAccountsExport.version)
+        XCTAssertEqual(export.accounts.map(\.location), ["~/.claude-side"])
+        XCTAssertEqual(export.accounts.first?.status, "ready")
+        XCTAssertEqual(export.accounts.first?.windows, [window])
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+        let keys = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]).keys
+        XCTAssertEqual(Set(keys), ["version", "updatedAt", "accounts"])
+
+        defaults.set(false, forKey: ClaudeAccountsStore.exportKey)
+        store.remove(account.id)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
 }
 
 private final class Weekday: @unchecked Sendable {
