@@ -3,7 +3,7 @@ import OSLog
 import TokenGaugeCore
 
 struct ClaudeAccountState: Equatable {
-    enum Status: Equatable {
+    enum Status: String, Equatable {
         case loading, ready, signedOut, expired, noAccess, rateLimited, unreachable, invalidLocation
     }
 
@@ -21,11 +21,13 @@ struct ClaudeAccountState: Equatable {
 @MainActor
 final class ClaudeAccountsStore: ObservableObject {
     static let shared = ClaudeAccountsStore(
-        defaults: DemoData.isEnabled ? UserDefaults(suiteName: DemoData.defaultsSuite) ?? .standard : .standard)
+        defaults: DemoData.isEnabled ? UserDefaults(suiteName: DemoData.defaultsSuite) ?? .standard : .standard,
+        exportURL: DemoData.isEnabled ? nil : UsagePaths.claudeAccountsExport())
 
     static let enabledKey = "claudeExtraAccountsEnabled"
     static let accountsKey = "claudeExtraAccounts"
     static let primaryKey = "claudePrimaryAccount"
+    static let exportKey = "claudeAccountsExport"
     static let interval: TimeInterval = 300
     private static let log = Logger(subsystem: "com.stevenacz.TokenGauge", category: "accounts")
     static let minimumGap: TimeInterval = 120
@@ -38,7 +40,10 @@ final class ClaudeAccountsStore: ObservableObject {
     }
     @Published private(set) var accounts: [ClaudeExtraAccount]
     @Published private(set) var states: [UUID: ClaudeAccountState] = [:] {
-        didSet { scheduleResetTick() }
+        didSet {
+            scheduleResetTick()
+            export()
+        }
     }
     @Published private(set) var primaryID: UUID?
     @Published private(set) var weekday: Int
@@ -54,15 +59,19 @@ final class ClaudeAccountsStore: ObservableObject {
     private var pendingReads: [UUID: Task<Void, Never>] = [:]
     private var monitors: [UUID: (path: String, monitor: DirectoryActivityMonitor)] = [:]
     private var resetTimer: Timer?
+    private let exportURL: URL?
+    private var exported: [ClaudeAccountsExport.Account]?
 
     init(
         defaults: UserDefaults = .standard,
+        exportURL: URL? = nil,
         read: @escaping @Sendable (ClaudeAccountLocation) async -> ClaudeExtraAccountResult = ClaudeAccountsStore.fetch,
         renew: @escaping @Sendable (ClaudeAccountLocation) async -> ClaudeExtraAccountResult? = ClaudeAccountsStore
             .renewThroughCLI,
         currentWeekday: @escaping () -> Int = { Calendar.current.component(.weekday, from: Date()) }
     ) {
         self.defaults = defaults
+        self.exportURL = exportURL
         self.read = read
         self.renew = renew
         self.currentWeekday = currentWeekday
@@ -75,6 +84,34 @@ final class ClaudeAccountsStore: ObservableObject {
             ?? []
         primaryID = defaults.string(forKey: Self.primaryKey).flatMap(UUID.init(uuidString:))
         if enabled { start() }
+        export()
+    }
+
+    // Rewritten only when a reading changes, so a launch keeps the last file until the first read lands;
+    // turning the switch off removes it.
+    private func export() {
+        guard let exportURL else { return }
+        guard defaults.bool(forKey: Self.exportKey) else {
+            if exported != nil || FileManager.default.fileExists(atPath: exportURL.path) {
+                try? FileManager.default.removeItem(at: exportURL)
+                exported = nil
+            }
+            return
+        }
+        let rows = accounts.compactMap { account in
+            states[account.id].map {
+                ClaudeAccountsExport.Account(
+                    location: account.location, status: $0.status.rawValue, capturedAt: $0.capturedAt,
+                    windows: $0.windows)
+            }
+        }
+        guard rows != exported, exported != nil || !rows.isEmpty else { return }
+        do {
+            try SecureMetricStore.write(ClaudeAccountsExport(updatedAt: Date(), accounts: rows), to: exportURL)
+            exported = rows
+        } catch {
+            Self.log.error("export failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     var primaryAccount: ClaudeExtraAccount? {

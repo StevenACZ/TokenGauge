@@ -17,6 +17,12 @@ public enum UsagePaths {
         supportDirectory(homeDirectory: homeDirectory).appending(path: "claude-account-usage.json")
     }
 
+    public static func claudeAccountsExport(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        supportDirectory(homeDirectory: homeDirectory).appending(path: "claude-accounts.json")
+    }
+
     public static func history(homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
         supportDirectory(homeDirectory: homeDirectory).appending(path: "usage-history.sqlite")
     }
