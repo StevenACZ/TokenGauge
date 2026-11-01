@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.2] - 2026-11-01
+
+### Fixed
+
+- Claude plans without the 5-hour limit: a menu bar set to the 5-hour session now shows the tightest weekly limit instead of `--`, and returns to the session if the plan has that limit again.
+- The automatic menu bar choice is now the tightest of all Claude weekly limits; it used to prefer a model limit even when that limit had more room left.
+
 ## [1.12.1] - 2026-10-21
 
 ### Changed

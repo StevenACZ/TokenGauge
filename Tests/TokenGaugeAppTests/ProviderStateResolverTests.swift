@@ -30,6 +30,32 @@ final class ProviderStateResolverTests: XCTestCase {
         XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: state)?.id, "seven_day_fable")
     }
 
+    func testAPlanWithoutTheSessionLimitShowsTheTightestWeeklyInItsPlace() {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let state = ProviderViewState(
+            snapshot: snapshot(
+                provider: .claude,
+                windows: [
+                    window(id: "seven_day", used: 70, duration: 10_080, reset: now.addingTimeInterval(86_400)),
+                    window(
+                        id: "seven_day_fable",
+                        used: 0,
+                        duration: 10_080,
+                        reset: now.addingTimeInterval(86_400),
+                        displayName: "Fable"
+                    ),
+                ],
+                capturedAt: now
+            ),
+            status: .ready,
+            isRefreshing: false
+        )
+
+        XCTAssertEqual(ProviderStateResolver.menuBarWindow(state: state)?.id, "seven_day")
+        XCTAssertEqual(
+            ProviderStateResolver.menuBarWindows(state: state, selection: [.session]).map(\.id), ["seven_day"])
+    }
+
     func testMenuBarFallsBackToTheAllModelsWeeklyWindow() {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
         let state = ProviderViewState(

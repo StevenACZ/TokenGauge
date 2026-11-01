@@ -57,6 +57,27 @@ final class ClaudeAccountUsageParserTests: XCTestCase {
             ["five_hour", "seven_day", "seven_day_fable", "unbounded"])
     }
 
+    func testAPlanWithoutTheSessionLimitReadsAsItsWeeklyWindows() throws {
+        let input = Data(
+            """
+            {
+              "five_hour": null,
+              "seven_day": {"utilization": 70.0},
+              "limits": [
+                {"kind": "weekly_all", "group": "weekly", "percent": 70, "severity": "normal",
+                 "resets_at": "2026-11-02T08:00:00.404314+00:00", "scope": null, "is_active": true},
+                {"kind": "weekly_scoped", "group": "weekly", "percent": 0, "severity": "normal",
+                 "resets_at": "2026-11-02T08:00:00+00:00",
+                 "scope": {"model": {"id": null, "display_name": "Fable"}, "surface": null}, "is_active": false}
+              ]
+            }
+            """.utf8
+        )
+        let windows = try ClaudeAccountUsageParser.parse(input)
+        XCTAssertEqual(windows.map(\.id), ["seven_day", "seven_day_fable"])
+        XCTAssertEqual(windows.first?.usedPercentage, 70)
+    }
+
     func testSkipsScopedLimitsWithoutAModelName() throws {
         let input = Data(
             """

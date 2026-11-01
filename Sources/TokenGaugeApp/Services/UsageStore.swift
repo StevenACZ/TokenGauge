@@ -760,7 +760,8 @@ enum ProviderStateResolver {
             let chosen = QuotaWindowKind.ordered(selection).compactMap { kind in
                 candidates.first { QuotaWindowKind.of($0, provider: snapshot.provider) == kind }
             }
-            if !chosen.isEmpty || snapshot.provider == .claude { return chosen }
+            let sessionIsGone = selection.contains(.session)
+            if !chosen.isEmpty || (snapshot.provider == .claude && !sessionIsGone) { return chosen }
         }
         let windows = WindowVisibility.visible(snapshot.windows, provider: snapshot.provider, showLunaReserve: false)
             .filter { ($0.resetsAt ?? .distantFuture) > Date() }
@@ -769,10 +770,9 @@ enum ProviderStateResolver {
             let general = weekly.first { $0.id.hasPrefix("codex.") } ?? windows.first { $0.id.hasPrefix("codex.") }
             return general.map { [$0] } ?? []
         }
-        let scoped = weekly.filter { ($0.displayName ?? "").isEmpty == false }
         let automatic =
-            scoped.min(by: { $0.remainingPercentage < $1.remainingPercentage })
-            ?? weekly.first ?? windows.min { $0.remainingPercentage < $1.remainingPercentage }
+            weekly.min { $0.remainingPercentage < $1.remainingPercentage }
+            ?? windows.min { $0.remainingPercentage < $1.remainingPercentage }
         return automatic.map { [$0] } ?? []
     }
 
