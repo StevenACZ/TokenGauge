@@ -112,7 +112,8 @@ struct MenuBarDesigner: View {
         let isOnly = shown && store.displayMode.providers.count == 1
         let state = store.state(for: provider)
         let kinds = ProviderStateResolver.menuBarKinds(snapshot: state.snapshot, provider: provider)
-        let selection = store.menuBarSelection(for: provider)
+        let stored = store.menuBarSelection(for: provider)
+        let selection = kinds.contains(.session) ? stored : stored.subtracting([.session])
         let automatic = Set(
             ProviderStateResolver.menuBarWindows(state: state).compactMap {
                 QuotaWindowKind.of($0, provider: provider)
